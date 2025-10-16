@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Badge System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-5xl mx-auto space-y-6">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-4">🎖️ Badge System Setup</h1>
+
+            <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-blue-700">
+                            Your badge system needs to be set up. This will create the badges table with 10 pre-seeded badges and the user_badges tracking table.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Migration 006: Badges Table -->
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-semibold text-gray-900">📋 Step 1: Create Badges Table</h2>
+                <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">Migration 006</span>
+            </div>
+
+            <p class="text-gray-600 mb-4">
+                This migration creates the badges table and seeds it with 10 default NIL-related badges including: NIL Novice, Quick Learner, Profile Complete, First Steps, and more.
+            </p>
+
+            <div class="bg-gray-900 rounded-lg p-4 relative mb-4">
+                <button
+                    onclick="copySQL('badges')"
+                    class="absolute top-2 right-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                    id="copyBtnBadges"
+                >
+                    Copy SQL
+                </button>
+                <pre class="text-green-400 text-sm overflow-x-auto pr-24 max-h-96"><code id="badgesSQL">-- Migration 006: Create badges table for gamification system
+
+-- Create badge rarity enum
+DO $$ BEGIN
+    CREATE TYPE badge_rarity AS ENUM ('common', 'uncommon', 'rare', 'epic', 'legendary');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Create badge category enum
+DO $$ BEGIN
+    CREATE TYPE badge_category AS ENUM ('learning', 'engagement', 'social', 'achievement', 'milestone');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Create badges table
+CREATE TABLE IF NOT EXISTS badges (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name varchar(100) NOT NULL UNIQUE,
+  description text NOT NULL,
+  icon varchar(255),
+  category badge_category NOT NULL,
+  rarity badge_rarity NOT NULL DEFAULT 'common',
+  criteria jsonb NOT NULL DEFAULT '{}',
+  points integer NOT NULL DEFAULT 0,
+  is_active boolean DEFAULT true,
+  display_order integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now()
+);
+
+-- Enable Row Level Security
+ALTER TABLE badges ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+CREATE POLICY "Everyone can read active badges" ON badges
+  FOR SELECT USING (is_active = true);
+
+CREATE POLICY "Service role can manage badges" ON badges
+  FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_badges_category ON badges(category);
+CREATE INDEX IF NOT EXISTS idx_badges_rarity ON badges(rarity);
+CREATE INDEX IF NOT EXISTS idx_badges_active ON badges(is_active);
+CREATE INDEX IF NOT EXISTS idx_badges_display_order ON badges(display_order);
+CREATE INDEX IF NOT EXISTS idx_badges_created_at ON badges(created_at);
+
+-- Create trigger to update updated_at
+CREATE TRIGGER update_badges_updated_at
+    BEFORE UPDATE ON badges
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Insert default badges
+INSERT INTO badges (name, description, icon, category, rarity, criteria, points, display_order) VALUES
+  ('NIL Novice', 'Complete your first NIL education quiz', 'trophy', 'learning', 'common', '{"quizzes_completed": 1}', 10, 1),
+  ('Quick Learner', 'Complete 5 NIL education quizzes', 'book', 'learning', 'uncommon', '{"quizzes_completed": 5}', 50, 2),
+  ('NIL Scholar', 'Complete 10 NIL education quizzes with 80%+ average', 'graduation-cap', 'learning', 'rare', '{"quizzes_completed": 10, "min_avg_score": 80}', 100, 3),
+  ('First Steps', 'Send your first message in the chat', 'message-circle', 'engagement', 'common', '{"messages_sent": 1}', 5, 4),
+  ('Conversationalist', 'Send 50 messages in the chat', 'messages', 'engagement', 'uncommon', '{"messages_sent": 50}', 25, 5),
+  ('Profile Complete', 'Complete 100% of your profile information', 'user-check', 'achievement', 'uncommon', '{"profile_completion": 100}', 30, 6),
+  ('Early Adopter', 'Join ChatNIL in the first month', 'star', 'milestone', 'rare', '{"joined_before": "2025-01-31"}', 75, 7),
+  ('Deal Maker', 'Log your first NIL opportunity', 'handshake', 'achievement', 'uncommon', '{"opportunities_logged": 1}', 40, 8),
+  ('Social Star', 'Connect with 10 other users', 'users', 'social', 'rare', '{"connections": 10}', 60, 9),
+  ('Perfect Score', 'Score 100% on any NIL quiz', 'award', 'achievement', 'epic', '{"perfect_quiz_score": 1}', 150, 10)
+ON CONFLICT (name) DO NOTHING;</code></pre>
+            </div>
+
+            <a
+                href="https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/sql/new"
+                target="_blank"
+                class="inline-block bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+            >
+                Open Supabase SQL Editor →
+            </a>
+        </div>
+
+        <!-- Migration 007: User Badges Table -->
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-semibold text-gray-900">🏆 Step 2: Create User Badges Table</h2>
+                <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">Migration 007</span>
+            </div>
+
+            <p class="text-gray-600 mb-4">
+                This migration creates the user_badges junction table to track which badges users have earned, plus helper functions for awarding badges and calculating points.
+            </p>
+
+            <div class="bg-gray-900 rounded-lg p-4 relative mb-4">
+                <button
+                    onclick="copySQL('userBadges')"
+                    class="absolute top-2 right-2 bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                    id="copyBtnUserBadges"
+                >
+                    Copy SQL
+                </button>
+                <pre class="text-green-400 text-sm overflow-x-auto pr-24 max-h-96"><code id="userBadgesSQL">-- Migration 007: Create user_badges table
+
+-- Create user_badges table
+CREATE TABLE IF NOT EXISTS user_badges (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  badge_id uuid NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+  earned_at timestamp with time zone DEFAULT now(),
+  progress jsonb DEFAULT '{}',
+  is_displayed boolean DEFAULT false,
+  display_order integer DEFAULT 0,
+  notes text,
+  awarded_by uuid REFERENCES users(id),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  UNIQUE(user_id, badge_id)
+);
+
+-- Enable Row Level Security
+ALTER TABLE user_badges ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+CREATE POLICY "Users can view own badges" ON user_badges
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view displayed badges of others" ON user_badges
+  FOR SELECT USING (is_displayed = true);
+
+CREATE POLICY "Users can update own badge display" ON user_badges
+  FOR UPDATE USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Service role can award badges" ON user_badges
+  FOR INSERT WITH CHECK (auth.jwt() ->> 'role' = 'service_role');
+
+CREATE POLICY "Service role can manage user badges" ON user_badges
+  FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_user_badges_user_id ON user_badges(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_badges_badge_id ON user_badges(badge_id);
+CREATE INDEX IF NOT EXISTS idx_user_badges_earned_at ON user_badges(earned_at);
+CREATE INDEX IF NOT EXISTS idx_user_badges_displayed ON user_badges(is_displayed);
+CREATE INDEX IF NOT EXISTS idx_user_badges_user_displayed ON user_badges(user_id, is_displayed);
+
+-- Create trigger
+CREATE TRIGGER update_user_badges_updated_at
+    BEFORE UPDATE ON user_badges
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Helper function to award badge
+CREATE OR REPLACE FUNCTION award_badge_to_user(
+  p_user_id uuid,
+  p_badge_id uuid,
+  p_awarded_by uuid DEFAULT NULL,
+  p_notes text DEFAULT NULL
+)
+RETURNS uuid AS $$
+DECLARE
+  v_user_badge_id uuid;
+BEGIN
+  INSERT INTO user_badges (user_id, badge_id, awarded_by, notes)
+  VALUES (p_user_id, p_badge_id, p_awarded_by, p_notes)
+  ON CONFLICT (user_id, badge_id) DO NOTHING
+  RETURNING id INTO v_user_badge_id;
+
+  RETURN v_user_badge_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Helper function to get badge count
+CREATE OR REPLACE FUNCTION get_user_badge_count(p_user_id uuid)
+RETURNS integer AS $$
+DECLARE
+  v_count integer;
+BEGIN
+  SELECT COUNT(*)
+  INTO v_count
+  FROM user_badges
+  WHERE user_id = p_user_id;
+
+  RETURN v_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Helper function to get total points
+CREATE OR REPLACE FUNCTION get_user_badge_points(p_user_id uuid)
+RETURNS integer AS $$
+DECLARE
+  v_total_points integer;
+BEGIN
+  SELECT COALESCE(SUM(b.points), 0)
+  INTO v_total_points
+  FROM user_badges ub
+  JOIN badges b ON ub.badge_id = b.id
+  WHERE ub.user_id = p_user_id;
+
+  RETURN v_total_points;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;</code></pre>
+            </div>
+
+            <div class="bg-orange-50 border-l-4 border-orange-400 p-4 mb-4">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-orange-700">
+                            <strong>Important:</strong> Run Step 1 first, then Step 2. The user_badges table depends on the badges table existing.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <a
+                href="https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/sql/new"
+                target="_blank"
+                class="inline-block bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+            >
+                Open Supabase SQL Editor →
+            </a>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">📖 How to Run</h2>
+            <ol class="space-y-3 list-decimal list-inside text-gray-700">
+                <li>Click "Open Supabase SQL Editor" button above</li>
+                <li>In Supabase, click "+ New Query" to create a fresh query window</li>
+                <li>Click "Copy SQL" on Step 1 and paste it into the query editor</li>
+                <li>Click "Run" in Supabase (or press Cmd/Ctrl + Enter)</li>
+                <li>Wait for success message</li>
+                <li>Create another new query ("+  New Query")</li>
+                <li>Click "Copy SQL" on Step 2 and paste it into the new query</li>
+                <li>Click "Run" again</li>
+                <li>Done! Your badge system is now set up</li>
+            </ol>
+
+            <div class="mt-6 p-4 bg-green-50 rounded-lg">
+                <h3 class="font-semibold text-green-900 mb-2">What You'll Get:</h3>
+                <ul class="space-y-1 text-sm text-green-800">
+                    <li>✅ 10 pre-seeded badges (NIL Novice, Quick Learner, Profile Complete, etc.)</li>
+                    <li>✅ Badge awarding system working for profile completion</li>
+                    <li>✅ Badge unlock notifications</li>
+                    <li>✅ Points system for badges</li>
+                    <li>✅ Badge showcase on profile pages</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copySQL(type) {
+            const codeId = type === 'badges' ? 'badgesSQL' : 'userBadgesSQL';
+            const btnId = type === 'badges' ? 'copyBtnBadges' : 'copyBtnUserBadges';
+
+            const sqlCode = document.getElementById(codeId).textContent;
+            const btn = document.getElementById(btnId);
+
+            navigator.clipboard.writeText(sqlCode).then(() => {
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Copied!';
+                btn.classList.remove('bg-blue-500', 'hover:bg-blue-600', 'bg-purple-500', 'hover:bg-purple-600');
+                btn.classList.add('bg-green-500');
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('bg-green-500');
+                    if (type === 'badges') {
+                        btn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                    } else {
+                        btn.classList.add('bg-purple-500', 'hover:bg-purple-600');
+                    }
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

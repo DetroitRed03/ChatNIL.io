@@ -1,0 +1,146 @@
+-- Helper functions for the ChatNIL application
+
+-- Function to create a user profile after signup
+CREATE OR REPLACE FUNCTION create_user_profile()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Insert into users table
+  INSERT INTO public.users (id, email, role)
+  VALUES (NEW.id, NEW.email, 'athlete'); -- Default to athlete, will be updated
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to automatically create user profile on auth signup
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION create_user_profile();
+
+-- Function to get user with profile
+CREATE OR REPLACE FUNCTION get_user_with_profile(user_id UUID)
+RETURNS JSON AS $$
+DECLARE
+  user_record users%ROWTYPE;
+  profile_data JSON;
+BEGIN
+  -- Get user record
+  SELECT * INTO user_record FROM users WHERE id = user_id;
+
+  IF user_record IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  -- Get role-specific profile
+  CASE user_record.role
+    WHEN 'athlete' THEN
+      SELECT row_to_json(ap) INTO profile_data
+      FROM athlete_profiles ap
+      WHERE ap.user_id = user_id;
+    WHEN 'parent' THEN
+      SELECT row_to_json(pp) INTO profile_data
+      FROM parent_profiles pp
+      WHERE pp.user_id = user_id;
+    WHEN 'coach' THEN
+      SELECT row_to_json(cp) INTO profile_data
+      FROM coach_profiles cp
+      WHERE cp.user_id = user_id;
+  END CASE;
+
+  -- Return combined data
+  RETURN json_build_object(
+    'id', user_record.id,
+    'email', user_record.email,
+    'role', user_record.role,
+    'created_at', user_record.created_at,
+    'updated_at', user_record.updated_at,
+    'profile', profile_data
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to update user role and create profile
+CREATE OR REPLACE FUNCTION set_user_role_and_profile(
+  user_id UUID,
+  user_role user_role,
+  profile_data JSON
+)
+RETURNS JSON AS $$
+BEGIN
+  -- Update user role
+  UPDATE users SET role = user_role WHERE id = user_id;
+
+  -- Insert role-specific profile
+  CASE user_role
+    WHEN 'athlete' THEN
+      INSERT INTO athlete_profiles (
+        user_id, first_name, last_name, sport, school,
+        graduation_year, position, bio
+      )
+      VALUES (
+        user_id,
+        profile_data->>'first_name',
+        profile_data->>'last_name',
+        profile_data->>'sport',
+        profile_data->>'school',
+        (profile_data->>'graduation_year')::INTEGER,
+        profile_data->>'position',
+        profile_data->>'bio'
+      );
+    WHEN 'parent' THEN
+      INSERT INTO parent_profiles (
+        user_id, first_name, last_name, relation_to_athlete, phone
+      )
+      VALUES (
+        user_id,
+        profile_data->>'first_name',
+        profile_data->>'last_name',
+        profile_data->>'relation_to_athlete',
+        profile_data->>'phone'
+      );
+    WHEN 'coach' THEN
+      INSERT INTO coach_profiles (
+        user_id, first_name, last_name, school, team, sport, years_experience
+      )
+      VALUES (
+        user_id,
+        profile_data->>'first_name',
+        profile_data->>'last_name',
+        profile_data->>'school',
+        profile_data->>'team',
+        profile_data->>'sport',
+        (profile_data->>'years_experience')::INTEGER
+      );
+  END CASE;
+
+  -- Return updated user with profile
+  RETURN get_user_with_profile(user_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get or create chat session
+CREATE OR REPLACE FUNCTION get_or_create_chat_session(
+  user_id UUID,
+  session_title TEXT DEFAULT 'New Chat'
+)
+RETURNS UUID AS $$
+DECLARE
+  session_id UUID;
+BEGIN
+  -- Try to get the most recent session for the user
+  SELECT id INTO session_id
+  FROM chat_sessions
+  WHERE chat_sessions.user_id = get_or_create_chat_session.user_id
+  ORDER BY updated_at DESC
+  LIMIT 1;
+
+  -- If no session exists, create one
+  IF session_id IS NULL THEN
+    INSERT INTO chat_sessions (user_id, title)
+    VALUES (get_or_create_chat_session.user_id, session_title)
+    RETURNING id INTO session_id;
+  END IF;
+
+  RETURN session_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

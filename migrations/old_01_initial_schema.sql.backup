@@ -1,0 +1,131 @@
+-- ChatNIL Database Schema
+-- Initial migration for user roles and profiles
+
+-- Create custom types
+CREATE TYPE user_role AS ENUM ('athlete', 'parent', 'coach');
+CREATE TYPE message_role AS ENUM ('user', 'assistant');
+
+-- Enable Row Level Security
+ALTER DATABASE postgres SET "app.jwt_secret" TO 'your-jwt-secret-here';
+
+-- Users table (extends auth.users)
+CREATE TABLE users (
+  id UUID REFERENCES auth.users ON DELETE CASCADE,
+  email TEXT NOT NULL UNIQUE,
+  role user_role NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (id)
+);
+
+-- Athlete profiles table
+CREATE TABLE athlete_profiles (
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  sport TEXT NOT NULL,
+  school TEXT NOT NULL,
+  graduation_year INTEGER,
+  position TEXT,
+  bio TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (user_id)
+);
+
+-- Parent profiles table
+CREATE TABLE parent_profiles (
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  relation_to_athlete TEXT NOT NULL,
+  phone TEXT,
+  athletes UUID[] DEFAULT ARRAY[]::UUID[],
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (user_id)
+);
+
+-- Coach profiles table
+CREATE TABLE coach_profiles (
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  school TEXT NOT NULL,
+  team TEXT,
+  sport TEXT NOT NULL,
+  years_experience INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (user_id)
+);
+
+-- Chat sessions table
+CREATE TABLE chat_sessions (
+  id UUID DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL DEFAULT 'New Chat',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (id)
+);
+
+-- Chat messages table
+CREATE TABLE chat_messages (
+  id UUID DEFAULT gen_random_uuid(),
+  session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  role message_role NOT NULL,
+  attachments JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (id)
+);
+
+-- Chat attachments table
+CREATE TABLE chat_attachments (
+  id UUID DEFAULT gen_random_uuid(),
+  message_id UUID REFERENCES chat_messages(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  file_name TEXT NOT NULL,
+  file_size BIGINT NOT NULL,
+  file_type TEXT NOT NULL,
+  storage_path TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (id)
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_chat_sessions_user_id ON chat_sessions(user_id);
+CREATE INDEX idx_chat_messages_session_id ON chat_messages(session_id);
+CREATE INDEX idx_chat_messages_user_id ON chat_messages(user_id);
+CREATE INDEX idx_chat_messages_created_at ON chat_messages(created_at);
+CREATE INDEX idx_chat_attachments_message_id ON chat_attachments(message_id);
+CREATE INDEX idx_chat_attachments_user_id ON chat_attachments(user_id);
+
+-- Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create triggers to automatically update updated_at
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_athlete_profiles_updated_at BEFORE UPDATE ON athlete_profiles
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_parent_profiles_updated_at BEFORE UPDATE ON parent_profiles
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_coach_profiles_updated_at BEFORE UPDATE ON coach_profiles
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_chat_sessions_updated_at BEFORE UPDATE ON chat_sessions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

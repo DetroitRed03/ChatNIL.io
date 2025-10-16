@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run Database Migration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-4">🚀 Database Migration Required</h1>
+
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-yellow-700">
+                            Your database needs 7 new columns to store onboarding data properly. This migration will add: secondary_sports, school_level, coach_name, coach_email, nil_goals, stats, and bio.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-900 mb-3">📋 Migration SQL</h2>
+                    <div class="bg-gray-900 rounded-lg p-4 relative">
+                        <button
+                            onclick="copySQL()"
+                            class="absolute top-2 right-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                            id="copyBtn"
+                        >
+                            Copy SQL
+                        </button>
+                        <pre class="text-green-400 text-sm overflow-x-auto pr-24"><code id="sqlCode">ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS secondary_sports TEXT[],
+  ADD COLUMN IF NOT EXISTS school_level VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS coach_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS coach_email VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS nil_goals TEXT[],
+  ADD COLUMN IF NOT EXISTS stats JSONB,
+  ADD COLUMN IF NOT EXISTS bio TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_users_school_level ON users(school_level);
+CREATE INDEX IF NOT EXISTS idx_users_secondary_sports ON users USING gin(secondary_sports);
+CREATE INDEX IF NOT EXISTS idx_users_nil_goals ON users USING gin(nil_goals);</code></pre>
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-900 mb-3">🎯 Steps to Run Migration</h2>
+                    <ol class="space-y-3">
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold mr-3">1</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700">Click the button below to open Supabase SQL Editor in a new tab</p>
+                                <a
+                                    href="https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/sql/new"
+                                    target="_blank"
+                                    class="inline-block mt-2 bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+                                >
+                                    Open Supabase SQL Editor →
+                                </a>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold mr-3">2</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700">Click "Copy SQL" button above to copy the migration code</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold mr-3">3</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700">Paste the SQL into the Supabase SQL Editor</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold mr-3">4</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700">Click the "Run" button (or press Ctrl/Cmd + Enter)</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold mr-3">5</span>
+                            <div class="flex-1">
+                                <p class="text-gray-700">Return to this page and verify the migration succeeded</p>
+                                <button
+                                    onclick="verifyMigration()"
+                                    class="inline-block mt-2 bg-purple-500 hover:bg-purple-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+                                    id="verifyBtn"
+                                >
+                                    Verify Migration
+                                </button>
+                            </div>
+                        </li>
+                    </ol>
+                </div>
+
+                <div id="verificationResult" class="hidden">
+                    <!-- Verification result will be shown here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copySQL() {
+            const sqlCode = document.getElementById('sqlCode').textContent;
+            navigator.clipboard.writeText(sqlCode).then(() => {
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = '✓ Copied!';
+                btn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                btn.classList.add('bg-green-500');
+                setTimeout(() => {
+                    btn.textContent = 'Copy SQL';
+                    btn.classList.remove('bg-green-500');
+                    btn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                }, 2000);
+            });
+        }
+
+        async function verifyMigration() {
+            const btn = document.getElementById('verifyBtn');
+            const resultDiv = document.getElementById('verificationResult');
+
+            btn.textContent = 'Verifying...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/admin/migrate');
+                const data = await response.json();
+
+                resultDiv.classList.remove('hidden');
+
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="bg-green-50 border-l-4 border-green-400 p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-medium text-green-800">✅ Migration Successful!</h3>
+                                    <p class="mt-2 text-sm text-green-700">${data.message}</p>
+                                    <p class="mt-2 text-sm text-green-700">Your onboarding data will now save properly!</p>
+                                    <a href="/" class="inline-block mt-3 bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-2 rounded">
+                                        Return to Home
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (data.needsMigration) {
+                    resultDiv.innerHTML = `
+                        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-medium text-yellow-800">⚠️ Migration Not Yet Complete</h3>
+                                    <p class="mt-2 text-sm text-yellow-700">The columns haven't been added yet. Please make sure you ran the SQL in Supabase SQL Editor.</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="bg-red-50 border-l-4 border-red-400 p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-medium text-red-800">❌ Verification Error</h3>
+                                    <p class="mt-2 text-sm text-red-700">${data.error || 'Unknown error occurred'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.classList.remove('hidden');
+                resultDiv.innerHTML = `
+                    <div class="bg-red-50 border-l-4 border-red-400 p-4">
+                        <p class="text-sm text-red-700">Failed to verify: ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                btn.textContent = 'Verify Migration';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
