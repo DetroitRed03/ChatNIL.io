@@ -1,18 +1,28 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Test both regular and service role clients
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+function getSupabaseAnon() {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
 
-const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey);
 function getSupabaseAdmin() {
-  return createClient(supabaseUrl, supabaseServiceRoleKey);
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 }
 
 export async function GET(request: NextRequest) {
+  const supabaseUrl = process.env.SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+  const supabaseAnon = getSupabaseAnon();
   const supabaseAdmin = getSupabaseAdmin();
+
   console.log('🧪 === DATABASE ACCESS TEST ===');
 
   const results: any = {
