@@ -19,10 +19,12 @@ import {
   RECONSIDER_WINDOW_HOURS
 } from '@/lib/reconsider-utils';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 /**
  * Get authenticated user ID from request
@@ -66,6 +68,8 @@ export async function POST(
         { status: 401 }
       );
     }
+
+    const supabase = getSupabaseClient();
 
     // Get the invite with response history
     const { data: invite, error: inviteError } = await supabase
@@ -199,6 +203,8 @@ export async function GET(
         { status: 401 }
       );
     }
+
+    const supabase = getSupabaseClient();
 
     // Get the invite
     const { data: invite, error: inviteError } = await supabase

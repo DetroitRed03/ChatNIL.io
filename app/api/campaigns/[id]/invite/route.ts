@@ -9,10 +9,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createAuthClient } from '@/lib/supabase/server';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 /**
  * Get authenticated user ID from request
@@ -65,6 +67,8 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    const supabase = getSupabaseClient();
 
     // Verify campaign exists (using agency_campaigns table)
     const { data: campaign, error: campaignError } = await supabase

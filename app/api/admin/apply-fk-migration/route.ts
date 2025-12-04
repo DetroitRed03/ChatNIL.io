@@ -8,13 +8,17 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function POST() {
   try {
+    const supabase = getSupabaseClient();
+
     // The issue: campaign_athletes.campaign_id references 'campaigns' table
     // but we're using 'agency_campaigns' table
 
@@ -78,6 +82,7 @@ GRANT ALL ON campaign_athletes TO service_role;
 export async function GET() {
   // Check current FK constraint
   try {
+    const supabase = getSupabaseClient();
     const { data: fkCheck } = await supabase
       .from('campaign_athletes')
       .select('campaign_id')
