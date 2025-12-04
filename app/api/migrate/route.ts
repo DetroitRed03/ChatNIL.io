@@ -7,12 +7,14 @@ import path from 'path';
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+function getSupabaseAdmin() {
+  return createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
   }
 });
+}
 
 interface Migration {
   id: string;
@@ -220,6 +222,7 @@ async function executeMigration(migration: Migration): Promise<{ success: boolea
 }
 
 export async function GET(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     console.log('📋 === MIGRATION STATUS CHECK ===');
 
@@ -269,6 +272,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     console.log('🚀 === MIGRATION EXECUTION ===');
 

@@ -5,7 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+function getSupabaseAdmin() {
+  return createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
@@ -16,8 +17,10 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     }
   }
 });
+}
 
 export async function GET(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     console.log('🔍 === API ROUTE: GET PROFILE (MINIMAL) ===');
     const { searchParams } = new URL(request.url);

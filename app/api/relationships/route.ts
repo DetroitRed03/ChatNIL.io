@@ -5,7 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+function getSupabaseAdmin() {
+  return createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
@@ -16,9 +17,11 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     }
   }
 });
+}
 
 // Create a new relationship
 export async function POST(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     console.log('🔗 === API ROUTE: CREATE RELATIONSHIP ===');
 
@@ -201,6 +204,7 @@ export async function POST(request: NextRequest) {
 
 // Get relationships for a user
 export async function GET(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     console.log('🔍 === API ROUTE: GET RELATIONSHIPS ===');
 
@@ -334,6 +338,7 @@ export async function GET(request: NextRequest) {
 
 // Delete a relationship
 export async function DELETE(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     console.log('🗑️ === API ROUTE: DELETE RELATIONSHIP ===');
 

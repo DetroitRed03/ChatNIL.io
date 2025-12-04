@@ -4,7 +4,8 @@ import { splitProfileUpdates, mergeProfileData } from '@/lib/profile-field-mappe
 
 // Use service role client to bypass RLS
 // Note: Using untyped client because some tables aren't in Database types
-const supabaseAdmin = createClient(
+function getSupabaseAdmin() {
+  return createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
@@ -14,8 +15,10 @@ const supabaseAdmin = createClient(
     }
   }
 );
+}
 
 export async function GET(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
@@ -117,6 +120,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     const body = await request.json();
     const { userId, updates } = body;

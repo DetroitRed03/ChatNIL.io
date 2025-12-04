@@ -6,7 +6,8 @@ type ChatMessage = Database['public']['Tables']['chat_messages']['Row'];
 type ChatMessageInsert = Database['public']['Tables']['chat_messages']['Insert'];
 
 // Use service role client to bypass RLS
-const supabaseAdmin = createClient<Database>(
+function getSupabaseAdmin() {
+  return createClient<Database>(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
@@ -16,8 +17,10 @@ const supabaseAdmin = createClient<Database>(
     }
   }
 );
+}
 
 export async function GET(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
@@ -56,6 +59,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     const body = await request.json();
     const { userId, session_id, content, role } = body;

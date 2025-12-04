@@ -5,7 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+function getSupabaseAdmin() {
+  return createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
@@ -16,6 +17,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     }
   }
 });
+}
 
 // Generate memorable password (e.g., "Tiger1234", "Eagle5678")
 function generateMemorablePassword(): string {
@@ -29,6 +31,7 @@ function generateMemorablePassword(): string {
 }
 
 export async function POST(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     console.log('🏫 === API ROUTE: CREATE SCHOOL STUDENT ===');
 

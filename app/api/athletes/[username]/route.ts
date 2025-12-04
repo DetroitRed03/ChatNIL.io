@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types';
 
 // Use service role client to bypass RLS
-const supabaseAdmin = createClient<Database>(
+function getSupabaseAdmin() {
+  return createClient<Database>(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
@@ -13,6 +14,7 @@ const supabaseAdmin = createClient<Database>(
     }
   }
 );
+}
 
 // Helper to detect if a string is a UUID
 function isUUID(str: string): boolean {
@@ -24,6 +26,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ username: string }> }
 ) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     const { username } = await params;
 

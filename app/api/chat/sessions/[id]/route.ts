@@ -8,7 +8,8 @@ type ChatSession = Database['public']['Tables']['chat_sessions']['Row'];
 type ChatSessionUpdate = Database['public']['Tables']['chat_sessions']['Update'];
 
 // Use service role client to bypass RLS for DELETE operations
-const supabaseAdmin = createClient<Database>(
+function getSupabaseAdmin() {
+  return createClient<Database>(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
@@ -18,11 +19,13 @@ const supabaseAdmin = createClient<Database>(
     }
   }
 );
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     const cookieStore = cookies();
     const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
@@ -58,6 +61,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     console.log('🔄 PUT /api/chat/sessions/[id] - Start');
     console.log('📋 Chat ID:', params.id);
@@ -117,6 +121,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     // Get userId from query params (passed by client)
     const { searchParams } = new URL(request.url);

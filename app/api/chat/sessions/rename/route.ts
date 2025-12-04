@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // Use service role client to bypass RLS (same pattern as /api/chat/sessions)
 // Note: Using untyped client because chat_sessions isn't in Database types
-const supabaseAdmin = createClient(
+function getSupabaseAdmin() {
+  return createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
@@ -13,8 +14,10 @@ const supabaseAdmin = createClient(
     }
   }
 );
+}
 
 export async function POST(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   console.log('🔄 POST /api/chat/sessions/rename - Start');
 
   try {

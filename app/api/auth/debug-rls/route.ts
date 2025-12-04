@@ -5,9 +5,12 @@ import { NextRequest, NextResponse } from 'next/server';
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+function getSupabaseAdmin() {
+  return createClient(supabaseUrl, supabaseServiceRoleKey);
+}
 
 export async function GET(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     console.log('🔍 === RLS DEBUG ENDPOINT ===');
 

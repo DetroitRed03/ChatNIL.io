@@ -7,9 +7,12 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey);
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+function getSupabaseAdmin() {
+  return createClient(supabaseUrl, supabaseServiceRoleKey);
+}
 
 export async function GET(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   console.log('🧪 === DATABASE ACCESS TEST ===');
 
   const results: any = {

@@ -6,7 +6,8 @@ import { checkAnonRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-l
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+function getSupabaseAdmin() {
+  return createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
@@ -17,8 +18,10 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
     }
   }
 });
+}
 
 export async function POST(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     console.log('🚀 === API ROUTE: CREATE PROFILE ===');
 
