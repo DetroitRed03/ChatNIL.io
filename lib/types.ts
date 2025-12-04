@@ -1,4 +1,4 @@
-export type UserRole = 'athlete' | 'parent' | 'agency';
+export type UserRole = 'athlete' | 'parent' | 'agency' | 'school' | 'business';
 
 export interface Database {
   public: {
@@ -64,6 +64,12 @@ export interface Database {
           total_followers?: number;
           avg_engagement_rate?: number;
           profile_completion_score?: number;
+          // School system fields (Migration 027)
+          school_created?: boolean;
+          profile_completion_tier?: 'basic' | 'full';
+          home_completion_required?: boolean;
+          school_id?: string;
+          home_completed_at?: string;
         };
         Insert: {
           id: string;
@@ -125,6 +131,12 @@ export interface Database {
           total_followers?: number;
           avg_engagement_rate?: number;
           profile_completion_score?: number;
+          // School system fields (Migration 027)
+          school_created?: boolean;
+          profile_completion_tier?: 'basic' | 'full';
+          home_completion_required?: boolean;
+          school_id?: string;
+          home_completed_at?: string;
         };
         Update: {
           id?: string;
@@ -186,6 +198,12 @@ export interface Database {
           total_followers?: number;
           avg_engagement_rate?: number;
           profile_completion_score?: number;
+          // School system fields (Migration 027)
+          school_created?: boolean;
+          profile_completion_tier?: 'basic' | 'full';
+          home_completion_required?: boolean;
+          school_id?: string;
+          home_completed_at?: string;
         };
       };
       athlete_profiles: {
@@ -335,7 +353,6 @@ export interface Database {
           user_id: string;
           content: string;
           role: 'user' | 'assistant';
-          attachments: any | null;
           created_at: string;
         };
         Insert: {
@@ -344,7 +361,6 @@ export interface Database {
           user_id: string;
           content: string;
           role: 'user' | 'assistant';
-          attachments?: any | null;
           created_at?: string;
         };
         Update: {
@@ -353,7 +369,6 @@ export interface Database {
           user_id?: string;
           content?: string;
           role?: 'user' | 'assistant';
-          attachments?: any | null;
           created_at?: string;
         };
       };
@@ -712,6 +727,19 @@ export interface User {
   name: string;
   avatar?: string;
   profile?: AthleteProfile | ParentProfile | CoachProfile | AgencyProfile;
+  // Phase 6B: School system fields
+  school_created?: boolean;
+  profile_completion_tier?: 'basic' | 'full';
+  home_completion_required?: boolean;
+  school_id?: string;
+  school_name?: string;
+  home_completed_at?: string;
+  // Other commonly accessed fields
+  first_name?: string;
+  last_name?: string;
+  onboarding_completed?: boolean;
+  graduation_year?: number;
+  primary_sport?: string;
 }
 
 export interface AthleteProfile {
@@ -1446,4 +1474,956 @@ export interface ComplianceConsent {
   // Audit
   created_at: string;
   updated_at: string;
+}
+
+// ============================================================================
+// Phase 5: FMV (Fair Market Value) System Interfaces (Migration 022-027)
+// ============================================================================
+
+/**
+ * FMV Tier - Ranking tier based on FMV score
+ */
+export type FMVTier = 'elite' | 'high' | 'medium' | 'developing' | 'emerging';
+
+/**
+ * FMV Score Breakdown - Category scores that make up total FMV
+ */
+export interface FMVScoreBreakdown {
+  social_score: number;      // 0-30 points
+  athletic_score: number;    // 0-30 points
+  market_score: number;      // 0-20 points
+  brand_score: number;       // 0-20 points
+}
+
+/**
+ * Improvement Suggestion - Actionable recommendation to improve FMV score
+ */
+export interface ImprovementSuggestion {
+  area: 'social' | 'athletic' | 'market' | 'brand';
+  current: string;           // Current state (e.g., "5K followers")
+  target: string;            // Target state (e.g., "10K followers")
+  action: string;            // Specific steps to take
+  impact: string;            // Expected impact (e.g., "+6 points")
+  priority: 'high' | 'medium' | 'low';
+}
+
+/**
+ * FMV Score History Entry - Historical tracking of score changes
+ */
+export interface FMVScoreHistory {
+  date: string;              // ISO 8601 timestamp
+  score: number;             // FMV score at that time
+  tier: FMVTier;            // Tier at that time
+}
+
+/**
+ * Athlete FMV Data - Complete FMV profile for an athlete
+ * Created in Migration 022
+ */
+export interface AthleteFMVData {
+  id: string;
+  athlete_id: string;
+
+  // Overall FMV
+  fmv_score: number;         // 0-100
+  fmv_tier: FMVTier;
+
+  // Category breakdowns
+  social_score: number;      // 0-30
+  athletic_score: number;    // 0-30
+  market_score: number;      // 0-20
+  brand_score: number;       // 0-20
+
+  // Deal value estimates
+  estimated_deal_value_low: number;
+  estimated_deal_value_mid: number;
+  estimated_deal_value_high: number;
+
+  // Analysis (JSONB)
+  improvement_suggestions: ImprovementSuggestion[];
+  strengths: string[];
+  weaknesses: string[];
+  score_history: FMVScoreHistory[];
+
+  // Comparables
+  comparable_athletes: string[];  // UUID array of similar athletes
+
+  // Rankings
+  percentile_rank?: number;       // 0-100
+  rank_in_sport?: number;
+  total_athletes_in_sport?: number;
+
+  // Privacy controls
+  is_public_score: boolean;       // Default false (private)
+
+  // Rate limiting
+  last_calculation_date?: string;
+  next_calculation_date?: string;
+  calculation_count_today: number;
+  last_calculation_reset_date: string;
+
+  // Notifications
+  last_notified_score?: number;
+  last_notification_date?: string;
+
+  // Metadata
+  calculation_version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * State NIL Rules - State-by-state NIL compliance regulations
+ * Created in Migration 023
+ */
+export interface StateNILRules {
+  state_code: string;              // 'KY', 'CA', etc.
+  state_name: string;
+
+  // General permissions
+  allows_nil: boolean;
+  high_school_allowed: boolean;
+  college_allowed: boolean;
+  school_approval_required: boolean;
+
+  // Prohibited categories
+  prohibited_categories: string[]; // ['alcohol', 'gambling', etc.]
+
+  // Additional requirements
+  disclosure_required: boolean;
+  agent_registration_required: boolean;
+  financial_literacy_required: boolean;
+
+  // Documentation
+  rules_summary?: string;
+  rules_url?: string;
+  effective_date?: string;
+
+  // Metadata
+  last_updated: string;
+  created_at: string;
+}
+
+/**
+ * Scraped Athlete Data - External rankings from recruiting services
+ * Created in Migration 024
+ */
+export interface ScrapedAthleteData {
+  id: string;
+
+  // Source
+  source: 'on3' | 'rivals' | '247sports' | 'espn' | 'maxpreps' | 'other';
+  source_athlete_id?: string;
+  source_url?: string;
+
+  // Athlete identification
+  athlete_name: string;
+  sport?: string;
+  position?: string;
+  school_name?: string;
+  state?: string;
+  graduation_year?: number;
+
+  // Rankings
+  overall_ranking?: number;
+  position_ranking?: number;
+  state_ranking?: number;
+  composite_rating?: number;     // 0.00-1.00
+
+  // NIL value
+  estimated_nil_value?: number;
+  star_rating?: number;          // 1-5 stars
+
+  // Matching
+  verified: boolean;
+  matched_user_id?: string;
+  match_confidence?: number;     // 0.00-1.00
+
+  // Raw data
+  raw_data?: any;
+
+  // Metadata
+  scraped_at: string;
+  last_updated?: string;
+  created_at: string;
+}
+
+/**
+ * Institution Profile - Schools and universities
+ * Created in Migration 025
+ */
+export interface InstitutionProfile {
+  id: string;                    // References users.id
+
+  // Basic info
+  institution_name: string;
+  institution_type: 'high_school' | 'community_college' | 'junior_college' | 'college' | 'university' | 'prep_school' | 'academy';
+
+  // Official identifiers
+  nces_id?: string;              // National Center for Education Statistics ID
+  state_code?: string;
+  county?: string;
+  district?: string;
+
+  // Location
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  country?: string;
+
+  // Contact
+  phone?: string;
+  website_url?: string;
+  athletic_department_email?: string;
+  athletic_director_name?: string;
+  compliance_officer_email?: string;
+
+  // Branding
+  custom_url_slug?: string;      // e.g., 'kentucky-central-hs'
+  logo_url?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  custom_splash_page?: {
+    logo_url?: string;
+    primary_color?: string;
+    welcome_message?: string;
+    background_image?: string;
+    [key: string]: any;
+  };
+
+  // QR code
+  qr_code_url?: string;
+  athlete_signup_url?: string;
+
+  // Compliance
+  ferpa_compliant: boolean;
+  requires_approval_for_nil_deals: boolean;
+  automatic_athlete_association: boolean;
+  email_domains?: string[];
+
+  // Statistics
+  total_athletes: number;
+  total_active_nil_deals: number;
+  total_nil_value: number;
+
+  // Permissions
+  can_create_bulk_accounts: boolean;
+  can_view_athlete_analytics: boolean;
+  can_approve_nil_deals: boolean;
+
+  // Verification
+  verified: boolean;
+  verified_at?: string;
+
+  // Metadata
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Business Profile - Local businesses and brands (simpler than agencies)
+ * Created in Migration 026
+ */
+export interface BusinessProfile {
+  id: string;                    // References users.id
+
+  // Basic info
+  business_name: string;
+  business_type: 'local_business' | 'restaurant' | 'retail_store' | 'automotive' | 'fitness_gym' |
+                 'healthcare' | 'real_estate' | 'law_firm' | 'financial_services' | 'technology' |
+                 'entertainment' | 'hospitality' | 'nonprofit' | 'national_brand' | 'startup' | 'other';
+  industry?: string;
+  description?: string;
+
+  // Contact
+  contact_person_name?: string;
+  contact_person_title?: string;
+  email?: string;
+  phone?: string;
+  website_url?: string;
+
+  // Location
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  country?: string;
+
+  // Social media
+  instagram_handle?: string;
+  facebook_page?: string;
+  twitter_handle?: string;
+  linkedin_url?: string;
+
+  // NIL preferences
+  looking_for?: string[];        // ['social_media_posts', 'event_appearances', etc.]
+  preferred_sports?: string[];
+  budget_range?: 'under_1k' | '1k_5k' | '5k_10k' | '10k_25k' | '25k_50k' | '50k_100k' | '100k_plus';
+  estimated_monthly_budget?: number;
+
+  // Geographic focus
+  geographic_focus?: string[];   // State codes
+  local_market_only: boolean;
+
+  // Target criteria
+  min_follower_count?: number;
+  preferred_athlete_level?: string;
+  preferred_content_types?: string[];
+
+  // Deal templates
+  default_deal_terms?: {
+    duration_days?: number;
+    payment_terms?: string;
+    deliverables?: string[];
+    [key: string]: any;
+  };
+
+  // Verification
+  verified: boolean;
+  verified_at?: string;
+  verification_method?: string;
+
+  // Statistics
+  total_deals_created: number;
+  total_deals_completed: number;
+  total_spent: number;
+  average_deal_value?: number;
+
+  // Ratings
+  rating_score?: number;         // 0.00-5.00
+  total_ratings: number;
+
+  // Settings
+  auto_approve_deals: boolean;
+  requires_contract: boolean;
+  payment_method_on_file: boolean;
+
+  // Metadata
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// Phase 6B: School System Interfaces (Migration 027)
+// ============================================================================
+
+/**
+ * School - Distribution channel for student athlete signups
+ * NOT a user account - schools facilitate athlete registration
+ */
+export interface School {
+  id: string;
+
+  // Basic Info
+  school_name: string;
+  school_district?: string;
+  state: string;
+  school_type?: 'high_school' | 'college' | 'university' | 'community_college';
+
+  // URL Configuration
+  custom_slug: string;
+  signup_url?: string;  // Generated: https://chatnil.io/school/{slug}/signup
+
+  // QR Code & Branding
+  qr_code_url?: string;
+  logo_url?: string;
+  primary_color?: string;
+
+  // Statistics
+  students_registered: number;
+  students_completed: number;
+
+  // Contact Information
+  contact_name?: string;
+  contact_email?: string;
+  contact_phone?: string;
+
+  // Status
+  active: boolean;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
+// ============================================================================
+// Dashboard Interfaces
+// ============================================================================
+
+/**
+ * Dashboard Metrics - Aggregated stats for athlete dashboard
+ */
+export interface DashboardMetrics {
+  totalEarnings: number;
+  earningsChange: number;
+  activeDeals: number;
+  completedDeals: number;
+  profileViews: number;
+  viewsChange: number;
+  fmvScore: number;
+  fmvChange: number;
+}
+
+/**
+ * Opportunity - Matched brand opportunity
+ */
+export interface Opportunity {
+  id: string;
+  title: string;
+  brand_name: string;
+  description: string;
+  compensation_min: number;
+  compensation_max: number;
+  deadline: string;
+  match_score: number;
+  status: 'open' | 'applied' | 'closed';
+}
+
+/**
+ * Notification - User notification
+ */
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: 'deal' | 'message' | 'fmv' | 'profile' | 'payment';
+  message: string;
+  url: string;
+  read: boolean;
+  created_at: string;
+}
+
+/**
+ * Event - Calendar event from deal deliverables
+ */
+export interface Event {
+  id: string;
+  title: string;
+  type: 'deliverable' | 'payment' | 'meeting' | 'event';
+  date: string;
+  deal_id?: string;
+  deal_title?: string;
+}
+
+/**
+ * Quick Stats - Performance metrics
+ */
+export interface QuickStats {
+  responseRate: number;
+  avgResponseTime: string;
+  dealSuccessRate: number;
+  profileGrowth: number;
+}
+
+// Education & Learning Dashboard Types
+export interface QuizAttempt {
+  id: string;
+  category: string;
+  score: number;
+  completedAt: string;
+  questionsCorrect: number;
+  questionsTotal: number;
+}
+
+export interface QuizProgress {
+  recentAttempts: QuizAttempt[];
+  totalQuizzes: number;
+  averageScore: number;
+  categoriesCompleted: number;
+  nextRecommended: string;
+}
+
+export interface BadgeInfo {
+  id: string;
+  name: string;
+  description: string;
+  iconUrl?: string;
+  rarity: string;
+  points: number;
+  earnedAt: string;
+}
+
+export interface BadgeProgress {
+  recentBadges: BadgeInfo[];
+  totalBadges: number;
+  earnedCount: number;
+  totalPoints: number;
+  completionPercentage: number;
+}
+
+export interface RecentChat {
+  id: string;
+  title: string;
+  lastMessage: string;
+  updatedAt: string;
+  messageCount: number;
+}
+
+export interface LearningStats {
+  knowledgeLevel: string;
+  averageScore: number;
+  badgesEarned: number;
+  quizStreak: number;
+  scoreChange: number;
+}
+
+// ============================================================================
+// Documents & File Management Interfaces (Migration 050)
+// ============================================================================
+
+/**
+ * User Document - Represents a file uploaded by user in chat
+ * Stored in Supabase Storage and tracked in chat_attachments table
+ */
+export interface UserDocument {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  storagePath: string;
+  publicUrl?: string;
+  createdAt: string;
+  sessionId: string;
+  sessionTitle: string;
+  messageId?: string;
+  userId: string;
+}
+
+/**
+ * Documents grouped by chat session
+ */
+export interface DocumentsBySession {
+  sessionId: string;
+  sessionTitle: string;
+  sessionUpdatedAt: string;
+  documents: UserDocument[];
+  totalSize: number;
+}
+
+/**
+ * Document storage statistics for user
+ */
+export interface DocumentsStats {
+  totalDocuments: number;
+  totalSize: number;
+  storageLimit: number;
+  storageUsedPercentage: number;
+  documentsByType: Record<string, number>;
+  recentDocumentsCount: number;
+}
+
+/**
+ * File upload request/response
+ */
+export interface FileUploadRequest {
+  file: File;
+  sessionId: string;
+  messageId?: string;
+}
+
+export interface FileUploadResponse {
+  success: boolean;
+  document?: UserDocument;
+  error?: string;
+}
+
+// ============================================================================
+// Agency Platform Interfaces (Migration 040)
+// ============================================================================
+
+/**
+ * Athlete Public Profile - Public-facing athlete data for agency discovery
+ * Created in Migration 040
+ */
+export interface AthletePublicProfile {
+  id: string;
+  user_id: string;
+  username?: string;
+
+  // Basic Info
+  display_name: string;
+  bio?: string;
+  sport: string;
+  position?: string;
+  school_name: string;
+  school_level: 'high_school' | 'college';
+  graduation_year?: number;
+  state?: string;
+  city?: string;
+
+  // Social Media Handles
+  instagram_handle?: string;
+  tiktok_handle?: string;
+  twitter_handle?: string;
+  youtube_channel?: string;
+
+  // Social Media Stats (numeric)
+  instagram_followers: number;
+  instagram_engagement_rate?: number;
+  tiktok_followers: number;
+  tiktok_engagement_rate?: number;
+  twitter_followers: number;
+  youtube_subscribers: number;
+
+  // Computed total followers (generated column)
+  total_followers: number;
+
+  // FMV (Fair Market Value)
+  estimated_fmv_min?: number;
+  estimated_fmv_max?: number;
+  avg_engagement_rate?: number;
+
+  // Brand Fit
+  content_categories?: string[];
+  brand_values?: string[];
+  audience_demographics?: {
+    age_range?: string;
+    gender?: string;
+    location?: string;
+    [key: string]: any;
+  };
+
+  // Availability
+  is_available_for_partnerships: boolean;
+  preferred_partnership_types?: string[];
+  response_rate?: number;
+  avg_response_time_hours?: number;
+
+  // Verification
+  is_verified: boolean;
+  verification_badges?: string[];
+
+  // Statistics
+  total_partnerships_completed?: number;
+  total_campaign_impressions?: number;
+  avg_campaign_performance?: number;
+
+  // Activity
+  last_active_at?: string;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Athlete Portfolio Item - Showcase content samples and past work
+ * Created in Migration 040
+ */
+export interface AthletePortfolioItem {
+  id: string;
+  athlete_user_id: string;
+
+  // Item Details
+  title: string;
+  description?: string;
+  item_type: 'social_post' | 'video' | 'photo_shoot' | 'event' | 'campaign' | 'collaboration' | 'other';
+  content_url?: string;
+  thumbnail_url?: string;
+
+  // Platform
+  platform?: 'instagram' | 'tiktok' | 'youtube' | 'twitter' | 'other';
+
+  // Metrics
+  views?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  engagement_rate?: number;
+
+  // Campaign Info
+  sponsored: boolean;
+  brand_name?: string;
+  campaign_type?: string;
+  compensation_received?: number;
+
+  // Media
+  media_files?: string[];
+
+  // Display
+  is_featured: boolean;
+  display_order: number;
+  is_public: boolean;
+
+  // Metadata
+  published_date?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Agency Saved Search - Saved filter combinations for quick access
+ * Created in Migration 040
+ */
+export interface AgencySavedSearch {
+  id: string;
+  agency_user_id: string;
+
+  // Search Details
+  search_name: string;
+  description?: string;
+
+  // Filter Criteria
+  filters: {
+    sports?: string[];
+    states?: string[];
+    school_levels?: string[];
+    min_followers?: number;
+    max_followers?: number;
+    min_fmv?: number;
+    max_fmv?: number;
+    min_engagement?: number;
+    content_categories?: string[];
+    brand_values?: string[];
+    available_only?: boolean;
+    [key: string]: any;
+  };
+
+  // Settings
+  notify_new_matches: boolean;
+  last_checked?: string;
+  match_count?: number;
+
+  // Metadata
+  is_favorite: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Agency Athlete List - Organize athletes into collections
+ * Created in Migration 040
+ */
+export interface AgencyAthleteList {
+  id: string;
+  agency_user_id: string;
+
+  // List Details
+  list_name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+
+  // Privacy
+  is_shared: boolean;
+  shared_with_user_ids?: string[];
+
+  // Metadata
+  athlete_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Agency Athlete List Item - Many-to-many relationship for lists
+ * Created in Migration 040
+ */
+export interface AgencyAthleteListItem {
+  id: string;
+  list_id: string;
+  athlete_user_id: string;
+
+  // Metadata
+  notes?: string;
+  added_at: string;
+  added_by_user_id?: string;
+}
+
+/**
+ * Agency Campaign - Marketing campaigns created by agencies
+ * Created in Migration 040
+ */
+export interface AgencyCampaign {
+  id: string;
+  agency_user_id: string;
+
+  // Campaign Details
+  campaign_name: string;
+  description?: string;
+  brand_name: string;
+  campaign_type?: string;
+
+  // Budget
+  total_budget?: number;
+  budget_per_athlete?: number;
+  currency: string;
+
+  // Timeline
+  start_date?: string;
+  end_date?: string;
+  application_deadline?: string;
+
+  // Status
+  status: 'draft' | 'active' | 'paused' | 'completed' | 'cancelled';
+
+  // Targeting Criteria
+  target_sports?: string[];
+  target_states?: string[];
+  target_school_levels?: string[];
+  min_followers?: number;
+  max_followers?: number;
+  min_engagement_rate?: number;
+  target_content_categories?: string[];
+
+  // Requirements
+  required_deliverables?: Array<{
+    type: string;
+    quantity: number;
+    description?: string;
+    deadline?: string;
+  }>;
+  campaign_guidelines?: string;
+  terms_and_conditions?: string;
+
+  // Limits
+  max_athletes?: number;
+  athletes_invited_count: number;
+  athletes_accepted_count: number;
+
+  // Performance
+  total_impressions?: number;
+  total_engagement?: number;
+  avg_engagement_rate?: number;
+
+  // Metadata
+  created_at: string;
+  updated_at: string;
+  created_by_user_id?: string;
+}
+
+/**
+ * Campaign Athlete Invite - Track athlete invitations to campaigns
+ * Created in Migration 040
+ */
+export interface CampaignAthleteInvite {
+  id: string;
+  campaign_id: string;
+  athlete_user_id: string;
+  agency_user_id: string;
+
+  // Invite Details
+  invite_message?: string;
+  compensation_offered?: number;
+
+  // Status
+  status: 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
+
+  // Response
+  athlete_response_message?: string;
+  athlete_response_at?: string;
+
+  // Timeline
+  invited_at: string;
+  expires_at?: string;
+  accepted_at?: string;
+  declined_at?: string;
+
+  // Deal Conversion
+  deal_id?: string;
+  deal_created_at?: string;
+
+  // Metadata
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Agency Athlete Message - Direct messaging between agencies and athletes
+ * Created in Migration 040
+ */
+export interface AgencyAthleteMessage {
+  id: string;
+  agency_user_id: string;
+  athlete_user_id: string;
+
+  // Thread
+  thread_id: string;
+  parent_message_id?: string;
+
+  // Message Content
+  message_content: string;
+  subject?: string;
+
+  // Sender
+  sender_type: 'agency' | 'athlete';
+  sender_user_id: string;
+
+  // Status
+  is_read: boolean;
+  read_at?: string;
+  is_archived: boolean;
+
+  // Related Items
+  related_campaign_id?: string;
+  related_deal_id?: string;
+
+  // Attachments
+  attachments?: Array<{
+    file_name: string;
+    file_url: string;
+    file_type: string;
+    file_size: number;
+  }>;
+
+  // Metadata
+  sent_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Athlete Discovery Filters - Query parameters for athlete search
+ */
+export interface AthleteDiscoveryFilters {
+  // Sport & School
+  sports?: string[];
+  states?: string[];
+  school_levels?: ('high_school' | 'college')[];
+
+  // Followers & Engagement
+  min_followers?: number;
+  max_followers?: number;
+  min_engagement?: number;
+
+  // FMV & Budget
+  min_fmv?: number;
+  max_fmv?: number;
+
+  // Content & Brand Fit
+  content_categories?: string[];
+  brand_values?: string[];
+
+  // Availability
+  available_only?: boolean;
+
+  // Search
+  search?: string;
+
+  // Sorting
+  sort?: 'best_match' | 'followers_desc' | 'followers_asc' | 'engagement_desc' | 'fmv_desc' | 'fmv_asc';
+
+  // Pagination
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * Athlete Discovery Response - API response from discovery endpoint
+ */
+export interface AthleteDiscoveryResponse {
+  success: boolean;
+  data: {
+    athletes: AthletePublicProfile[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
+    filters: Partial<AthleteDiscoveryFilters>;
+    sort: string;
+  };
 }

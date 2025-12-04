@@ -1,5 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { splitProfileUpdates, ensureAthleteProfile } from '@/lib/profile-field-mapper';
+import { triggerMatchmakingForAthlete } from '@/lib/matchmaking-trigger';
+import { generateUniqueUsername } from '@/lib/username-generator';
+import { calculateFMV } from '@/lib/fmv/fmv-calculator';
+import { checkAnonRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import type { User, SocialMediaStat, NILDeal, ScrapedAthleteData } from '@/types';
 
 // Server-side service role client (secure)
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -20,6 +26,15 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
 export async function POST(request: NextRequest) {
   try {
     console.log('🎯 === API ROUTE: COMPLETE ONBOARDING ===');
+
+    // ========================================
+    // RATE LIMITING - Prevent spam onboarding
+    // ========================================
+    const rateLimitResult = await checkAnonRateLimit(RATE_LIMITS.ONBOARDING);
+    if (!rateLimitResult.allowed) {
+      console.warn('⚠️ Rate limit exceeded for complete-onboarding');
+      return rateLimitResponse(rateLimitResult);
+    }
 
     const body = await request.json();
     const { userId, onboardingData } = body;
@@ -52,11 +67,11 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ User verified in auth system');
 
-    // Check if profile exists
+    // Check if profile exists (include school fields for Phase 6B)
     console.log('🔍 Checking if user profile exists...');
     const { data: existingProfile, error: checkError } = await supabaseAdmin
       .from('users')
-      .select('id, onboarding_completed')
+      .select('id, onboarding_completed, school_created, profile_completion_tier, school_id')
       .eq('id', userId)
       .single();
 
@@ -165,6 +180,11 @@ export async function POST(request: NextRequest) {
       if (formData.coachName) mapped.coach_name = formData.coachName;
       if (formData.coachEmail) mapped.coach_email = formData.coachEmail;
 
+      // Physical Stats (athlete fields - collected in personal info step)
+      if (formData.heightInches !== undefined) mapped.height_inches = formData.heightInches;
+      if (formData.weightLbs !== undefined) mapped.weight_lbs = formData.weightLbs;
+      if (formData.jerseyNumber !== undefined) mapped.jersey_number = formData.jerseyNumber;
+
       // NIL Info (athlete fields)
       if (formData.bio) mapped.bio = formData.bio;
       if (formData.socialMediaHandles) mapped.social_media_handles = formData.socialMediaHandles;
@@ -187,27 +207,74 @@ export async function POST(request: NextRequest) {
       return mapped;
     };
 
-    // Prepare update data
+    // Prepare update data - split into proper tables
     const mappedData = mapFormDataToDatabase(onboardingData);
-    const updateData: any = {
-      onboarding_completed: true,
-      onboarding_completed_at: new Date().toISOString(),
-      ...mappedData
-    };
 
     console.log('💾 Mapped form data keys:', Object.keys(mappedData));
-    console.log('📤 Updating user profile with admin privileges...');
 
-    // Update the user profile with service role (bypasses RLS)
+    // Split updates between users and athlete_profiles tables
+    const { usersUpdates, athleteUpdates, unmapped } = splitProfileUpdates(mappedData);
+
+    if (unmapped.length > 0) {
+      console.warn('⚠️ Unmapped onboarding fields (skipping):', unmapped);
+    }
+
+    // Add onboarding completion fields to users table
+    usersUpdates.onboarding_completed = true;
+    usersUpdates.onboarding_completed_at = new Date().toISOString();
+
+    // Auto-generate username if not already set
+    // Check if user already has a username
+    const { data: currentUser } = await supabaseAdmin
+      .from('users')
+      .select('username, first_name, last_name')
+      .eq('id', userId)
+      .single();
+
+    if (!currentUser?.username) {
+      // Generate unique username from name
+      const firstName = mappedData.first_name || currentUser?.first_name || '';
+      const lastName = mappedData.last_name || currentUser?.last_name || '';
+
+      if (firstName && lastName) {
+        try {
+          const generatedUsername = await generateUniqueUsername(firstName, lastName);
+          usersUpdates.username = generatedUsername;
+          console.log('🏷️ Auto-generated username:', generatedUsername);
+        } catch (usernameError) {
+          console.warn('⚠️ Failed to generate username (non-critical):', usernameError);
+          // Continue without username - it can be set later
+        }
+      }
+    } else {
+      console.log('🏷️ User already has username:', currentUser.username);
+    }
+
+    // Phase 6B: Handle school-created account completion
+    if (existingProfile.school_created && existingProfile.profile_completion_tier === 'basic') {
+      console.log('🏫 Upgrading school-created account to full profile');
+      usersUpdates.profile_completion_tier = 'full';
+      usersUpdates.home_completion_required = false;
+      usersUpdates.home_completed_at = new Date().toISOString();
+    }
+
+    console.log('📤 Updating user profile with admin privileges...');
+    console.log('👤 Users table updates:', Object.keys(usersUpdates));
+    console.log('🏃 Athlete profile updates:', Object.keys(athleteUpdates));
+
+    // Update the users table
     const { data: updatedProfile, error: updateError } = await supabaseAdmin
       .from('users')
-      .update(updateData)
+      .update({
+        ...usersUpdates,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', userId)
       .select()
       .single();
 
     if (updateError) {
-      console.error('💥 Failed to complete onboarding:', updateError);
+      console.error('💥 Failed to update user profile:', updateError);
       return NextResponse.json(
         { error: `Failed to complete onboarding: ${updateError.message}` },
         { status: 500 }
@@ -215,6 +282,60 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ User profile updated successfully');
+
+    // If this is an athlete and there are athlete-specific fields, update athlete_profiles
+    if (updatedProfile.role === 'athlete' && Object.keys(athleteUpdates).length > 0) {
+      console.log('🏃 Creating/updating athlete profile...');
+
+      // Ensure athlete profile exists
+      const { success: profileExists, error: ensureError } = await ensureAthleteProfile(supabaseAdmin, userId);
+      if (!profileExists) {
+        console.error('⚠️ Failed to ensure athlete profile exists:', ensureError);
+        // Continue anyway - user record is updated
+      } else {
+        // Update athlete profile
+        const { error: athleteError } = await supabaseAdmin
+          .from('athlete_profiles')
+          .update({
+            ...athleteUpdates,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId);
+
+        if (athleteError) {
+          console.error('⚠️ Failed to update athlete profile (non-critical):', athleteError);
+          // Don't fail the onboarding - user record is already updated
+        } else {
+          console.log('✅ Athlete profile updated successfully');
+        }
+      }
+    }
+
+    // Phase 6B: Update school completion statistics
+    if (existingProfile.school_created && existingProfile.school_id && existingProfile.profile_completion_tier === 'basic') {
+      try {
+        console.log('📊 Updating school completion statistics...');
+        const { data: school } = await supabaseAdmin
+          .from('schools')
+          .select('students_completed')
+          .eq('id', existingProfile.school_id)
+          .single();
+
+        if (school) {
+          await supabaseAdmin
+            .from('schools')
+            .update({
+              students_completed: school.students_completed + 1,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingProfile.school_id);
+
+          console.log('✅ School completion statistics updated');
+        }
+      } catch (schoolStatsError) {
+        console.warn('⚠️ Failed to update school statistics (non-critical):', schoolStatsError);
+      }
+    }
 
     // Handle relationship creation for parents and coaches
     let relationshipResults = null;
@@ -339,10 +460,151 @@ export async function POST(request: NextRequest) {
       // Don't fail the onboarding for badge issues
     }
 
+    // Save social media stats to dedicated table (if provided)
+    if (updatedProfile.role === 'athlete' && onboardingData.social_media_stats && Array.isArray(onboardingData.social_media_stats)) {
+      try {
+        console.log('📱 Saving social media stats to dedicated table...');
+        const socialStats = onboardingData.social_media_stats;
+
+        // Calculate aggregated stats
+        let totalFollowers = 0;
+        let totalEngagement = 0;
+
+        for (const stat of socialStats) {
+          if (!stat.platform || !stat.handle) continue;
+
+          totalFollowers += stat.followers || 0;
+          totalEngagement += stat.engagement_rate || 0;
+
+          // Upsert each platform's stats
+          const { error: statError } = await supabaseAdmin
+            .from('social_media_stats')
+            .upsert({
+              user_id: userId,
+              platform: stat.platform,
+              handle: stat.handle.startsWith('@') ? stat.handle : `@${stat.handle}`,
+              followers: stat.followers || 0,
+              engagement_rate: stat.engagement_rate || 0,
+              verified: stat.verified || false,
+              last_updated: new Date().toISOString(),
+            }, {
+              onConflict: 'user_id,platform'
+            });
+
+          if (statError) {
+            console.warn(`⚠️ Failed to save ${stat.platform} stats:`, statError.message);
+          }
+        }
+
+        // Update aggregated stats on athlete_profiles
+        const avgEngagement = socialStats.length > 0 ? totalEngagement / socialStats.length : 0;
+        await supabaseAdmin
+          .from('athlete_profiles')
+          .update({
+            total_followers: totalFollowers,
+            avg_engagement_rate: avgEngagement,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId);
+
+        console.log(`✅ Saved ${socialStats.length} social media platforms, total followers: ${totalFollowers}`);
+      } catch (socialError) {
+        console.warn('⚠️ Failed to save social media stats (non-critical):', socialError);
+      }
+    }
+
+    // Auto-trigger matchmaking for athletes (find matching campaigns)
+    let matchmakingResults = null;
+    if (updatedProfile.role === 'athlete') {
+      try {
+        console.log('🔄 Auto-triggering matchmaking for new athlete:', userId);
+        matchmakingResults = await triggerMatchmakingForAthlete(userId);
+        console.log(`✅ Matchmaking complete: ${matchmakingResults.matchesGenerated} campaign matches found`);
+      } catch (matchError) {
+        console.warn('⚠️ Matchmaking trigger failed (non-critical):', matchError);
+        // Don't fail the onboarding if matchmaking fails
+      }
+    }
+
+    // Auto-calculate FMV score for athletes
+    let fmvResults = null;
+    if (updatedProfile.role === 'athlete') {
+      try {
+        console.log('💰 Auto-calculating FMV score for new athlete:', userId);
+
+        // Fetch data needed for FMV calculation
+        const [
+          { data: socialStats },
+          { data: nilDeals },
+          { data: externalRankings }
+        ] = await Promise.all([
+          supabaseAdmin.from('social_media_stats').select('*').eq('user_id', userId),
+          supabaseAdmin.from('nil_deals').select('*').eq('athlete_id', userId),
+          supabaseAdmin.from('scraped_athlete_data').select('*').eq('matched_user_id', userId).eq('verified', true)
+        ]);
+
+        // Calculate FMV
+        const fmvResult = await calculateFMV({
+          athlete: { ...updatedProfile, id: userId } as User,
+          socialStats: (socialStats || []) as SocialMediaStat[],
+          nilDeals: (nilDeals || []) as NILDeal[],
+          externalRankings: (externalRankings || []) as ScrapedAthleteData[],
+        });
+
+        // Save to database (matching actual athlete_fmv_data schema)
+        const fmvRecord = {
+          athlete_id: userId,
+          fmv_score: fmvResult.fmv_score,
+          fmv_tier: fmvResult.fmv_tier,
+          percentile_rank: fmvResult.percentile_rank,
+          deal_value_min: fmvResult.estimated_deal_value_low,
+          deal_value_max: fmvResult.estimated_deal_value_high,
+          is_public_score: true, // Default to public for new athletes
+        };
+
+        const { data: savedFMV, error: fmvSaveError } = await supabaseAdmin
+          .from('athlete_fmv_data')
+          .insert(fmvRecord)
+          .select()
+          .single();
+
+        if (fmvSaveError) {
+          console.error('⚠️ FMV save error (non-critical):', fmvSaveError);
+        } else {
+          console.log(`✅ FMV calculated and saved: Score ${savedFMV.fmv_score}, Tier: ${savedFMV.fmv_tier}`);
+          fmvResults = {
+            fmv_score: savedFMV.fmv_score,
+            fmv_tier: savedFMV.fmv_tier,
+          };
+
+          // Also update athlete_profiles with estimated_fmv based on deal value max
+          await supabaseAdmin
+            .from('athlete_profiles')
+            .update({
+              estimated_fmv: savedFMV.deal_value_max,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', userId);
+        }
+      } catch (fmvError) {
+        console.warn('⚠️ FMV calculation failed (non-critical):', fmvError);
+        // Don't fail onboarding if FMV fails - it can be calculated later
+      }
+    }
+
     return NextResponse.json({
       success: true,
       profile: updatedProfile,
-      relationships: relationshipResults
+      relationships: relationshipResults,
+      matchmaking: matchmakingResults ? {
+        matchesGenerated: matchmakingResults.matchesGenerated,
+        campaigns: matchmakingResults.campaigns?.map(c => ({
+          campaignId: c.campaignId,
+          campaignName: c.campaignName,
+          matchScore: c.topMatches?.[0]?.matchPercentage || 0
+        })) || []
+      } : null,
+      fmv: fmvResults
     });
 
   } catch (error: any) {

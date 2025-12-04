@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Reload Supabase Schema Cache</title>
+  <style>
+    body {
+      font-family: system-ui;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    .instruction {
+      background: #fffbeb;
+      border: 2px solid #f59e0b;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .step {
+      margin: 15px 0;
+      padding-left: 25px;
+    }
+    code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚨 Schema Cache is Broken</h1>
+
+  <div class="instruction">
+    <h2>Quick Fix - Reload PostgREST Schema</h2>
+
+    <p><strong>Option 1: Supabase Dashboard (RECOMMENDED)</strong></p>
+    <div class="step">
+      1. Open: <a href="https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/settings/database" target="_blank">Supabase Database Settings</a><br>
+      2. Click "Reload schema" button in the top right<br>
+      3. Wait 5 seconds<br>
+      4. Refresh your app
+    </div>
+
+    <p><strong>Option 2: SQL Console</strong></p>
+    <div class="step">
+      1. Open: <a href="https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/sql/new" target="_blank">SQL Editor</a><br>
+      2. Run: <code>NOTIFY pgrst, 'reload schema';</code><br>
+      3. Wait 5 seconds<br>
+      4. Refresh your app
+    </div>
+
+    <p><strong>Option 3: Restart PostgREST</strong></p>
+    <div class="step">
+      1. Open: <a href="https://supabase.com/dashboard/project/lqskiijspudfocddhkqs" target="_blank">Project Dashboard</a><br>
+      2. Go to Settings → General<br>
+      3. Click "Restart project"<br>
+      4. Wait ~30 seconds<br>
+      5. Refresh your app
+    </div>
+  </div>
+
+  <h3>Why is this happening?</h3>
+  <p>The PostgREST schema cache is out of sync. It thinks <code>quiz_questions</code> exists but <code>chat_sessions</code> doesn't, which is backwards. A schema reload will fix this.</p>
+
+  <h3>After reloading:</h3>
+  <p>The quiz system should work correctly - quizzes will be clickable and startable!</p>
+</body>
+</html>

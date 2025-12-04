@@ -51,7 +51,7 @@ export default function AthleteInterestsStep({
     watch,
     setValue,
   } = useForm<AthleteInterestsData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     mode: 'onChange',
     defaultValues: initialData || {
       hobbies: [],

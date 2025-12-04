@@ -1,12 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, User, Mail, Phone, Calendar, Users, SkipForward, Save } from 'lucide-react';
+import { ArrowRight, User, Mail, Phone, Calendar, Users, SkipForward, Save, Ruler, Weight } from 'lucide-react';
 import { athletePersonalInfoSchema, AthletePersonalInfo, OnboardingStepProps } from '@/lib/onboarding-types';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  OnboardingInput,
+  OnboardingButton,
+} from '@/components/ui/OnboardingInput';
 
 export default function AthletePersonalInfoStep({
   data,
@@ -44,9 +48,10 @@ export default function AthletePersonalInfoStep({
     watch,
     setValue,
     getValues,
+    control,
     formState: { errors, isValid }
   } = useForm<AthletePersonalInfo>({
-    resolver: zodResolver(athletePersonalInfoSchema),
+    resolver: zodResolver(athletePersonalInfoSchema) as any,
     defaultValues: {
       firstName: data.firstName || '',
       lastName: data.lastName || '',
@@ -54,9 +59,33 @@ export default function AthletePersonalInfoStep({
       email: data.email || user?.email || '', // Auto-populate from authenticated user
       phone: data.phone || '',
       parentEmail: data.parentEmail || '',
+      heightInches: data.heightInches || undefined,
+      weightLbs: data.weightLbs || undefined,
     },
     mode: 'onChange'
   });
+
+  // Phase 6B: Populate fields from prefillData (for school-created accounts)
+  useEffect(() => {
+    console.log('🏫 Phase 6B Prefill check:', {
+      dataKeys: Object.keys(data),
+      data: data,
+      hasFirstName: !!data.firstName,
+      hasLastName: !!data.lastName,
+    });
+
+    // Populate firstName if available in data
+    if (data.firstName && !getValues('firstName')) {
+      console.log('✅ Prefilling firstName:', data.firstName);
+      setValue('firstName', data.firstName);
+    }
+
+    // Populate lastName if available in data
+    if (data.lastName && !getValues('lastName')) {
+      console.log('✅ Prefilling lastName:', data.lastName);
+      setValue('lastName', data.lastName);
+    }
+  }, [data, setValue, getValues]);
 
   // Enhanced email auto-population with fallback mechanisms
   useEffect(() => {
@@ -83,6 +112,7 @@ export default function AthletePersonalInfoStep({
   }, [user, isAuthLoading, setValue, getValues, data.email]);
 
   const watchedDOB = watch('dateOfBirth');
+  const watchedHeight = watch('heightInches');
 
   // Check if user is under 18
   useEffect(() => {
@@ -119,182 +149,192 @@ export default function AthletePersonalInfoStep({
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      {/* Introduction */}
-      <div className="mb-6 p-5 bg-orange-50 rounded-xl border border-orange-200">
-        <div className="flex items-start">
-          <div className="p-2 bg-orange-100 rounded-lg mr-4">
-            <User className="h-6 w-6 text-orange-600" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-orange-900 mb-2">
-              Let's start with your basic information
-            </h3>
-            <p className="text-orange-700 leading-relaxed">
-              This helps us create your personalized NIL profile and ensure you receive
-              age-appropriate guidance and opportunities.
-            </p>
-          </div>
-        </div>
-      </div>
+  // Helper function to convert height to feet'inches"
+  const formatHeight = (inches: number | undefined): string => {
+    if (!inches || inches <= 0) return '';
+    const feet = Math.floor(inches / 12);
+    const remainingInches = inches % 12;
+    return `${feet}'${remainingInches}"`;
+  };
 
-      <div className="grid sm:grid-cols-2 gap-5">
-        {/* First Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            First Name *
-          </label>
-          <div className="relative">
-            <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              {...register('firstName')}
-              type="text"
-              className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${
-                errors.firstName
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-orange-500 focus:border-orange-500'
-              }`}
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* Name Fields */}
+      <div className="grid sm:grid-cols-2 gap-6">
+        <Controller
+          name="firstName"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="First Name"
+              required
+              error={errors.firstName?.message}
               placeholder="Enter your first name"
             />
-          </div>
-          {errors.firstName && (
-            <p className="mt-1 text-sm text-red-600">{errors.firstName.message}</p>
           )}
-        </div>
+        />
 
-        {/* Last Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Last Name *
-          </label>
-          <div className="relative">
-            <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              {...register('lastName')}
-              type="text"
-              className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${
-                errors.lastName
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-orange-500 focus:border-orange-500'
-              }`}
+        <Controller
+          name="lastName"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="Last Name"
+              required
+              error={errors.lastName?.message}
               placeholder="Enter your last name"
             />
-          </div>
-          {errors.lastName && (
-            <p className="mt-1 text-sm text-red-600">{errors.lastName.message}</p>
           )}
-        </div>
+        />
       </div>
 
       {/* Date of Birth */}
       <div>
-        <label className="block text-sm font-medium text-gray-900 mb-2">
-          Date of Birth *
-        </label>
-        <div className="relative">
-          <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-          <input
-            {...register('dateOfBirth')}
-            type="date"
-            max={new Date().toISOString().split('T')[0]}
-            className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${
-              errors.dateOfBirth
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                : 'border-gray-300 focus:ring-orange-500 focus:border-orange-500'
-            }`}
-          />
-        </div>
-        {errors.dateOfBirth && (
-          <p className="mt-1 text-sm text-red-600">{errors.dateOfBirth.message}</p>
-        )}
+        <Controller
+          name="dateOfBirth"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="Date of Birth"
+              type="date"
+              required
+              error={errors.dateOfBirth?.message}
+              max={new Date().toISOString().split('T')[0]}
+            />
+          )}
+        />
         {isUnder18 && (
-          <p className="mt-1 text-sm text-orange-600 flex items-center">
-            <Users className="h-4 w-4 mr-1" />
+          <p className="mt-2 text-sm text-orange-600 flex items-center">
+            <Users className="h-4 w-4 mr-2" />
             As a minor, we'll need parent/guardian contact information
           </p>
         )}
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-5">
-        {/* Email */}
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Email Address *
-          </label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              {...register('email')}
+      {/* Contact Information */}
+      <div className="grid sm:grid-cols-2 gap-6">
+        <Controller
+          name="email"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="Email Address"
               type="email"
-              className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${
-                errors.email
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : user?.email
-                  ? 'border-gray-300 focus:ring-orange-500 focus:border-orange-500 bg-gray-50'
-                  : 'border-gray-300 focus:ring-orange-500 focus:border-orange-500'
-              }`}
+              required
+              error={errors.email?.message}
               placeholder="your.email@example.com"
               readOnly={!!user?.email}
-              title={user?.email ? 'Email from your account (cannot be changed here)' : ''}
+              helperText={user?.email ? 'Email from your account' : undefined}
             />
-          </div>
-          {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
           )}
+        />
+
+        <Controller
+          name="phone"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="Phone Number"
+              type="tel"
+              placeholder="(555) 123-4567"
+              helperText="Recommended for opportunities"
+            />
+          )}
+        />
+      </div>
+
+      {/* Physical Stats Section */}
+      <div className="p-6 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl border-2 border-blue-200/50">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center">
+            <Ruler className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h4 className="font-bold text-blue-900">Physical Stats</h4>
+            <p className="text-xs text-blue-700">Optional - helps brands find athletes for their campaigns</p>
+          </div>
         </div>
 
-        {/* Phone */}
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Phone Number
-          </label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              {...register('phone')}
-              type="tel"
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
-              placeholder="(555) 123-4567"
+        <div className="grid sm:grid-cols-2 gap-6">
+          <div>
+            <Controller
+              name="heightInches"
+              control={control}
+              render={({ field }) => (
+                <OnboardingInput
+                  {...field}
+                  label="Height (inches)"
+                  type="number"
+                  min={48}
+                  max={96}
+                  placeholder="e.g., 70"
+                  onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                  error={errors.heightInches?.message}
+                  helperText={watchedHeight && watchedHeight > 0 ? formatHeight(watchedHeight) : undefined}
+                />
+              )}
             />
           </div>
-          <p className="mt-1 text-xs text-gray-500">Optional, but recommended for opportunities</p>
+
+          <Controller
+            name="weightLbs"
+            control={control}
+            render={({ field }) => (
+              <OnboardingInput
+                {...field}
+                label="Weight (lbs)"
+                type="number"
+                min={80}
+                max={400}
+                placeholder="e.g., 165"
+                onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                error={errors.weightLbs?.message}
+              />
+            )}
+          />
         </div>
       </div>
 
       {/* Parent Email (if under 18) */}
       {isUnder18 && (
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Parent/Guardian Email *
-          </label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              {...register('parentEmail', {
-                required: isUnder18 ? 'Parent email is required for minors' : false
-              })}
-              type="email"
-              className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${
-                errors.parentEmail
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-orange-500 focus:border-orange-500'
-              }`}
-              placeholder="parent@example.com"
-            />
+        <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-100/50 rounded-2xl border-2 border-amber-200/50">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
+              <Users className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h4 className="font-bold text-amber-900">Parent/Guardian Contact</h4>
+              <p className="text-xs text-amber-700">Required for athletes under 18</p>
+            </div>
           </div>
-          {errors.parentEmail && (
-            <p className="mt-1 text-sm text-red-600">{errors.parentEmail.message}</p>
-          )}
-          <p className="mt-1 text-sm text-gray-600">
-            We'll keep your parent/guardian informed about your NIL activities and opportunities
-          </p>
+
+          <Controller
+            name="parentEmail"
+            control={control}
+            rules={{ required: isUnder18 ? 'Parent email is required for minors' : false }}
+            render={({ field }) => (
+              <OnboardingInput
+                {...field}
+                label="Parent/Guardian Email"
+                type="email"
+                required
+                error={errors.parentEmail?.message}
+                placeholder="parent@example.com"
+                helperText="We'll keep your parent/guardian informed about your NIL activities"
+              />
+            )}
+          />
         </div>
       )}
 
       {/* Privacy Notice */}
-      <div className="p-4 bg-gray-50 rounded-xl">
-        <h4 className="text-sm font-medium text-gray-900 mb-2">Privacy & Security</h4>
+      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+        <h4 className="text-sm font-bold text-gray-900 mb-2">Privacy & Security</h4>
         <p className="text-xs text-gray-600 leading-relaxed">
           Your personal information is protected and will only be used to provide personalized
           NIL guidance and opportunities. We follow all applicable privacy laws and regulations.
@@ -302,66 +342,56 @@ export default function AthletePersonalInfoStep({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-col sm:flex-row justify-between items-center pt-6 gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-center pt-4 gap-4">
         {/* Left side - Skip and Save buttons */}
         <div className="flex gap-3">
           {allowSkip && (
-            <button
+            <OnboardingButton
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 updateFormData(getValues());
                 onSkip ? onSkip() : skipStep();
               }}
               disabled={isLoading}
-              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50"
             >
-              <SkipForward className="h-4 w-4 mr-2" />
+              <SkipForward className="h-4 w-4" />
               Skip for now
-            </button>
+            </OnboardingButton>
           )}
 
-          <button
+          <OnboardingButton
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={async () => {
               updateFormData(getValues());
               onSaveAndExit ? await onSaveAndExit() : await saveAndExit();
             }}
             disabled={isLoading}
-            className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50"
           >
-            <Save className="h-4 w-4 mr-2" />
+            <Save className="h-4 w-4" />
             Save & continue later
-          </button>
+          </OnboardingButton>
         </div>
 
         {/* Right side - Continue button */}
-        <button
+        <OnboardingButton
           type="submit"
-          disabled={isLoading}
-          className={`inline-flex items-center px-6 py-3 rounded-xl font-medium transition-all ${
-            !isLoading
-              ? 'bg-orange-500 text-white hover:bg-orange-600 shadow-lg hover:shadow-xl'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          }`}
+          variant="primary"
+          size="lg"
+          isLoading={isLoading}
         >
-          {isLoading ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-              Saving...
-            </>
-          ) : (
-            <>
-              Continue
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </>
-          )}
-        </button>
+          Continue
+          <ArrowRight className="h-5 w-5" />
+        </OnboardingButton>
       </div>
 
       {/* Optional field indicator */}
-      <div className="mt-4 text-center">
+      <div className="text-center">
         <p className="text-xs text-gray-500">
-          * Required fields only. You can skip optional fields and complete them later.
+          Fields marked with <span className="text-red-500">*</span> are required
         </p>
       </div>
     </form>

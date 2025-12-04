@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Clear Corrupted Chat Storage</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    button {
+      background: #ff6b35;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin: 10px 10px 10px 0;
+    }
+    button:hover {
+      background: #ff5520;
+    }
+    button.secondary {
+      background: #4a90e2;
+    }
+    button.secondary:hover {
+      background: #357abd;
+    }
+    .output {
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 20px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .success { color: #10b981; }
+    .error { color: #ef4444; }
+    .warning { color: #f59e0b; }
+    .info { color: #3b82f6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧹 Clear Corrupted Chat Storage</h1>
+    <p>This tool will help you clear corrupted chat data from localStorage and verify storage is working correctly.</p>
+
+    <button onclick="inspectStorage()">🔍 Inspect Current Storage</button>
+    <button onclick="clearCorruptedData()">🧹 Clear Corrupted Data</button>
+    <button onclick="clearAllChatData()" class="secondary">🗑️ Clear ALL Chat Data</button>
+
+    <div id="output" class="output"></div>
+  </div>
+
+  <script>
+    const output = document.getElementById('output');
+
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      output.innerHTML += `<span class="${type}">[${timestamp}] ${message}</span>\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function inspectStorage() {
+      output.innerHTML = '';
+      log('=== INSPECTING LOCALSTORAGE ===', 'info');
+
+      // Find all chat-related keys
+      const allKeys = Object.keys(localStorage).filter(k =>
+        k.includes('chat') || k.includes('nil')
+      );
+
+      log(`Found ${allKeys.length} chat-related keys`, 'info');
+
+      allKeys.forEach(key => {
+        const value = localStorage.getItem(key);
+        const size = (value?.length || 0) / 1024;
+
+        log(`\n📦 Key: ${key}`, 'info');
+        log(`   Size: ${size.toFixed(2)}KB`, 'info');
+
+        // Check if corrupted
+        if (value === '[object Object]') {
+          log(`   ❌ CORRUPTED: Contains "[object Object]"`, 'error');
+        } else if (value) {
+          try {
+            const parsed = JSON.parse(value);
+            log(`   ✅ Valid JSON`, 'success');
+
+            // Try to extract chat count if available
+            if (parsed.state?.chats) {
+              log(`   📊 Chats: ${parsed.state.chats.length}`, 'info');
+            }
+          } catch (e) {
+            log(`   ⚠️ Invalid JSON: ${e.message}`, 'warning');
+            log(`   Preview: ${value.substring(0, 100)}...`, 'warning');
+          }
+        }
+      });
+
+      if (allKeys.length === 0) {
+        log('No chat data found in localStorage', 'warning');
+      }
+    }
+
+    function clearCorruptedData() {
+      output.innerHTML = '';
+      log('=== CLEARING CORRUPTED DATA ===', 'info');
+
+      const allKeys = Object.keys(localStorage).filter(k =>
+        k.includes('chat') || k.includes('nil')
+      );
+
+      let clearedCount = 0;
+
+      allKeys.forEach(key => {
+        const value = localStorage.getItem(key);
+
+        // Check if corrupted
+        if (value === '[object Object]') {
+          log(`🗑️ Removing corrupted key: ${key}`, 'warning');
+          localStorage.removeItem(key);
+          clearedCount++;
+        } else if (value) {
+          try {
+            JSON.parse(value);
+            log(`✅ Keeping valid key: ${key}`, 'success');
+          } catch (e) {
+            log(`🗑️ Removing invalid JSON key: ${key}`, 'warning');
+            localStorage.removeItem(key);
+            clearedCount++;
+          }
+        }
+      });
+
+      if (clearedCount === 0) {
+        log('\n✅ No corrupted data found!', 'success');
+      } else {
+        log(`\n✅ Cleared ${clearedCount} corrupted keys`, 'success');
+        log('Please refresh the page to reinitialize storage', 'info');
+      }
+    }
+
+    function clearAllChatData() {
+      if (!confirm('Are you sure you want to delete ALL chat data? This cannot be undone.')) {
+        return;
+      }
+
+      output.innerHTML = '';
+      log('=== CLEARING ALL CHAT DATA ===', 'warning');
+
+      const allKeys = Object.keys(localStorage).filter(k =>
+        k.includes('chat') || k.includes('nil')
+      );
+
+      allKeys.forEach(key => {
+        log(`🗑️ Removing: ${key}`, 'warning');
+        localStorage.removeItem(key);
+      });
+
+      log(`\n✅ Cleared ${allKeys.length} keys`, 'success');
+      log('Please refresh the page to start fresh', 'info');
+    }
+
+    // Auto-inspect on load
+    window.onload = () => {
+      inspectStorage();
+    };
+  </script>
+</body>
+</html>

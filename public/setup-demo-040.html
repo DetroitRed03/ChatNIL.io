@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo Setup - Agency Platform</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+    .header h1 { font-size: 32px; margin-bottom: 8px; }
+    .header p { font-size: 16px; opacity: 0.9; }
+    .content { padding: 40px; }
+    .step {
+      background: #f9fafb;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .step-number {
+      width: 36px;
+      height: 36px;
+      background: #f97316;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .step-title { font-size: 20px; font-weight: 600; color: #111827; }
+    .step-description {
+      color: #6b7280;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    .button {
+      background: #f97316;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+      text-decoration: none;
+      display: inline-block;
+      text-align: center;
+    }
+    .button:hover { background: #ea580c; transform: translateY(-1px); }
+    .button.secondary {
+      background: #3b82f6;
+    }
+    .button.secondary:hover {
+      background: #2563eb;
+    }
+    .code-block {
+      background: #1f2937;
+      color: #10b981;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      margin: 12px 0;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .info-box {
+      background: #dbeafe;
+      border-left: 4px solid #3b82f6;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+      color: #1e40af;
+    }
+    .success-box {
+      background: #d1fae5;
+      border-left: 4px solid #10b981;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+      color: #065f46;
+    }
+    .warning-box {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+      color: #92400e;
+    }
+    ul { padding-left: 20px; margin: 12px 0; }
+    li { margin: 8px 0; line-height: 1.6; color: #374151; }
+    strong { color: #111827; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🚀 FMV & Matchmaking Demo Setup</h1>
+      <p>Set up your agency platform tables and demo data</p>
+    </div>
+
+    <div class="content">
+      <div class="warning-box">
+        <strong>⚠️ Important:</strong> This migration creates new tables. If you've already run this migration, you may see "table already exists" messages - that's normal and safe to ignore.
+      </div>
+
+      <!-- Step 1: Run Migration -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">1</div>
+          <div class="step-title">Create Database Tables</div>
+        </div>
+        <div class="step-description">
+          This creates 4 new tables needed for the agency platform demo:
+          <ul>
+            <li><strong>athlete_public_profiles</strong> - Public athlete profiles viewable by agencies</li>
+            <li><strong>agency_campaigns</strong> - Brand campaigns looking for athletes</li>
+            <li><strong>campaign_athlete_invites</strong> - Invitations sent to athletes</li>
+            <li><strong>agency_athlete_messages</strong> - Direct messages between agencies and athletes</li>
+          </ul>
+        </div>
+
+        <a href="https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/sql/new" target="_blank" class="button">
+          Open Supabase SQL Editor →
+        </a>
+
+        <div class="info-box">
+          <strong>📋 Copy this SQL:</strong>
+          <div class="code-block">migrations/040_agency_platform_minimal.sql</div>
+          <ol style="margin-top: 12px;">
+            <li>Click the button above to open the SQL editor</li>
+            <li>Open <code>migrations/040_agency_platform_minimal.sql</code> from your project</li>
+            <li>Copy all the SQL and paste it into the editor</li>
+            <li>Click "Run" to execute</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Step 2: Seed Data -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">2</div>
+          <div class="step-title">Seed Demo Data</div>
+        </div>
+        <div class="step-description">
+          This populates your database with:
+          <ul>
+            <li><strong>157 athlete profiles</strong> (one for each existing athlete)</li>
+            <li><strong>6 sample campaigns</strong> from major brands (Nike, Gatorade, Adidas, Red Bull, Under Armour, Degree)</li>
+          </ul>
+        </div>
+
+        <div class="code-block">npx tsx scripts/seed-demo-data.ts</div>
+
+        <div class="info-box">
+          <strong>💻 Run in Terminal:</strong>
+          <ol style="margin-top: 12px;">
+            <li>Open your terminal</li>
+            <li>Make sure you're in the project directory</li>
+            <li>Copy the command above and run it</li>
+            <li>Wait for "✅ Seeding complete!" message</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Step 3: Test -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">3</div>
+          <div class="step-title">Test the Demo</div>
+        </div>
+        <div class="step-description">
+          Once migration and seeding are complete, test the demo page:
+        </div>
+
+        <a href="http://localhost:3000/demo/athlete" target="_blank" class="button secondary">
+          Open Demo Page →
+        </a>
+
+        <div class="success-box" style="margin-top: 16px;">
+          <strong>✅ What to expect:</strong>
+          <ul style="margin-top: 8px;">
+            <li>Dropdown should show all 157 athletes</li>
+            <li>Selecting an athlete shows their FMV score with animated gauge</li>
+            <li>Score breakdown cards show social, athletic, market, and brand scores</li>
+            <li>Deal value estimates based on FMV tier</li>
+            <li>Matched campaigns section shows compatible brand opportunities</li>
+            <li>Match scores from 0-100 with detailed breakdowns</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Troubleshooting -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">🔧</div>
+          <div class="step-title">Troubleshooting</div>
+        </div>
+
+        <div class="step-description">
+          <strong>If the dropdown is empty:</strong>
+          <ul>
+            <li>Check that Step 2 (seeding) completed successfully</li>
+            <li>Open browser console (F12) and check for errors</li>
+            <li>Verify API endpoints return data:
+              <div class="code-block">curl http://localhost:3000/api/demo/fmv/athletes</div>
+            </li>
+          </ul>
+
+          <strong>If you see 500 errors:</strong>
+          <ul>
+            <li>Make sure Step 1 (migration) completed without errors</li>
+            <li>Check Supabase dashboard to verify tables exist</li>
+            <li>Ensure your <code>.env.local</code> has valid Supabase credentials</li>
+          </ul>
+
+          <strong>If FMV scores don't display:</strong>
+          <ul>
+            <li>FMV calculation must have been run previously (migration 015)</li>
+            <li>Check that <code>athlete_fmv_data</code> table has data</li>
+            <li>Run: <code>npx tsx scripts/calculate-fmv-all.ts</code> if needed</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clear All Chat Data</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #1a202c;
+      margin-bottom: 10px;
+    }
+    .warning {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .status {
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+      border-left: 4px solid #28a745;
+    }
+    .info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border-left: 4px solid #17a2b8;
+    }
+    button {
+      background: #dc3545;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #c82333;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(220,53,69,0.4);
+    }
+    button:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .check-btn {
+      background: #007bff;
+    }
+    .check-btn:hover {
+      background: #0056b3;
+    }
+    pre {
+      background: #f8f9fa;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      border: 1px solid #dee2e6;
+    }
+    .data-display {
+      margin-top: 20px;
+    }
+    ul {
+      line-height: 1.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗑️ Clear All Chat Data</h1>
+    <p>This tool will help you clear all chat-related data from localStorage.</p>
+
+    <div class="warning">
+      <strong>⚠️ Warning:</strong> This will remove all locally stored chat data. Make sure the database has been cleaned first using the cleanup script.
+    </div>
+
+    <div class="data-display">
+      <h3>Current localStorage Data:</h3>
+      <div id="dataInfo"></div>
+    </div>
+
+    <div style="margin-top: 30px;">
+      <button class="check-btn" onclick="checkLocalStorage()">🔍 Check localStorage</button>
+      <button onclick="clearChatData()">🗑️ Clear All Chat Data</button>
+    </div>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    function checkLocalStorage() {
+      const statusDiv = document.getElementById('status');
+      const dataDiv = document.getElementById('dataInfo');
+
+      const chatKeys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('chat') || key.includes('chatnil'))) {
+          const value = localStorage.getItem(key);
+          const size = new Blob([value]).size;
+          chatKeys.push({ key, size });
+        }
+      }
+
+      if (chatKeys.length === 0) {
+        dataDiv.innerHTML = '<div class="status info">✅ No chat-related data found in localStorage</div>';
+      } else {
+        let html = '<div class="status info">';
+        html += `<strong>Found ${chatKeys.length} chat-related items:</strong><ul>`;
+        chatKeys.forEach(({key, size}) => {
+          const sizeKB = (size / 1024).toFixed(2);
+          html += `<li><code>${key}</code> - ${sizeKB} KB</li>`;
+        });
+        html += '</ul></div>';
+        dataDiv.innerHTML = html;
+      }
+    }
+
+    function clearChatData() {
+      if (!confirm('Are you sure you want to clear ALL chat data from localStorage?')) {
+        return;
+      }
+
+      const statusDiv = document.getElementById('status');
+      const dataDiv = document.getElementById('dataInfo');
+
+      let removedCount = 0;
+      const removedKeys = [];
+
+      // Find all chat-related keys
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('chat') || key.includes('chatnil'))) {
+          keysToRemove.push(key);
+        }
+      }
+
+      // Remove them
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        removedKeys.push(key);
+        removedCount++;
+      });
+
+      if (removedCount === 0) {
+        statusDiv.innerHTML = '<div class="status info">ℹ️ No chat data found to clear</div>';
+      } else {
+        let html = '<div class="status success">';
+        html += `<strong>✅ Successfully cleared ${removedCount} items from localStorage:</strong><ul>`;
+        removedKeys.forEach(key => {
+          html += `<li><code>${key}</code></li>`;
+        });
+        html += '</ul>';
+        html += '<p style="margin-top: 16px;"><strong>Next steps:</strong></p>';
+        html += '<ol>';
+        html += '<li>Close this window</li>';
+        html += '<li>Refresh your main application page</li>';
+        html += '<li>Create new chats to test persistence</li>';
+        html += '</ol>';
+        html += '</div>';
+        statusDiv.innerHTML = html;
+      }
+
+      // Update display
+      dataDiv.innerHTML = '<div class="status info">✅ localStorage is now clean</div>';
+    }
+
+    // Check on load
+    window.addEventListener('load', checkLocalStorage);
+  </script>
+</body>
+</html>

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apply Security Migrations - ChatNIL</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0f0f0f;
+      color: #e0e0e0;
+    }
+    h1 { color: #22c55e; }
+    h2 { color: #3b82f6; margin-top: 30px; }
+    .status { padding: 15px; border-radius: 8px; margin: 15px 0; }
+    .success { background: #14532d; border: 1px solid #22c55e; }
+    .error { background: #7f1d1d; border: 1px solid #ef4444; }
+    .pending { background: #1e3a5f; border: 1px solid #3b82f6; }
+    .warning { background: #713f12; border: 1px solid #f59e0b; }
+    button {
+      background: #22c55e;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px 10px 0;
+    }
+    button:hover { background: #16a34a; }
+    button:disabled { background: #4b5563; cursor: not-allowed; }
+    .secondary { background: #3b82f6; }
+    .secondary:hover { background: #2563eb; }
+    pre {
+      background: #1a1a1a;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .step { margin: 20px 0; padding: 20px; background: #1a1a1a; border-radius: 8px; }
+    .step-header { display: flex; align-items: center; gap: 10px; }
+    .step-number {
+      background: #3b82f6;
+      color: white;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+    .completed .step-number { background: #22c55e; }
+    #log { white-space: pre-wrap; font-family: monospace; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>Security Migrations</h1>
+  <p>This page applies RLS verification and rate limiting migrations to your Supabase database.</p>
+
+  <div id="connection-status" class="status pending">Checking connection...</div>
+
+  <div class="step" id="step1">
+    <div class="step-header">
+      <div class="step-number">1</div>
+      <h3>RLS Policy Verification (Migration 300)</h3>
+    </div>
+    <p>Verifies and fixes Row Level Security policies on critical tables.</p>
+    <button onclick="runMigration300()">Run Migration 300</button>
+    <div id="status1"></div>
+  </div>
+
+  <div class="step" id="step2">
+    <div class="step-header">
+      <div class="step-number">2</div>
+      <h3>Rate Limiting Tables (Migration 301)</h3>
+    </div>
+    <p>Creates rate limiting tables and functions for API protection.</p>
+    <button onclick="runMigration301()">Run Migration 301</button>
+    <div id="status2"></div>
+  </div>
+
+  <div class="step" id="step3">
+    <div class="step-header">
+      <div class="step-number">3</div>
+      <h3>Verify Installation</h3>
+    </div>
+    <p>Check that all tables and functions were created correctly.</p>
+    <button onclick="verifyInstallation()" class="secondary">Verify Installation</button>
+    <div id="status3"></div>
+  </div>
+
+  <h2>Execution Log</h2>
+  <pre id="log"></pre>
+
+  <script>
+    const SUPABASE_URL = 'https://lqskiijspudfocddhkqs.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1OTMzNTQsImV4cCI6MjA3NzE2OTM1NH0.z8mqmrIOMHHvTxFEjUIqcLOUlQk-__UXjQYypCVfIFQ';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTU5MzM1NCwiZXhwIjoyMDc3MTY5MzU0fQ.LpapT51choXCwTfpbE81AIc4JC9QOO0FpOtqUxZ405I';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    function log(msg) {
+      const logEl = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      logEl.textContent += `[${timestamp}] ${msg}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(id, type, msg) {
+      const el = document.getElementById(id);
+      el.innerHTML = `<div class="status ${type}">${msg}</div>`;
+    }
+
+    async function checkConnection() {
+      try {
+        const { data, error } = await supabase.from('users').select('id').limit(1);
+        if (error) throw error;
+        document.getElementById('connection-status').className = 'status success';
+        document.getElementById('connection-status').textContent = '✅ Connected to Supabase';
+        log('Connected to Supabase successfully');
+        return true;
+      } catch (e) {
+        document.getElementById('connection-status').className = 'status error';
+        document.getElementById('connection-status').textContent = '❌ Connection failed: ' + e.message;
+        log('Connection error: ' + e.message);
+        return false;
+      }
+    }
+
+    // Migration 300: RLS Verification
+    const MIGRATION_300 = `
+-- Verify RLS on users table
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'users' AND c.relrowsecurity = true
+  ) THEN
+    ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+    RAISE NOTICE 'Enabled RLS on users table';
+  END IF;
+END $$;
+
+-- Verify RLS on chat_sessions
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'chat_sessions' AND c.relrowsecurity = true
+  ) THEN
+    ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+-- Verify RLS on chat_messages
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'chat_messages' AND c.relrowsecurity = true
+  ) THEN
+    ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+-- Verify RLS on user_badges
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = 'user_badges' AND c.relrowsecurity = true
+  ) THEN
+    ALTER TABLE user_badges ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+-- Verify RLS on quiz_sessions
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'quiz_sessions') THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = 'quiz_sessions' AND c.relrowsecurity = true
+    ) THEN
+      ALTER TABLE quiz_sessions ENABLE ROW LEVEL SECURITY;
+    END IF;
+  END IF;
+END $$;
+`;
+
+    // Migration 301: Rate Limiting
+    const MIGRATION_301 = `
+-- Create rate limit tracking table for authenticated users
+CREATE TABLE IF NOT EXISTS api_rate_limits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL,
+  request_count INTEGER DEFAULT 1,
+  window_start TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, endpoint)
+);
+
+-- Add index for fast lookups
+CREATE INDEX IF NOT EXISTS idx_rate_limits_user_endpoint
+  ON api_rate_limits(user_id, endpoint);
+
+CREATE INDEX IF NOT EXISTS idx_rate_limits_window
+  ON api_rate_limits(window_start);
+
+-- Create anonymous rate limiting table
+CREATE TABLE IF NOT EXISTS anon_rate_limits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  identifier TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  request_count INTEGER DEFAULT 1,
+  window_start TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(identifier, endpoint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_anon_rate_limits_identifier
+  ON anon_rate_limits(identifier, endpoint);
+
+-- Rate limit check function for authenticated users
+CREATE OR REPLACE FUNCTION check_api_rate_limit(
+  p_user_id UUID,
+  p_endpoint TEXT,
+  p_max_requests INTEGER,
+  p_window_minutes INTEGER
+) RETURNS BOOLEAN AS $$
+DECLARE
+  v_current_count INTEGER;
+BEGIN
+  INSERT INTO api_rate_limits (user_id, endpoint, request_count, window_start)
+  VALUES (p_user_id, p_endpoint, 1, NOW())
+  ON CONFLICT (user_id, endpoint) DO UPDATE
+  SET
+    request_count = CASE
+      WHEN api_rate_limits.window_start < NOW() - (p_window_minutes || ' minutes')::interval
+      THEN 1
+      ELSE api_rate_limits.request_count + 1
+    END,
+    window_start = CASE
+      WHEN api_rate_limits.window_start < NOW() - (p_window_minutes || ' minutes')::interval
+      THEN NOW()
+      ELSE api_rate_limits.window_start
+    END
+  RETURNING request_count INTO v_current_count;
+
+  RETURN v_current_count <= p_max_requests;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Anonymous rate limit check function
+CREATE OR REPLACE FUNCTION check_anon_rate_limit(
+  p_identifier TEXT,
+  p_endpoint TEXT,
+  p_max_requests INTEGER,
+  p_window_minutes INTEGER
+) RETURNS BOOLEAN AS $$
+DECLARE
+  v_current_count INTEGER;
+BEGIN
+  INSERT INTO anon_rate_limits (identifier, endpoint, request_count, window_start)
+  VALUES (p_identifier, p_endpoint, 1, NOW())
+  ON CONFLICT (identifier, endpoint) DO UPDATE
+  SET
+    request_count = CASE
+      WHEN anon_rate_limits.window_start < NOW() - (p_window_minutes || ' minutes')::interval
+      THEN 1
+      ELSE anon_rate_limits.request_count + 1
+    END,
+    window_start = CASE
+      WHEN anon_rate_limits.window_start < NOW() - (p_window_minutes || ' minutes')::interval
+      THEN NOW()
+      ELSE anon_rate_limits.window_start
+    END
+  RETURNING request_count INTO v_current_count;
+
+  RETURN v_current_count <= p_max_requests;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Get remaining rate limit info
+CREATE OR REPLACE FUNCTION get_rate_limit_remaining(
+  p_user_id UUID,
+  p_endpoint TEXT,
+  p_max_requests INTEGER,
+  p_window_minutes INTEGER
+) RETURNS JSON AS $$
+DECLARE
+  v_record RECORD;
+  v_remaining INTEGER;
+BEGIN
+  SELECT request_count, window_start INTO v_record
+  FROM api_rate_limits
+  WHERE user_id = p_user_id AND endpoint = p_endpoint;
+
+  IF NOT FOUND THEN
+    RETURN json_build_object(
+      'remaining', p_max_requests,
+      'limit', p_max_requests,
+      'reset_at', NOW() + (p_window_minutes || ' minutes')::interval
+    );
+  END IF;
+
+  IF v_record.window_start < NOW() - (p_window_minutes || ' minutes')::interval THEN
+    RETURN json_build_object(
+      'remaining', p_max_requests,
+      'limit', p_max_requests,
+      'reset_at', NOW() + (p_window_minutes || ' minutes')::interval
+    );
+  END IF;
+
+  v_remaining := GREATEST(0, p_max_requests - v_record.request_count);
+
+  RETURN json_build_object(
+    'remaining', v_remaining,
+    'limit', p_max_requests,
+    'reset_at', v_record.window_start + (p_window_minutes || ' minutes')::interval,
+    'used', v_record.request_count
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Cleanup function
+CREATE OR REPLACE FUNCTION cleanup_old_rate_limits() RETURNS void AS $$
+BEGIN
+  DELETE FROM api_rate_limits WHERE window_start < NOW() - INTERVAL '24 hours';
+  DELETE FROM anon_rate_limits WHERE window_start < NOW() - INTERVAL '24 hours';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Enable RLS
+ALTER TABLE api_rate_limits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE anon_rate_limits ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+DROP POLICY IF EXISTS "Service role can manage rate limits" ON api_rate_limits;
+CREATE POLICY "Service role can manage rate limits" ON api_rate_limits
+  FOR ALL USING (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS "Service role can manage anon rate limits" ON anon_rate_limits;
+CREATE POLICY "Service role can manage anon rate limits" ON anon_rate_limits
+  FOR ALL USING (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS "Users can view own rate limits" ON api_rate_limits;
+CREATE POLICY "Users can view own rate limits" ON api_rate_limits
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- Grant permissions
+GRANT EXECUTE ON FUNCTION check_api_rate_limit TO service_role;
+GRANT EXECUTE ON FUNCTION check_anon_rate_limit TO service_role;
+GRANT EXECUTE ON FUNCTION get_rate_limit_remaining TO service_role;
+GRANT EXECUTE ON FUNCTION cleanup_old_rate_limits TO service_role;
+`;
+
+    async function runSQL(sql) {
+      // Use the REST API directly
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_SERVICE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+        },
+        body: JSON.stringify({ sql_query: sql })
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
+
+      return await response.json();
+    }
+
+    async function runMigration300() {
+      log('Starting Migration 300: RLS Verification...');
+      setStatus('status1', 'pending', 'Running migration...');
+
+      try {
+        // Since we can't run arbitrary SQL via REST, we need to copy to clipboard
+        await navigator.clipboard.writeText(MIGRATION_300);
+        setStatus('status1', 'warning', `
+          <p><strong>SQL copied to clipboard!</strong></p>
+          <p>Please paste and run this in the <a href="https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/sql/new" target="_blank" style="color: #3b82f6;">Supabase SQL Editor</a></p>
+        `);
+        log('Migration 300 SQL copied to clipboard');
+      } catch (e) {
+        setStatus('status1', 'error', 'Error: ' + e.message);
+        log('Error: ' + e.message);
+      }
+    }
+
+    async function runMigration301() {
+      log('Starting Migration 301: Rate Limiting...');
+      setStatus('status2', 'pending', 'Running migration...');
+
+      try {
+        await navigator.clipboard.writeText(MIGRATION_301);
+        setStatus('status2', 'warning', `
+          <p><strong>SQL copied to clipboard!</strong></p>
+          <p>Please paste and run this in the <a href="https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/sql/new" target="_blank" style="color: #3b82f6;">Supabase SQL Editor</a></p>
+        `);
+        log('Migration 301 SQL copied to clipboard');
+      } catch (e) {
+        setStatus('status2', 'error', 'Error: ' + e.message);
+        log('Error: ' + e.message);
+      }
+    }
+
+    async function verifyInstallation() {
+      log('Verifying installation...');
+      setStatus('status3', 'pending', 'Checking tables and functions...');
+
+      const results = [];
+
+      // Check api_rate_limits table
+      try {
+        const { error } = await supabase.from('api_rate_limits').select('id').limit(1);
+        if (error && error.message.includes('not find')) {
+          results.push('❌ api_rate_limits table NOT found');
+        } else {
+          results.push('✅ api_rate_limits table exists');
+        }
+      } catch (e) {
+        results.push('❌ api_rate_limits: ' + e.message);
+      }
+
+      // Check anon_rate_limits table
+      try {
+        const { error } = await supabase.from('anon_rate_limits').select('id').limit(1);
+        if (error && error.message.includes('not find')) {
+          results.push('❌ anon_rate_limits table NOT found');
+        } else {
+          results.push('✅ anon_rate_limits table exists');
+        }
+      } catch (e) {
+        results.push('❌ anon_rate_limits: ' + e.message);
+      }
+
+      // Check if function exists by calling it
+      try {
+        const { error } = await supabase.rpc('check_api_rate_limit', {
+          p_user_id: '00000000-0000-0000-0000-000000000000',
+          p_endpoint: 'test',
+          p_max_requests: 10,
+          p_window_minutes: 1
+        });
+        if (error) {
+          results.push('❌ check_api_rate_limit function: ' + error.message);
+        } else {
+          results.push('✅ check_api_rate_limit function works');
+        }
+      } catch (e) {
+        results.push('❌ check_api_rate_limit function: ' + e.message);
+      }
+
+      const allPassed = results.every(r => r.startsWith('✅'));
+      setStatus('status3', allPassed ? 'success' : 'warning', results.join('<br>'));
+      log('Verification complete:\n' + results.join('\n'));
+    }
+
+    // Initialize
+    checkConnection();
+  </script>
+</body>
+</html>

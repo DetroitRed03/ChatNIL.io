@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import OnboardingRouter from '@/components/onboarding/OnboardingRouter';
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -9,11 +10,24 @@ import { CheckCircle, Loader2 } from 'lucide-react';
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
+  // Determine redirect path based on user role
+  const getRedirectPath = () => {
+    if (user?.role === 'agency') {
+      return '/agencies/dashboard';
+    }
+    return '/dashboard';
+  };
+
   const handleComplete = async () => {
     console.log('🎉 OnboardingPage: Handling completion');
+    console.log('👤 User role:', user?.role);
+
+    const redirectPath = getRedirectPath();
+    console.log('🎯 Redirect path:', redirectPath);
 
     const MAX_COMPLETION_TIME = 15000; // 15 seconds max
     let forceRedirectTimer: NodeJS.Timeout | null = null;
@@ -22,7 +36,7 @@ export default function OnboardingPage() {
       // Set a force redirect timer as ultimate fallback
       forceRedirectTimer = setTimeout(() => {
         console.log('⏰ Force redirect triggered - user was taking too long');
-        window.location.href = '/profile';
+        window.location.href = redirectPath;
       }, MAX_COMPLETION_TIME);
 
       // Show success message first
@@ -44,17 +58,17 @@ export default function OnboardingPage() {
 
       // Try router first, then fallback
       try {
-        router.push('/profile');
+        router.push(redirectPath);
         // Set a backup timer in case router.push doesn't work
         setTimeout(() => {
           if (window.location.pathname.includes('/onboarding')) {
             console.log('🔄 Router.push may have failed, using window.location');
-            window.location.href = '/profile';
+            window.location.href = redirectPath;
           }
         }, 3000);
       } catch (routerError) {
         console.log('❌ Router.push failed, using window.location immediately');
-        window.location.href = '/profile';
+        window.location.href = redirectPath;
       }
     } catch (error) {
       console.error('❌ Redirect failed:', error);
@@ -65,8 +79,8 @@ export default function OnboardingPage() {
       }
 
       // Fallback to window.location if router fails
-      console.log('🔄 Final fallback redirect to /profile');
-      window.location.href = '/profile';
+      console.log('🔄 Final fallback redirect to', redirectPath);
+      window.location.href = redirectPath;
     }
   };
 

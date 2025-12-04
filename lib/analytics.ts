@@ -228,11 +228,12 @@ export function isFeatureEnabled(flagName: string): boolean {
 // ============================================================================
 
 /**
- * Shutdown server PostHog instance (call on server shutdown)
+ * Shutdown client PostHog instance
+ * Note: For server-side shutdown, use shutdownAnalytics from lib/analytics-server.ts
  */
 export async function shutdownAnalytics(): Promise<void> {
-  if (serverPostHog) {
-    await serverPostHog.shutdown();
-    serverPostHog = null;
+  if (clientPostHog) {
+    // Client-side PostHog doesn't have a shutdown method, just clear the reference
+    clientPostHog = null;
   }
 }

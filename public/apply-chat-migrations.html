@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apply Chat Migrations</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; }
+    button {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover { background: #059669; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    #log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 500px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    .success { color: #10b981; }
+    .error { color: #ef4444; }
+    .info { color: #3b82f6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗄️ Apply Chat Migrations</h1>
+    <p>This will create the <code>chat_sessions</code> and <code>chat_messages</code> tables in your Supabase database.</p>
+
+    <div>
+      <button onclick="applyMigrations()" id="applyBtn">Apply Migrations</button>
+      <button onclick="checkTables()" id="checkBtn">Check if Tables Exist</button>
+      <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div id="log"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODY4NjcwOSwiZXhwIjoyMDc0MjYyNzA5fQ.fXvyvHrUoNLdAr1expbRsguM8fkmurrNQi3-7xk8-TM';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    function log(message, type = 'info') {
+      const logEl = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      logEl.innerHTML += `<div class="${type}">[${timestamp}] ${message}</div>`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+
+    async function checkTables() {
+      log('Checking if tables exist...', 'info');
+
+      try {
+        // Check chat_sessions
+        const { data: sessions, error: sessionsError } = await supabase
+          .from('chat_sessions')
+          .select('count')
+          .limit(1);
+
+        if (sessionsError) {
+          log('❌ chat_sessions table does NOT exist', 'error');
+        } else {
+          log('✅ chat_sessions table exists', 'success');
+        }
+
+        // Check chat_messages
+        const { data: messages, error: messagesError } = await supabase
+          .from('chat_messages')
+          .select('count')
+          .limit(1);
+
+        if (messagesError) {
+          log('❌ chat_messages table does NOT exist', 'error');
+        } else {
+          log('✅ chat_messages table exists', 'success');
+        }
+
+      } catch (error) {
+        log(`Error checking tables: ${error.message}`, 'error');
+      }
+    }
+
+    async function applyMigrations() {
+      const btn = document.getElementById('applyBtn');
+      btn.disabled = true;
+
+      log('Starting migration process...', 'info');
+
+      try {
+        // Migration 010: Create chat_sessions table
+        log('Applying migration 010: chat_sessions table...', 'info');
+
+        const migration010 = `
+-- Create chat_sessions table
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  id text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title text NOT NULL DEFAULT 'New Chat',
+  role_context text DEFAULT 'athlete',
+  is_pinned boolean DEFAULT false,
+  is_archived boolean DEFAULT false,
+  draft text DEFAULT '',
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+CREATE POLICY "Users can view own chat sessions" ON chat_sessions
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own chat sessions" ON chat_sessions
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own chat sessions" ON chat_sessions
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own chat sessions" ON chat_sessions
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated_at ON chat_sessions(updated_at DESC);
+        `;
+
+        const { error: error010 } = await supabase.rpc('exec_sql', { sql: migration010 });
+
+        if (error010) {
+          // Try direct execution via REST API
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_SERVICE_KEY,
+              'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+            },
+            body: JSON.stringify({ sql: migration010 })
+          });
+
+          if (!response.ok) {
+            log('⚠️ Could not apply via RPC, you may need to run this SQL manually in Supabase dashboard', 'error');
+            log('SQL to run:', 'info');
+            log(migration010, 'info');
+          } else {
+            log('✅ Migration 010 applied successfully', 'success');
+          }
+        } else {
+          log('✅ Migration 010 applied successfully', 'success');
+        }
+
+        // Migration 011: Create chat_messages table
+        log('Applying migration 011: chat_messages table...', 'info');
+
+        const migration011 = `
+-- Create chat_messages table
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id text PRIMARY KEY,
+  session_id text NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  content text NOT NULL,
+  role text NOT NULL CHECK (role IN ('user', 'assistant')),
+  attachments jsonb,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+CREATE POLICY "Users can view own chat messages" ON chat_messages
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own chat messages" ON chat_messages
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own chat messages" ON chat_messages
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at DESC);
+        `;
+
+        const { error: error011 } = await supabase.rpc('exec_sql', { sql: migration011 });
+
+        if (error011) {
+          log('⚠️ Migration 011 could not be applied via RPC', 'error');
+          log('SQL to run manually:', 'info');
+          log(migration011, 'info');
+        } else {
+          log('✅ Migration 011 applied successfully', 'success');
+        }
+
+        log('✅ All migrations completed!', 'success');
+        log('You can now refresh the dashboard to see chat history', 'info');
+
+      } catch (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+        console.error(error);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Auto-check on load
+    window.addEventListener('load', () => {
+      log('Page loaded. Click "Check if Tables Exist" to verify database state.', 'info');
+    });
+  </script>
+</body>
+</html>

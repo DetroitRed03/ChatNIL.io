@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, School, GraduationCap, MapPin, BookOpen, Award } from 'lucide-react';
+import { ArrowRight, ArrowLeft, School, GraduationCap, MapPin, BookOpen, Award, SkipForward, Save } from 'lucide-react';
 import { athleteSchoolInfoSchema, AthleteSchoolInfo, OnboardingStepProps } from '@/lib/onboarding-types';
 import { useOnboarding } from '@/contexts/OnboardingContext';
+import {
+  OnboardingInput,
+  OnboardingButton,
+} from '@/components/ui/OnboardingInput';
 
 // Common US states for location selector
 const US_STATES = [
@@ -84,11 +88,14 @@ export default function AthleteSchoolInfoStep({
   data,
   onNext,
   onBack,
+  onSkip,
+  onSaveAndExit,
   isFirst,
   isLast,
-  isLoading
+  isLoading,
+  allowSkip = true
 }: OnboardingStepProps) {
-  const { nextStep, updateFormData } = useOnboarding();
+  const { nextStep, previousStep, skipStep, saveAndExit, updateFormData } = useOnboarding();
   const [schoolSuggestions, setSchoolSuggestions] = useState<string[]>([]);
   const [majorSuggestions, setMajorSuggestions] = useState<string[]>([]);
   const [showMajorSuggestions, setShowMajorSuggestions] = useState(false);
@@ -103,9 +110,11 @@ export default function AthleteSchoolInfoStep({
     handleSubmit,
     watch,
     setValue,
+    getValues,
+    control,
     formState: { errors, isValid }
   } = useForm<AthleteSchoolInfo>({
-    resolver: zodResolver(athleteSchoolInfoSchema),
+    resolver: zodResolver(athleteSchoolInfoSchema) as any,
     defaultValues: {
       schoolName: data.schoolName || '',
       schoolLevel: data.schoolLevel || undefined,
@@ -189,201 +198,179 @@ export default function AthleteSchoolInfoStep({
       if (success) {
         onNext(formData);
       } else {
-        console.warn('⚠️ Step progression failed, but data was saved locally');
+        console.warn('Step progression failed, but data was saved locally');
       }
     } catch (error) {
-      console.error('❌ Error during step submission:', error);
-      // Still update form data locally as fallback
+      console.error('Error during step submission:', error);
       updateFormData(formData);
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      {/* Introduction */}
-      <div className="mb-6 p-5 bg-orange-50 rounded-xl border border-orange-200">
-        <div className="flex items-start">
-          <div className="p-2 bg-orange-100 rounded-lg mr-4">
-            <School className="h-6 w-6 text-orange-600" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-orange-900 mb-2">
-              Tell us about your academic journey
-            </h3>
-            <p className="text-orange-700 leading-relaxed">
-              Your academic information helps us understand your NIL eligibility and connect you with
-              education-focused opportunities and local brand partnerships.
-            </p>
-          </div>
-        </div>
-      </div>
+  const handleBack = () => {
+    updateFormData(getValues());
+    previousStep();
+    if (onBack) onBack();
+  };
 
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* School Name */}
       <div className="relative" ref={schoolInputRef}>
-        <label className="block text-sm font-medium text-gray-900 mb-2">
-          School Name *
-        </label>
-        <div className="relative">
-          <School className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-          <input
-            {...register('schoolName', {
-              onChange: (e) => handleSchoolNameChange(e.target.value)
-            })}
-            type="text"
-            onFocus={() => {
-              const currentValue = watch('schoolName');
-              if (currentValue && currentValue.length > 2) {
-                handleSchoolNameChange(currentValue);
-              }
-            }}
-            className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${
-              errors.schoolName
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                : 'border-gray-300 focus:ring-orange-500 focus:border-orange-500'
-            }`}
-            placeholder="e.g., Jefferson High School, UCLA, etc."
-          />
-        </div>
-        {errors.schoolName && (
-          <p className="mt-1 text-sm text-red-600">{errors.schoolName.message}</p>
-        )}
+        <Controller
+          name="schoolName"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="School Name"
+              required
+              error={errors.schoolName?.message}
+              placeholder="e.g., Jefferson High School, UCLA"
+              onChange={(e) => {
+                field.onChange(e);
+                handleSchoolNameChange(e.target.value);
+              }}
+              onFocus={() => {
+                const currentValue = watch('schoolName');
+                if (currentValue && currentValue.length > 2) {
+                  handleSchoolNameChange(currentValue);
+                }
+              }}
+            />
+          )}
+        />
 
-        {/* School suggestions */}
+        {/* School suggestions dropdown */}
         {showSchoolSuggestions && schoolSuggestions.length > 0 && (
-          <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+          <div className="absolute z-20 w-full mt-1 bg-white border-2 border-orange-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
             {schoolSuggestions.map((suggestion, index) => (
               <button
                 key={index}
                 type="button"
                 onClick={() => selectSchool(suggestion)}
-                className="w-full px-4 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors"
+                className="w-full px-4 py-3 text-left hover:bg-orange-50 focus:bg-orange-50 focus:outline-none transition-colors first:rounded-t-xl last:rounded-b-xl"
               >
-                {suggestion}
+                <span className="text-gray-700 font-medium">{suggestion}</span>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Academic Level */}
+      {/* Academic Level - Visual Selector */}
       <div>
-        <label className="block text-sm font-medium text-gray-900 mb-2">
-          Academic Level *
+        <label className="block text-sm font-bold text-gray-700 mb-3">
+          Academic Level <span className="text-red-500 ml-1">*</span>
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { value: 'high-school', label: 'High School', icon: BookOpen },
-            { value: 'college', label: 'College', icon: GraduationCap },
-            { value: 'university', label: 'University', icon: School }
-          ].map(({ value, label, icon: Icon }) => (
-            <label key={value} className="relative">
+            { value: 'high-school', label: 'High School', icon: BookOpen, description: 'Grades 9-12' },
+            { value: 'college', label: 'College', icon: GraduationCap, description: 'Community or junior college' },
+            { value: 'university', label: 'University', icon: School, description: '4-year institution' }
+          ].map(({ value, label, icon: Icon, description }) => (
+            <label key={value} className="relative cursor-pointer">
               <input
                 {...register('schoolLevel')}
                 type="radio"
                 value={value}
                 className="sr-only"
               />
-              <div className={`cursor-pointer rounded-xl border-2 p-4 transition-all text-center ${
+              <div className={`rounded-xl border-2 p-4 transition-all text-center ${
                 watchedSchoolLevel === value
-                  ? 'border-orange-500 bg-orange-50 text-orange-900'
-                  : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                  ? 'border-orange-500 bg-orange-50 shadow-md'
+                  : 'border-orange-200/50 hover:border-orange-300 hover:bg-orange-50/50'
               }`}>
-                <Icon className={`h-6 w-6 mx-auto mb-2 ${
+                <Icon className={`h-8 w-8 mx-auto mb-2 ${
                   watchedSchoolLevel === value ? 'text-orange-500' : 'text-gray-400'
                 }`} />
-                <div className="font-medium">{label}</div>
+                <div className={`font-bold ${
+                  watchedSchoolLevel === value ? 'text-orange-900' : 'text-gray-700'
+                }`}>{label}</div>
+                <div className="text-xs text-gray-500 mt-1">{description}</div>
               </div>
             </label>
           ))}
         </div>
         {errors.schoolLevel && (
-          <p className="mt-1 text-sm text-red-600">{errors.schoolLevel.message}</p>
+          <p className="mt-2 text-xs text-red-500 font-medium">{errors.schoolLevel.message}</p>
         )}
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-5">
-        {/* Graduation Year */}
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Graduation Year *
-          </label>
-          <div className="relative">
-            <GraduationCap className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              {...register('graduationYear', { valueAsNumber: true })}
+      {/* Graduation Year and GPA Row */}
+      <div className="grid sm:grid-cols-2 gap-6">
+        <Controller
+          name="graduationYear"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="Graduation Year"
+              required
               type="number"
               min={new Date().getFullYear()}
               max={new Date().getFullYear() + 10}
-              className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${
-                errors.graduationYear
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-orange-500 focus:border-orange-500'
-              }`}
               placeholder="2025"
+              onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+              error={errors.graduationYear?.message}
             />
-          </div>
-          {errors.graduationYear && (
-            <p className="mt-1 text-sm text-red-600">{errors.graduationYear.message}</p>
           )}
-        </div>
+        />
 
-        {/* GPA */}
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            GPA (Optional)
-          </label>
-          <div className="relative">
-            <Award className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              {...register('gpa', { valueAsNumber: true })}
+        <Controller
+          name="gpa"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="GPA"
               type="number"
               step="0.01"
-              min="0"
-              max="4.0"
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
+              min={0}
+              max={4.0}
               placeholder="3.75"
+              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+              helperText="Scale of 0.0 - 4.0 (optional)"
             />
-          </div>
-          <p className="mt-1 text-xs text-gray-500">Scale of 0.0 - 4.0 (helps with academic sponsorships)</p>
-        </div>
+          )}
+        />
       </div>
 
       {/* Major (only show for college/university) */}
       {(watchedSchoolLevel === 'college' || watchedSchoolLevel === 'university') && (
         <div className="relative" ref={majorInputRef}>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Major / Field of Study
-          </label>
-          <div className="relative">
-            <BookOpen className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              {...register('major', {
-                onChange: (e) => handleMajorChange(e.target.value)
-              })}
-              type="text"
-              onFocus={() => {
-                const currentValue = watchedMajor;
-                if (currentValue && currentValue.length > 1) {
-                  handleMajorChange(currentValue);
-                }
-              }}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
-              placeholder="e.g., Business, Communications, Exercise Science"
-            />
-          </div>
-          <p className="mt-1 text-xs text-gray-500">Your major can unlock specialized NIL opportunities</p>
+          <Controller
+            name="major"
+            control={control}
+            render={({ field }) => (
+              <OnboardingInput
+                {...field}
+                label="Major / Field of Study"
+                placeholder="e.g., Business, Communications, Exercise Science"
+                helperText="Your major can unlock specialized NIL opportunities"
+                onChange={(e) => {
+                  field.onChange(e);
+                  handleMajorChange(e.target.value);
+                }}
+                onFocus={() => {
+                  if (watchedMajor && watchedMajor.length > 1) {
+                    handleMajorChange(watchedMajor);
+                  }
+                }}
+              />
+            )}
+          />
 
-          {/* Major suggestions */}
+          {/* Major suggestions dropdown */}
           {showMajorSuggestions && majorSuggestions.length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+            <div className="absolute z-20 w-full mt-1 bg-white border-2 border-orange-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
               {majorSuggestions.map((major, index) => (
                 <button
                   key={index}
                   type="button"
                   onClick={() => selectMajor(major)}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 text-left hover:bg-orange-50 focus:bg-orange-50 focus:outline-none transition-colors first:rounded-t-xl last:rounded-b-xl"
                 >
-                  {major}
+                  <span className="text-gray-700 font-medium">{major}</span>
                 </button>
               ))}
             </div>
@@ -392,14 +379,14 @@ export default function AthleteSchoolInfoStep({
       )}
 
       {/* NIL Education Note */}
-      <div className="p-4 bg-blue-50 rounded-xl">
-        <div className="flex items-start">
-          <div className="p-1 bg-blue-100 rounded-lg mr-3">
-            <School className="h-4 w-4 text-blue-600" />
+      <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-200/50">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+            <School className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h4 className="text-sm font-medium text-blue-900 mb-1">Academic NIL Opportunities</h4>
-            <p className="text-xs text-blue-700 leading-relaxed">
+            <h4 className="font-bold text-blue-900 mb-1">Academic NIL Opportunities</h4>
+            <p className="text-sm text-blue-700 leading-relaxed">
               Your academic level and major can unlock unique opportunities like tutoring partnerships,
               educational content creation, and academic performance bonuses from local businesses.
             </p>
@@ -407,29 +394,71 @@ export default function AthleteSchoolInfoStep({
         </div>
       </div>
 
-      {/* Continue Button */}
-      <div className="flex justify-end pt-6">
-        <button
-          type="submit"
-          disabled={!isValid || isLoading}
-          className={`inline-flex items-center px-6 py-3 rounded-xl font-medium transition-all ${
-            isValid && !isLoading
-              ? 'bg-orange-500 text-white hover:bg-orange-600 shadow-lg hover:shadow-xl'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          {isLoading ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-              Saving...
-            </>
-          ) : (
-            <>
-              Continue
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </>
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row justify-between items-center pt-4 gap-4">
+        {/* Left side - Back, Skip and Save buttons */}
+        <div className="flex gap-3">
+          {!isFirst && (
+            <OnboardingButton
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={handleBack}
+              disabled={isLoading}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </OnboardingButton>
           )}
-        </button>
+
+          {allowSkip && (
+            <OnboardingButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                updateFormData(getValues());
+                onSkip ? onSkip() : skipStep();
+              }}
+              disabled={isLoading}
+            >
+              <SkipForward className="h-4 w-4" />
+              Skip
+            </OnboardingButton>
+          )}
+
+          <OnboardingButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              updateFormData(getValues());
+              onSaveAndExit ? await onSaveAndExit() : await saveAndExit();
+            }}
+            disabled={isLoading}
+          >
+            <Save className="h-4 w-4" />
+            Save & Exit
+          </OnboardingButton>
+        </div>
+
+        {/* Right side - Continue button */}
+        <OnboardingButton
+          type="submit"
+          variant="primary"
+          size="lg"
+          isLoading={isLoading}
+        >
+          Continue
+          <ArrowRight className="h-5 w-5" />
+        </OnboardingButton>
+      </div>
+
+      {/* Optional field indicator */}
+      <div className="text-center">
+        <p className="text-xs text-gray-500">
+          Fields marked with <span className="text-red-500">*</span> are required
+        </p>
       </div>
     </form>
   );

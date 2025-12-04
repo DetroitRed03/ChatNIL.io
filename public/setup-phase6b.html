@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Phase 6B Setup - School System</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: system-ui; max-width: 1000px; margin: 20px auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+    .container { background: white; border-radius: 12px; padding: 30px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    h1 { color: #667eea; }
+    button { background: #667eea; color: white; border: none; padding: 12px 30px; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; margin: 10px 5px; }
+    button:hover:not(:disabled) { background: #5568d3; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    pre { background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+    .log { background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #667eea; font-family: 'Courier New', monospace; font-size: 14px; }
+    .success { border-left-color: #28a745; color: #155724; }
+    .error { border-left-color: #dc3545; color: #721c24; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏫 Phase 6B: School System Setup</h1>
+    <p>This will set up the database for Phase 6B (School System & Two-Tier Onboarding)</p>
+
+    <button onclick="runFullSetup()">Run Complete Setup</button>
+    <button onclick="clearLogs()">Clear Logs</button>
+
+    <div id="logs"></div>
+  </div>
+
+  <script>
+    const supabase = window.supabase.createClient(
+      'https://enbuwffusjhpcyoveewb.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODY4NjcwOSwiZXhwIjoyMDc0MjYyNzA5fQ.fXvyvHrUoNLdAr1expbRsguM8fkmurrNQi3-7xk8-TM'
+    );
+
+    function log(msg, isError = false) {
+      const div = document.createElement('div');
+      div.className = 'log' + (isError ? ' error' : ' success');
+      div.textContent = msg;
+      document.getElementById('logs').appendChild(div);
+    }
+
+    function clearLogs() {
+      document.getElementById('logs').innerHTML = '';
+    }
+
+    async function runFullSetup() {
+      clearLogs();
+      log('🚀 Starting Phase 6B setup...');
+
+      try {
+        // Step 1: Create schools table directly
+        log('Creating schools table...');
+        const { error: createTableError } = await supabase.rpc('exec_sql', {
+          query: `
+            CREATE TABLE IF NOT EXISTS schools (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              school_name TEXT NOT NULL,
+              school_district TEXT,
+              state TEXT NOT NULL,
+              school_type TEXT CHECK (school_type IN ('high_school', 'college', 'university', 'community_college')),
+              custom_slug TEXT UNIQUE NOT NULL,
+              signup_url TEXT,
+              qr_code_url TEXT,
+              logo_url TEXT,
+              primary_color TEXT DEFAULT '#3B82F6',
+              students_registered INTEGER DEFAULT 0,
+              students_completed INTEGER DEFAULT 0,
+              contact_name TEXT,
+              contact_email TEXT,
+              contact_phone TEXT,
+              active BOOLEAN DEFAULT true,
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW(),
+              created_by UUID
+            );
+          `
+        });
+
+        if (createTableError) {
+          log('❌ Failed to create schools table: ' + JSON.stringify(createTableError), true);
+          return;
+        }
+        log('✅ Schools table created');
+
+        // Step 2: Add columns to users table
+        log('Adding school fields to users table...');
+        const { error: alterTableError } = await supabase.rpc('exec_sql', {
+          query: `
+            ALTER TABLE users
+              ADD COLUMN IF NOT EXISTS school_created BOOLEAN DEFAULT false,
+              ADD COLUMN IF NOT EXISTS profile_completion_tier TEXT DEFAULT 'full',
+              ADD COLUMN IF NOT EXISTS home_completion_required BOOLEAN DEFAULT false,
+              ADD COLUMN IF NOT EXISTS school_id UUID,
+              ADD COLUMN IF NOT EXISTS home_completed_at TIMESTAMPTZ;
+          `
+        });
+
+        if (alterTableError) {
+          log('❌ Failed to alter users table: ' + JSON.stringify(alterTableError), true);
+        } else {
+          log('✅ User table columns added');
+        }
+
+        // Step 3: Create indexes
+        log('Creating indexes...');
+        await supabase.rpc('exec_sql', {
+          query: `
+            CREATE INDEX IF NOT EXISTS idx_schools_slug ON schools(custom_slug);
+            CREATE INDEX IF NOT EXISTS idx_schools_state ON schools(state);
+            CREATE INDEX IF NOT EXISTS idx_schools_active ON schools(active);
+            CREATE INDEX IF NOT EXISTS idx_users_school_id ON users(school_id);
+            CREATE INDEX IF NOT EXISTS idx_users_completion_tier ON users(profile_completion_tier);
+            CREATE INDEX IF NOT EXISTS idx_users_school_created ON users(school_created);
+          `
+        });
+        log('✅ Indexes created');
+
+        // Step 4: Enable RLS
+        log('Enabling Row Level Security...');
+        await supabase.rpc('exec_sql', {
+          query: `ALTER TABLE schools ENABLE ROW LEVEL SECURITY;`
+        });
+        log('✅ RLS enabled');
+
+        // Step 5: Create RLS policies
+        log('Creating RLS policies...');
+        await supabase.rpc('exec_sql', {
+          query: `
+            DROP POLICY IF EXISTS "Anyone can view active schools" ON schools;
+            CREATE POLICY "Anyone can view active schools" ON schools FOR SELECT USING (active = true);
+          `
+        });
+        log('✅ RLS policies created');
+
+        // Step 6: Insert test school
+        log('Inserting test school...');
+        const { error: insertError } = await supabase
+          .from('schools')
+          .insert({
+            school_name: 'Test High School',
+            school_district: 'Test District',
+            state: 'KY',
+            school_type: 'high_school',
+            custom_slug: 'test-hs',
+            primary_color: '#3B82F6',
+            contact_name: 'John Smith',
+            contact_email: 'admin@testschool.edu',
+            contact_phone: '555-0100',
+            active: true
+          });
+
+        if (insertError) {
+          if (insertError.code === '23505') {
+            log('⚠️ Test school already exists (skipping)');
+          } else {
+            log('❌ Failed to insert test school: ' + JSON.stringify(insertError), true);
+            return;
+          }
+        } else {
+          log('✅ Test school created');
+        }
+
+        // Step 7: Verify setup
+        log('Verifying setup...');
+        const { data: school } = await supabase
+          .from('schools')
+          .select('*')
+          .eq('custom_slug', 'test-hs')
+          .single();
+
+        if (school) {
+          log('✅ Verification successful!');
+          log('📋 Test School Details:');
+          log(`   • Name: ${school.school_name}`);
+          log(`   • Slug: ${school.custom_slug}`);
+          log(`   • ID: ${school.id}`);
+          log(`   • Signup URL: http://localhost:3000/school/${school.custom_slug}/signup`);
+          log('\n🎉 Phase 6B setup complete! Database is ready.');
+        } else {
+          log('⚠️ Could not verify school creation', true);
+        }
+
+      } catch (error) {
+        log('❌ Setup failed: ' + error.message, true);
+        console.error(error);
+      }
+    }
+  </script>
+</body>
+</html>

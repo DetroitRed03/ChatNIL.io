@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Chat Deletion</title>
+</head>
+<body>
+  <h1>Test Chat Deletion</h1>
+  <div id="result"></div>
+  
+  <script>
+    async function testDeleteChat() {
+      const resultDiv = document.getElementById('result');
+      
+      try {
+        // First, get all chat sessions
+        const sessionsResponse = await fetch('/api/chat/sessions');
+        const sessionsData = await sessionsResponse.json();
+        
+        resultDiv.innerHTML += '<h2>Current Sessions:</h2>';
+        resultDiv.innerHTML += '<pre>' + JSON.stringify(sessionsData, null, 2) + '</pre>';
+        
+        // Try to delete the first session if it exists
+        if (sessionsData.sessions && sessionsData.sessions.length > 0) {
+          const chatId = sessionsData.sessions[0].id;
+          resultDiv.innerHTML += '<h2>Attempting to delete chat: ' + chatId + '</h2>';
+          
+          const deleteResponse = await fetch(`/api/chat/sessions/${chatId}`, {
+            method: 'DELETE',
+          });
+          
+          const deleteData = await deleteResponse.json();
+          resultDiv.innerHTML += '<h3>Delete Response:</h3>';
+          resultDiv.innerHTML += '<pre>Status: ' + deleteResponse.status + '\n' + JSON.stringify(deleteData, null, 2) + '</pre>';
+        } else {
+          resultDiv.innerHTML += '<p>No sessions to delete</p>';
+        }
+      } catch (error) {
+        resultDiv.innerHTML += '<h3>Error:</h3>';
+        resultDiv.innerHTML += '<pre>' + error.message + '\n' + error.stack + '</pre>';
+      }
+    }
+    
+    // Run test on page load
+    testDeleteChat();
+  </script>
+</body>
+</html>

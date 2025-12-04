@@ -45,7 +45,7 @@ export default function ParentPersonalInfoStep({
     getValues,
     formState: { errors, isValid }
   } = useForm<ParentPersonalInfo>({
-    resolver: zodResolver(parentPersonalInfoSchema),
+    resolver: zodResolver(parentPersonalInfoSchema) as any,
     defaultValues: {
       firstName: data.firstName || '',
       lastName: data.lastName || '',

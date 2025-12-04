@@ -4,6 +4,10 @@ import './globals.css'
 import ClientAuthProvider from '@/components/AuthProvider'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { AnalyticsProvider } from '@/contexts/AnalyticsContext'
+import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext'
+import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext'
+import { SWRProvider } from '@/components/providers/SWRProvider'
+import NavigationShell from '@/components/Navigation/NavigationShell'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -22,9 +26,17 @@ export default function RootLayout({
       <body className={inter.className}>
         <ErrorBoundary showErrorDetails={process.env.NODE_ENV === 'development'}>
           <ClientAuthProvider>
-            <AnalyticsProvider>
-              {children}
-            </AnalyticsProvider>
+            <SWRProvider>
+              <UserPreferencesProvider>
+                <AnalyticsProvider>
+                  <KeyboardShortcutsProvider>
+                    <NavigationShell>
+                      {children}
+                    </NavigationShell>
+                  </KeyboardShortcutsProvider>
+                </AnalyticsProvider>
+              </UserPreferencesProvider>
+            </SWRProvider>
           </ClientAuthProvider>
         </ErrorBoundary>
       </body>

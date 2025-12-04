@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Campaign Athletes Foreign Key</title>
+    <style>
+        body { font-family: system-ui; max-width: 900px; margin: 40px auto; padding: 20px; background: #1a1a2e; color: #eee; }
+        h1 { color: #f39c12; }
+        .sql-box { background: #16213e; padding: 20px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; margin: 20px 0; border: 2px solid #f39c12; }
+        .warning { background: #e74c3c22; border: 2px solid #e74c3c; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .success { background: #27ae6022; border: 2px solid #27ae60; padding: 15px; border-radius: 8px; }
+        .step { background: #16213e; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .step-number { background: #f39c12; color: #000; padding: 5px 12px; border-radius: 20px; font-weight: bold; margin-right: 10px; }
+        button { background: #f39c12; color: #000; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; }
+        button:hover { background: #e67e22; }
+        a { color: #3498db; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Fix Campaign Athletes Foreign Key</h1>
+
+    <div class="warning">
+        <strong>⚠️ Problem:</strong> The <code>campaign_athletes</code> table has a foreign key pointing to <code>campaigns</code> table,
+        but your campaigns are in <code>agency_campaigns</code> table. This causes "Failed to create assignments" error.
+    </div>
+
+    <h2>Instructions</h2>
+
+    <div class="step">
+        <span class="step-number">1</span>
+        <strong>Open Supabase SQL Editor</strong>
+        <br><br>
+        <a href="https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/sql/new" target="_blank">
+            <button>Open SQL Editor →</button>
+        </a>
+    </div>
+
+    <div class="step">
+        <span class="step-number">2</span>
+        <strong>Copy and run this SQL:</strong>
+    </div>
+
+    <div class="sql-box" id="sql-code">-- Fix campaign_athletes foreign key to reference agency_campaigns
+-- Run this in Supabase SQL Editor
+
+-- Step 1: Drop the old foreign key constraint
+ALTER TABLE campaign_athletes
+DROP CONSTRAINT IF EXISTS campaign_athletes_campaign_id_fkey;
+
+-- Step 2: Add new foreign key referencing agency_campaigns
+ALTER TABLE campaign_athletes
+ADD CONSTRAINT campaign_athletes_campaign_id_fkey
+FOREIGN KEY (campaign_id) REFERENCES agency_campaigns(id) ON DELETE CASCADE;
+
+-- Grant permissions (just in case)
+GRANT ALL ON campaign_athletes TO authenticated;
+GRANT ALL ON campaign_athletes TO service_role;
+GRANT ALL ON campaign_athletes TO anon;
+
+-- Verify: This should now show agency_campaigns reference
+SELECT
+    tc.constraint_name,
+    kcu.column_name,
+    ccu.table_name AS foreign_table_name
+FROM information_schema.table_constraints AS tc
+JOIN information_schema.key_column_usage AS kcu
+    ON tc.constraint_name = kcu.constraint_name
+JOIN information_schema.constraint_column_usage AS ccu
+    ON ccu.constraint_name = tc.constraint_name
+WHERE tc.table_name = 'campaign_athletes'
+    AND tc.constraint_type = 'FOREIGN KEY';
+</div>
+
+    <button onclick="copySQL()">📋 Copy SQL to Clipboard</button>
+
+    <div class="step">
+        <span class="step-number">3</span>
+        <strong>Click "Run" in the SQL Editor</strong>
+    </div>
+
+    <div class="success" style="margin-top: 30px;">
+        <strong>✅ After running:</strong> Go back to your campaign page and try sending invites again. It should work now!
+    </div>
+
+    <script>
+        function copySQL() {
+            const sql = document.getElementById('sql-code').innerText;
+            navigator.clipboard.writeText(sql);
+            alert('SQL copied to clipboard!');
+        }
+    </script>
+</body>
+</html>

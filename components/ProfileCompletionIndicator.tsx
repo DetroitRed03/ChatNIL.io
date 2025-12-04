@@ -40,7 +40,7 @@ interface ProfileCompletionIndicatorProps {
     // NIL preferences
     nil_preferences?: any;
   };
-  userRole?: 'athlete' | 'parent' | 'coach' | 'agency';
+  userRole?: 'athlete' | 'parent' | 'agency' | 'school' | 'business';
   className?: string;
 }
 

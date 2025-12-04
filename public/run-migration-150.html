@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Run Migration 150 - Add Onboarding Columns</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background: #1a1a2e; color: #eee; }
+    h1 { color: #f97316; }
+    pre { background: #0f0f23; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 14px; }
+    button { background: #f97316; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 20px; }
+    button:hover { background: #ea580c; }
+    .success { color: #22c55e; }
+    .error { color: #ef4444; }
+    #output { margin-top: 20px; white-space: pre-wrap; }
+    .info { background: #1e3a5f; padding: 16px; border-radius: 8px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Migration 150: Add Onboarding Columns</h1>
+
+  <div class="info">
+    <p><strong>This migration adds the following columns to athlete_profiles:</strong></p>
+    <ul>
+      <li><code>school_level</code> - Academic level (high-school, college, university)</li>
+      <li><code>coach_name</code> - Primary coach's name</li>
+      <li><code>coach_email</code> - Primary coach's email</li>
+      <li><code>has_agent</code> - Whether athlete has representation</li>
+      <li><code>agent_info</code> - JSON object with agent details</li>
+    </ul>
+  </div>
+
+  <h2>SQL to run in Supabase SQL Editor:</h2>
+  <pre id="sql">-- Migration 150: Add missing onboarding columns to athlete_profiles
+
+-- School level (high-school, college, university)
+ALTER TABLE public.athlete_profiles
+ADD COLUMN IF NOT EXISTS school_level TEXT;
+
+-- Coach information
+ALTER TABLE public.athlete_profiles
+ADD COLUMN IF NOT EXISTS coach_name TEXT;
+
+ALTER TABLE public.athlete_profiles
+ADD COLUMN IF NOT EXISTS coach_email TEXT;
+
+-- Agent information
+ALTER TABLE public.athlete_profiles
+ADD COLUMN IF NOT EXISTS has_agent BOOLEAN DEFAULT false;
+
+ALTER TABLE public.athlete_profiles
+ADD COLUMN IF NOT EXISTS agent_info JSONB;
+
+-- Notify PostgREST to reload schema
+NOTIFY pgrst, 'reload schema';
+</pre>
+
+  <button onclick="copySQL()">Copy SQL to Clipboard</button>
+  <button onclick="openSupabase()">Open Supabase SQL Editor</button>
+
+  <div id="output"></div>
+
+  <script>
+    function copySQL() {
+      const sql = document.getElementById('sql').textContent;
+      navigator.clipboard.writeText(sql).then(() => {
+        document.getElementById('output').innerHTML = '<span class="success">✓ SQL copied to clipboard!</span>';
+      });
+    }
+
+    function openSupabase() {
+      window.open('https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/sql/new', '_blank');
+    }
+  </script>
+</body>
+</html>

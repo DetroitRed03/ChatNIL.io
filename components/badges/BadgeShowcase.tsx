@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Badge, UserBadge } from '@/lib/types';
+import { motion } from 'framer-motion';
+import { Badge, UserBadge } from '@/types';
 import { getBadgesWithStatus, getBadgeStats, getBadgeProgress } from '@/lib/badges';
 import BadgeCard from './BadgeCard';
 import BadgeUnlockModal from './BadgeUnlockModal';
@@ -93,50 +94,50 @@ export default function BadgeShowcase({ userId }: BadgeShowcaseProps) {
   return (
     <div className="space-y-6">
       {/* Stats Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl p-6 text-white shadow-lg">
+      <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl p-4 sm:p-6 text-white shadow-lg">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-              <Trophy className="w-8 h-8" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-2 sm:p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+              <Trophy className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold">Achievements & Badges</h2>
-              <p className="text-blue-100 text-sm">Your gamification progress</p>
+              <h2 className="text-xl sm:text-2xl font-bold">Achievements & Badges</h2>
+              <p className="text-blue-100 text-xs sm:text-sm">Your gamification progress</p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Award className="w-4 h-4 text-yellow-300" />
-              <span className="text-xs text-blue-100">Total Badges</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4">
+            <div className="flex items-center gap-1 sm:gap-2 mb-1">
+              <Award className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-300" />
+              <span className="text-[10px] sm:text-xs text-blue-100">Total Badges</span>
             </div>
-            <div className="text-2xl font-bold">{stats.totalBadges}</div>
+            <div className="text-xl sm:text-2xl font-bold">{stats.totalBadges}</div>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Trophy className="w-4 h-4 text-yellow-300" />
-              <span className="text-xs text-blue-100">Earned</span>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4">
+            <div className="flex items-center gap-1 sm:gap-2 mb-1">
+              <Trophy className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-300" />
+              <span className="text-[10px] sm:text-xs text-blue-100">Earned</span>
             </div>
-            <div className="text-2xl font-bold">{stats.earnedCount}</div>
+            <div className="text-xl sm:text-2xl font-bold">{stats.earnedCount}</div>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Zap className="w-4 h-4 text-yellow-300" />
-              <span className="text-xs text-blue-100">Total Points</span>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4">
+            <div className="flex items-center gap-1 sm:gap-2 mb-1">
+              <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-300" />
+              <span className="text-[10px] sm:text-xs text-blue-100">Total Points</span>
             </div>
-            <div className="text-2xl font-bold">{stats.totalPoints}</div>
+            <div className="text-xl sm:text-2xl font-bold">{stats.totalPoints}</div>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-4 h-4 text-yellow-300" />
-              <span className="text-xs text-blue-100">Completion</span>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4">
+            <div className="flex items-center gap-1 sm:gap-2 mb-1">
+              <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-300" />
+              <span className="text-[10px] sm:text-xs text-blue-100">Completion</span>
             </div>
-            <div className="text-2xl font-bold">{stats.completionPercentage}%</div>
+            <div className="text-xl sm:text-2xl font-bold">{stats.completionPercentage}%</div>
           </div>
         </div>
 
@@ -144,21 +145,29 @@ export default function BadgeShowcase({ userId }: BadgeShowcaseProps) {
         <div className="mt-4">
           <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
             <div
-              className="bg-gradient-to-r from-yellow-300 to-yellow-500 h-3 rounded-full transition-all duration-500"
+              className="bg-gradient-to-r from-yellow-300 to-yellow-500 h-3 rounded-full relative overflow-hidden transition-all duration-500"
               style={{ width: `${stats.completionPercentage}%` }}
-            />
+            >
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                animate={{ x: ['-100%', '200%'] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+              />
+            </div>
           </div>
         </div>
       </div>
 
       {/* Filters and Sorting */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-500" />
-          <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2">
+          <div className="hidden sm:flex items-center">
+            <Filter className="w-4 h-4 text-gray-500 mr-2" />
+          </div>
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                 filter === 'all'
                   ? 'bg-blue-500 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -168,35 +177,35 @@ export default function BadgeShowcase({ userId }: BadgeShowcaseProps) {
             </button>
             <button
               onClick={() => setFilter('earned')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                 filter === 'earned'
                   ? 'bg-green-500 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              <Trophy className="w-4 h-4 inline mr-1" />
+              <Trophy className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1" />
               Earned ({stats.earnedCount})
             </button>
             <button
               onClick={() => setFilter('locked')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                 filter === 'locked'
                   ? 'bg-gray-500 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              <Lock className="w-4 h-4 inline mr-1" />
+              <Lock className="w-3 h-3 sm:w-4 sm:h-4 inline mr-1" />
               Locked ({stats.totalBadges - stats.earnedCount})
             </button>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Sort by:</span>
+          <span className="text-xs sm:text-sm text-gray-600">Sort by:</span>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortType)}
-            className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 sm:flex-none px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="rarity">Rarity</option>
             <option value="date">Date Earned</option>

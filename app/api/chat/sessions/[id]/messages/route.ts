@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { Database } from '@/lib/types';
+import { Database } from '@/types';
 
 type ChatMessage = Database['public']['Tables']['chat_messages']['Row'];
 type ChatMessageInsert = Database['public']['Tables']['chat_messages']['Insert'];
@@ -79,7 +79,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { content, role, attachments } = body;
+    const { content, role } = body;
 
     if (!content || !role) {
       return NextResponse.json({ error: 'Content and role are required' }, { status: 400 });
@@ -94,8 +94,7 @@ export async function POST(
       session_id: params.id,
       user_id: session.user.id,
       content: content,
-      role: role as 'user' | 'assistant',
-      attachments: attachments || null
+      role: role as 'user' | 'assistant'
     };
 
     const { data: newMessage, error } = await supabase

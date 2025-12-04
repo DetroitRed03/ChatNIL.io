@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Trophy, Users, UserCheck, ArrowRight, ArrowLeft, MessageSquare, Briefcase } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { UserRole } from '@/lib/types';
+import { UserRole } from '@/types';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import OnboardingHeader from './OnboardingHeader';
 

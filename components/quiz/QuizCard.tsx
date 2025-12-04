@@ -1,5 +1,6 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { QuizCategoryInfo } from '@/lib/quiz';
 import { getDifficultyColor } from '@/lib/quiz';
 import {
@@ -45,12 +46,15 @@ export default function QuizCard({ category, onClick, difficulty }: QuizCardProp
   const difficultyColors = difficulty ? getDifficultyColor(difficulty) : null;
 
   return (
-    <div
+    <motion.div
       onClick={hasQuestions ? onClick : undefined}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={hasQuestions ? { y: -4, scale: 1.02 } : undefined}
       className={`
-        relative bg-white rounded-xl border-2 p-6 transition-all duration-300
+        relative bg-gradient-to-br from-white to-orange-50/30 rounded-2xl border-2 p-6 transition-all duration-300 overflow-hidden
         ${hasQuestions
-          ? 'hover:shadow-lg hover:scale-105 cursor-pointer border-gray-200 hover:border-blue-300'
+          ? 'hover:shadow-xl hover:shadow-orange-200/50 cursor-pointer border-orange-100 hover:border-orange-300'
           : 'border-gray-100 opacity-60 cursor-not-allowed'
         }
       `}
@@ -73,11 +77,71 @@ export default function QuizCard({ category, onClick, difficulty }: QuizCardProp
         </div>
       )}
 
-      {/* Icon */}
-      <div className="mb-4">
-        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
-          <IconComponent className="w-7 h-7 text-white" />
-        </div>
+      {/* Icon with Power-Up Effects */}
+      <div className="mb-4 relative">
+        {/* Power-up rising particles - BOLDER & SLOWER */}
+        {hasQuestions && [...Array(4)].map((_, i) => (
+          <motion.div
+            key={`particle-${i}`}
+            className="absolute w-3 h-3 rounded-full bg-orange-500"
+            style={{ left: `${10 + i * 12}px`, bottom: 0 }}
+            animate={{
+              y: [0, -60],
+              opacity: [0, 0.9, 0],
+              scale: [0, 1.3, 0],
+            }}
+            transition={{
+              duration: 3.5,
+              repeat: Infinity,
+              delay: i * 0.5,
+              ease: 'easeOut',
+            }}
+          />
+        ))}
+
+        {/* Orbiting sparkle particles - BOLDER & SLOWER */}
+        {hasQuestions && [...Array(6)].map((_, i) => {
+          const angle = (i * 60) * (Math.PI / 180);
+          return (
+            <motion.div
+              key={`sparkle-${i}`}
+              className="absolute w-2.5 h-2.5 bg-amber-500 rounded-full"
+              style={{
+                top: `${28 + Math.sin(angle) * 32}px`,
+                left: `${28 + Math.cos(angle) * 32}px`,
+              }}
+              animate={{
+                scale: [0, 1.4, 0],
+                opacity: [0, 0.95, 0],
+              }}
+              transition={{
+                duration: 3.5,
+                repeat: Infinity,
+                delay: i * 0.4,
+              }}
+            />
+          );
+        })}
+
+        <motion.div
+          className="relative w-14 h-14 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg overflow-hidden"
+          animate={{
+            boxShadow: [
+              '0 0 25px rgba(249, 115, 22, 0.6)',
+              '0 0 50px rgba(249, 115, 22, 0.9)',
+              '0 0 25px rgba(249, 115, 22, 0.6)',
+            ],
+          }}
+          transition={{ duration: 3.5, repeat: Infinity }}
+        >
+          {/* Shimmer effect - BOLDER & SLOWER */}
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent"
+            animate={{ x: ['-100%', '200%'] }}
+            transition={{ duration: 3.5, repeat: Infinity, repeatDelay: 1.5 }}
+          />
+          <IconComponent className="w-7 h-7 text-white relative z-10" />
+        </motion.div>
       </div>
 
       {/* Category Name */}
@@ -118,14 +182,16 @@ export default function QuizCard({ category, onClick, difficulty }: QuizCardProp
       {/* Progress Bar (if partially completed) */}
       {isCompleted && category.completedCount < category.questionCount && (
         <div className="mb-4">
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>Progress</span>
-            <span>{Math.round((category.completedCount / category.questionCount) * 100)}%</span>
+          <div className="flex justify-between text-xs text-gray-600 mb-1">
+            <span className="font-medium">Progress</span>
+            <span className="font-bold text-orange-600">{Math.round((category.completedCount / category.questionCount) * 100)}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-              style={{ width: `${(category.completedCount / category.questionCount) * 100}%` }}
+          <div className="w-full bg-orange-100 rounded-full h-2.5 overflow-hidden">
+            <motion.div
+              className="bg-gradient-to-r from-orange-400 to-amber-500 h-2.5 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${(category.completedCount / category.questionCount) * 100}%` }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
             />
           </div>
         </div>
@@ -133,25 +199,31 @@ export default function QuizCard({ category, onClick, difficulty }: QuizCardProp
 
       {/* Action Button */}
       {hasQuestions ? (
-        <button
+        <motion.button
           onClick={onClick}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.98 }}
+          animate={{ scale: [1, 1.03, 1] }}
+          transition={{
+            scale: { duration: 3.5, repeat: Infinity, ease: 'easeInOut' }
+          }}
           className={`
-            w-full inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors
+            w-full inline-flex items-center justify-center px-4 py-3 rounded-xl font-bold transition-all duration-300 shadow-md
             ${isCompleted
-              ? 'bg-green-50 text-green-700 hover:bg-green-100'
-              : 'bg-blue-500 text-white hover:bg-blue-600'
+              ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white hover:from-green-500 hover:to-emerald-600 hover:shadow-lg hover:shadow-green-200/50'
+              : 'bg-gradient-to-r from-orange-400 to-amber-500 text-white hover:from-orange-500 hover:to-amber-600 hover:shadow-lg hover:shadow-orange-200/50'
             }
           `}
         >
-          <PlayCircle className="w-4 h-4 mr-2" />
+          <PlayCircle className="w-5 h-5 mr-2" />
           {isCompleted ? 'Practice Again' : 'Start Quiz'}
-        </button>
+        </motion.button>
       ) : (
-        <div className="w-full inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium bg-gray-100 text-gray-400 cursor-not-allowed">
-          <Lock className="w-4 h-4 mr-2" />
+        <div className="w-full inline-flex items-center justify-center px-4 py-3 rounded-xl font-bold bg-gray-100 text-gray-400 cursor-not-allowed">
+          <Lock className="w-5 h-5 mr-2" />
           Coming Soon
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

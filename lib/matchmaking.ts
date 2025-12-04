@@ -19,8 +19,9 @@ function calculateJaccardSimilarity(arr1: string[], arr2: string[]): number {
   const set1 = new Set(arr1.map(s => s.toLowerCase()));
   const set2 = new Set(arr2.map(s => s.toLowerCase()));
 
-  const intersection = new Set([...set1].filter(x => set2.has(x)));
-  const union = new Set([...set1, ...set2]);
+  const set1Array = Array.from(set1);
+  const intersection = new Set(set1Array.filter(x => set2.has(x)));
+  const union = new Set([...set1Array, ...Array.from(set2)]);
 
   return intersection.size / union.size;
 }
@@ -314,8 +315,8 @@ function generateMatchConcerns(
  * Main matchmaking function - calculates compatibility between agency and athlete
  */
 export function calculateMatchScore(
-  athlete: EnhancedAthleteProfile,
-  agency: Partial<AgencyProfile> | MatchmakingQuery
+  athlete: any,
+  agency: any
 ): MatchScore {
   // Calculate each component of the match score
   const breakdown = {

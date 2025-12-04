@@ -108,10 +108,9 @@ CREATE INDEX idx_matches_agency_status ON agency_athlete_matches(agency_id, stat
 CREATE INDEX idx_matches_athlete_status ON agency_athlete_matches(athlete_id, status);
 CREATE INDEX idx_matches_agency_score ON agency_athlete_matches(agency_id, match_score DESC);
 
--- Index for filtering active/non-expired matches
+-- Index for filtering active matches by status
 CREATE INDEX idx_matches_active ON agency_athlete_matches(status, match_score DESC)
-WHERE status IN ('suggested', 'saved', 'contacted', 'interested', 'in_discussion')
-AND (expires_at IS NULL OR expires_at > NOW());
+WHERE status IN ('suggested', 'saved', 'contacted', 'interested', 'in_discussion');
 
 -- Create function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_matches_updated_at()

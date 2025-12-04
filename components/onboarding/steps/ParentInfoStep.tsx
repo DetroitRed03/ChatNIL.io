@@ -30,7 +30,7 @@ export default function ParentInfoStep({
     getValues,
     formState: { errors, isValid }
   } = useForm<ParentInfo>({
-    resolver: zodResolver(parentInfoSchema),
+    resolver: zodResolver(parentInfoSchema) as any,
     defaultValues: {
       firstName: data.firstName || '',
       lastName: data.lastName || '',

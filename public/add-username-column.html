@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Username Column - Migration 031</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #2d3748;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #718096;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-right: 10px;
+    }
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #output {
+      margin-top: 20px;
+      padding: 20px;
+      background: #f7fafc;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .success { color: #38a169; }
+    .error { color: #e53e3e; }
+    .info { color: #3182ce; }
+    .warning { color: #dd6b20; }
+    .step {
+      margin: 20px 0;
+      padding: 15px;
+      background: #edf2f7;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Migration 031: Add Username Column</h1>
+    <p class="subtitle">Step-by-step migration to add usernames to athlete profiles</p>
+
+    <div class="step">
+      <h3>Step 1: Add Column via Supabase Dashboard</h3>
+      <p>Since we can't execute DDL through the API, please:</p>
+      <ol>
+        <li>Open <a href="https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/editor" target="_blank">Supabase Table Editor</a></li>
+        <li>Select the <strong>users</strong> table</li>
+        <li>Click "Add Column" and create:
+          <ul>
+            <li>Name: <code>username</code></li>
+            <li>Type: <code>text</code></li>
+            <li>Check "Is Unique"</li>
+            <li>Nullable: Yes</li>
+          </ul>
+        </li>
+        <li>Click "Save"</li>
+      </ol>
+      <p><strong>OR</strong> use the SQL Editor:</p>
+      <ol>
+        <li>Go to <a href="https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/sql/new" target="_blank">SQL Editor</a></li>
+        <li>Paste this SQL:
+          <pre style="background: #2d3748; color: #fff; padding: 10px; border-radius: 4px; overflow-x: auto;">ALTER TABLE users ADD COLUMN username TEXT UNIQUE;
+CREATE INDEX idx_users_username ON users(username);</pre>
+        </li>
+        <li>Click "Run"</li>
+      </ol>
+    </div>
+
+    <div class="step">
+      <h3>Step 2: Generate Usernames</h3>
+      <p>After adding the column, click this button to generate usernames for all athletes:</p>
+      <button id="generateBtn" onclick="generateUsernames()">Generate Usernames</button>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODY4NjcwOSwiZXhwIjoyMDc0MjYyNzA5fQ.fXvyvHrUoNLdAr1expbRsguM8fkmurrNQi3-7xk8-TM';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const className = type;
+      const timestamp = new Date().toLocaleTimeString();
+      output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function generateUsernames() {
+      const button = document.getElementById('generateBtn');
+      button.disabled = true;
+      document.getElementById('output').innerHTML = '';
+
+      try {
+        log('🚀 Starting username generation...', 'info');
+        log('', 'info');
+
+        // Fetch all athletes
+        log('📝 Fetching athletes...', 'info');
+        const { data: athletes, error: fetchError } = await supabase
+          .from('users')
+          .select('id, first_name, last_name, email, role')
+          .eq('role', 'athlete');
+
+        if (fetchError) {
+          throw new Error(`Failed to fetch athletes: ${fetchError.message}`);
+        }
+
+        log(`✅ Found ${athletes.length} athletes`, 'success');
+        log('', 'info');
+
+        let successCount = 0;
+        let failCount = 0;
+
+        // Generate username for each athlete
+        for (const athlete of athletes) {
+          if (athlete.first_name && athlete.last_name) {
+            let username = `${athlete.first_name.toLowerCase().replace(/\s+/g, '-')}-${athlete.last_name.toLowerCase().replace(/\s+/g, '-')}`;
+
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ username })
+              .eq('id', athlete.id);
+
+            if (updateError) {
+              // Handle duplicate username
+              if (updateError.code === '23505') {
+                let attempt = 1;
+                let success = false;
+
+                while (attempt <= 10 && !success) {
+                  const numberedUsername = `${username}-${attempt}`;
+                  const { error: retryError } = await supabase
+                    .from('users')
+                    .update({ username: numberedUsername })
+                    .eq('id', athlete.id);
+
+                  if (!retryError) {
+                    log(`✅ ${athlete.first_name} ${athlete.last_name} → ${numberedUsername}`, 'success');
+                    successCount++;
+                    success = true;
+                  }
+                  attempt++;
+                }
+
+                if (!success) {
+                  log(`❌ Failed: ${athlete.first_name} ${athlete.last_name} (couldn't find unique username)`, 'error');
+                  failCount++;
+                }
+              } else {
+                log(`❌ Failed: ${athlete.first_name} ${athlete.last_name} - ${updateError.message}`, 'error');
+                failCount++;
+              }
+            } else {
+              log(`✅ ${athlete.first_name} ${athlete.last_name} → ${username}`, 'success');
+              successCount++;
+            }
+          }
+        }
+
+        log('', 'info');
+        log(`📊 Results: ${successCount} successful, ${failCount} failed`, 'info');
+        log('', 'info');
+
+        // Show Sarah's profile URL
+        const { data: sarah } = await supabase
+          .from('users')
+          .select('username, first_name, last_name')
+          .eq('email', 'sarah.johnson@test.com')
+          .single();
+
+        if (sarah?.username) {
+          log('🎉 Migration completed successfully!', 'success');
+          log('', 'info');
+          log('🔗 Sarah Johnson Profile:', 'info');
+          log(`   http://localhost:3000/athletes/${sarah.username}`, 'info');
+        }
+
+      } catch (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+        console.error('Error:', error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

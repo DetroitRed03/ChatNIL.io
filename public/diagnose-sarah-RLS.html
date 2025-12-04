@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Diagnose Sarah's Profile - RLS Check</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: 'Monaco', 'Courier New', monospace;
+      max-width: 1200px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #0a0a0a;
+      color: #00ff00;
+    }
+    .container {
+      background: #1a1a1a;
+      padding: 30px;
+      border-radius: 10px;
+      border: 2px solid #00ff00;
+    }
+    h1 { color: #00ff00; text-align: center; margin-bottom: 30px; }
+    button {
+      background: #00ff00;
+      color: #000;
+      border: none;
+      padding: 15px 30px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+      margin: 10px 0;
+    }
+    button:hover { background: #00cc00; }
+    button.danger { background: #ff3333; color: white; }
+    button.danger:hover { background: #cc0000; }
+    #output {
+      background: #000;
+      color: #00ff00;
+      padding: 20px;
+      border-radius: 5px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 14px;
+      border: 1px solid #00ff00;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .success { color: #00ff00; }
+    .error { color: #ff0000; }
+    .info { color: #00aaff; }
+    .warning { color: #ffaa00; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 RLS Diagnostic for Sarah's Profile</h1>
+
+    <button onclick="step1_checkCount()">STEP 1: Check if data exists in DB</button>
+    <button onclick="step2_checkRLS()">STEP 2: Check RLS status</button>
+    <button onclick="step3_checkPolicies()">STEP 3: Check RLS policies</button>
+    <button onclick="step4_tryRESTAPI()">STEP 4: Try REST API query</button>
+    <button class="danger" onclick="step5_disableRLS()">STEP 5: 🚨 DISABLE RLS (Testing Only)</button>
+    <button onclick="step6_enableRLS()">STEP 6: Re-enable RLS</button>
+
+    <div id="output">Ready to diagnose...</div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://lqskiijspudfocddhkqs.supabase.co';
+    const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTU5MzM1NCwiZXhwIjoyMDc3MTY5MzU0fQ.LpapT51choXCwTfpbE81AIc4JC9QOO0FpOtqUxZ405I';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const userId = 'ca05429a-0f32-4280-8b71-99dc5baee0dc';
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const className = type;
+      output.innerHTML += `<span class="${className}">${message}</span>\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function clearOutput() {
+      document.getElementById('output').innerHTML = '';
+    }
+
+    async function step1_checkCount() {
+      clearOutput();
+      log('STEP 1: Checking if Sarah\'s data exists in database...\n', 'info');
+
+      const sql = `
+        SELECT COUNT(*) as total_profiles
+        FROM athlete_profiles
+        WHERE user_id = '${userId}';
+      `;
+
+      const { data, error } = await supabase.rpc('exec_sql', { query: sql });
+
+      if (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+      } else {
+        log('✅ Query executed', 'success');
+        log(JSON.stringify(data, null, 2), 'info');
+        log('\n💡 If you see a count > 0, data EXISTS in database.', 'warning');
+        log('If count = 0, the INSERT didn\'t work and needs to be re-run.', 'warning');
+      }
+    }
+
+    async function step2_checkRLS() {
+      clearOutput();
+      log('STEP 2: Checking RLS status on athlete_profiles table...\n', 'info');
+
+      const sql = `
+        SELECT
+          tablename,
+          rowsecurity as rls_enabled
+        FROM pg_tables
+        WHERE schemaname = 'public'
+        AND tablename = 'athlete_profiles';
+      `;
+
+      const { data, error } = await supabase.rpc('exec_sql', { query: sql });
+
+      if (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+      } else {
+        log('✅ Query executed', 'success');
+        log(JSON.stringify(data, null, 2), 'info');
+        log('\n💡 If rls_enabled = true, RLS might be blocking access.', 'warning');
+      }
+    }
+
+    async function step3_checkPolicies() {
+      clearOutput();
+      log('STEP 3: Checking RLS policies on athlete_profiles...\n', 'info');
+
+      const sql = `
+        SELECT
+          policyname,
+          cmd,
+          roles,
+          qual
+        FROM pg_policies
+        WHERE tablename = 'athlete_profiles';
+      `;
+
+      const { data, error } = await supabase.rpc('exec_sql', { query: sql });
+
+      if (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+      } else {
+        log('✅ Query executed', 'success');
+        log(JSON.stringify(data, null, 2), 'info');
+        log('\n💡 These are the policies controlling access.', 'warning');
+      }
+    }
+
+    async function step4_tryRESTAPI() {
+      clearOutput();
+      log('STEP 4: Attempting to query via REST API...\n', 'info');
+
+      const { data: profiles, error } = await supabase
+        .from('athlete_profiles')
+        .select('user_id, username, sport, school')
+        .eq('user_id', userId);
+
+      if (error) {
+        log(`❌ REST API Error: ${error.message}`, 'error');
+        log('\n💡 If you see an error, RLS is likely blocking access.', 'warning');
+      } else if (profiles && profiles.length > 0) {
+        log('✅ SUCCESS! Profile is accessible via REST API!', 'success');
+        log('\nProfile data:', 'info');
+        log(JSON.stringify(profiles[0], null, 2), 'info');
+      } else {
+        log('⚠️  REST API returned 0 profiles', 'warning');
+        log('\n💡 Data exists in DB but REST API can\'t access it.', 'warning');
+        log('This is most likely an RLS policy issue.', 'warning');
+      }
+    }
+
+    async function step5_disableRLS() {
+      clearOutput();
+      log('🚨 STEP 5: DISABLING RLS (for testing only)...\n', 'warning');
+
+      const sql = `ALTER TABLE athlete_profiles DISABLE ROW LEVEL SECURITY;`;
+
+      const { data, error } = await supabase.rpc('exec_sql', { query: sql });
+
+      if (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+      } else {
+        log('✅ RLS DISABLED on athlete_profiles table', 'success');
+        log('\n⏳ Waiting 3 seconds for PostgREST to refresh...', 'info');
+
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        log('\n🔄 Attempting REST API query again...', 'info');
+
+        const { data: profiles, error: restError } = await supabase
+          .from('athlete_profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (restError) {
+          log(`❌ Still can't access: ${restError.message}`, 'error');
+        } else if (profiles) {
+          log('✅ SUCCESS! Profile is now accessible!', 'success');
+          log('\n📊 PROFILE DATA:', 'success');
+          log('─'.repeat(60), 'info');
+          log(`Name: ${profiles.username}`, 'info');
+          log(`Sport: ${profiles.sport}`, 'info');
+          log(`School: ${profiles.school}`, 'info');
+          log(`Position: ${profiles.position}`, 'info');
+          log(`Year: ${profiles.year}`, 'info');
+          log(`Graduation: ${profiles.graduation_year}`, 'info');
+          log(`FMV: $${profiles.estimated_fmv?.toLocaleString()}`, 'info');
+          log(`Profile Score: ${profiles.profile_completion_score}/100`, 'info');
+          log(`Tier: ${profiles.profile_completion_tier}`, 'info');
+          log('\n✅ RLS WAS THE BLOCKER!', 'success');
+          log('We need to create proper RLS policies for this table.', 'warning');
+          log('\n🔐 Login: sarah.johnson@test.com / TestPassword123!', 'info');
+        } else {
+          log('❌ Still no data returned', 'error');
+          log('\nRLS was NOT the issue. Something else is wrong.', 'error');
+        }
+      }
+    }
+
+    async function step6_enableRLS() {
+      clearOutput();
+      log('STEP 6: Re-enabling RLS...\n', 'info');
+
+      const sql = `ALTER TABLE athlete_profiles ENABLE ROW LEVEL SECURITY;`;
+
+      const { data, error } = await supabase.rpc('exec_sql', { query: sql });
+
+      if (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+      } else {
+        log('✅ RLS re-enabled on athlete_profiles table', 'success');
+      }
+    }
+  </script>
+</body>
+</html>

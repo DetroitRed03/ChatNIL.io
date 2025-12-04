@@ -1,4 +1,4 @@
-import { UserRole } from '@/lib/types';
+import { UserRole } from '@/types';
 import { OnboardingStep, calculateProfileCompletionPercentage } from '@/lib/onboarding-types';
 import {
   athletePersonalInfoSchema,
@@ -34,6 +34,8 @@ import AthleteSocialMediaStep from '@/components/onboarding/steps/AthleteSocialM
 import AthleteInterestsStep from '@/components/onboarding/steps/AthleteInterestsStep';
 import AthleteNILPreferencesStep from '@/components/onboarding/steps/AthleteNILPreferencesStep';
 import AthleteContentSamplesStep from '@/components/onboarding/steps/AthleteContentSamplesStep';
+// Phase 6B
+import WelcomeBackStep from '@/components/onboarding/athlete-enhanced/WelcomeBackStep';
 
 // Athlete onboarding flow
 const athleteSteps: OnboardingStep[] = [
@@ -186,16 +188,104 @@ const agencySteps: OnboardingStep[] = [
   },
 ];
 
+
+// ===== PHASE 6B: ATHLETE HOME COMPLETION FLOW =====
+// This flow is for students who signed up at school with minimal info
+// and now need to complete their profile at home
+const athleteHomeCompletionSteps: OnboardingStep[] = [
+  {
+    id: 'welcome-back',
+    title: 'Welcome',
+    fullTitle: 'Welcome Back',
+    description: 'Complete your profile',
+    fullDescription: 'Complete your profile to unlock NIL opportunities',
+    component: WelcomeBackStep,
+  },
+  {
+    id: 'athlete-personal',
+    title: 'Personal Info',
+    fullTitle: 'Complete Your Personal Information',
+    description: 'Email, phone, and contact details',
+    fullDescription: 'Add your personal contact information',
+    component: AthletePersonalInfoStep,
+    validation: athletePersonalInfoSchema,
+  },
+  {
+    id: 'athlete-sports',
+    title: 'Athletic Details',
+    fullTitle: 'Athletic Information',
+    description: 'Position and achievements',
+    fullDescription: 'Tell us more about your athletic career',
+    component: AthleteSportsInfoStep,
+    validation: athleteSportsInfoSchema,
+  },
+  {
+    id: 'athlete-interests',
+    title: 'Interests',
+    fullTitle: 'Interests & Passions',
+    description: 'Your hobbies and interests',
+    fullDescription: 'Tell us what you care about',
+    component: AthleteInterestsStep,
+    validation: athleteInterestsSchema,
+    isOptional: true,
+  },
+  {
+    id: 'athlete-social-media',
+    title: 'Social Media',
+    fullTitle: 'Social Media Presence',
+    description: 'Connect your accounts',
+    fullDescription: 'Link your social media for better opportunities',
+    component: AthleteSocialMediaStep,
+    validation: athleteSocialMediaSchema,
+    isOptional: true,
+  },
+  {
+    id: 'athlete-nil-preferences',
+    title: 'NIL Preferences',
+    fullTitle: 'Partnership Preferences',
+    description: 'Your deal preferences',
+    fullDescription: 'Tell us about your ideal NIL partnerships',
+    component: AthleteNILPreferencesStep,
+    validation: athleteNILPreferencesSchema,
+    isOptional: true,
+  },
+  {
+    id: 'athlete-content-samples',
+    title: 'Content Samples',
+    fullTitle: 'Content Portfolio',
+    description: 'Show your best work',
+    fullDescription: 'Upload samples of your content creation',
+    component: AthleteContentSamplesStep,
+    validation: athleteContentSamplesSchema,
+    isOptional: true,
+  },
+];
+
 // Registry mapping roles to their steps
 export const onboardingRegistry: Record<UserRole, OnboardingStep[]> = {
   athlete: athleteSteps,
   parent: parentSteps,
   agency: agencySteps,
+  school: [], // School admin flow - not yet implemented
+  business: [], // Business flow - uses agency steps or custom
 };
 
 // Utility functions
 export function getStepsForRole(role: UserRole): OnboardingStep[] {
   return onboardingRegistry[role] || [];
+}
+
+// Phase 6B: Get onboarding flow based on role and mode
+export function getOnboardingFlow(
+  role: UserRole,
+  mode: 'standard' | 'completion' = 'standard'
+): OnboardingStep[] {
+  if (role === 'athlete' && mode === 'completion') {
+    return athleteHomeCompletionSteps;
+  }
+
+  // Default to standard flow for all other cases
+  return getStepsForRole(role);
 }
 
 export function getStepById(role: UserRole, stepId: string): OnboardingStep | undefined {

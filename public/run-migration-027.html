@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run Migration 027 - School System</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+    .status {
+      padding: 15px;
+      border-radius: 8px;
+      margin: 15px 0;
+      font-family: 'Courier New', monospace;
+      white-space: pre-wrap;
+      font-size: 14px;
+    }
+    .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    button:hover:not(:disabled) {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .migration-info {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      border-left: 4px solid #667eea;
+    }
+    .migration-info h3 {
+      margin-top: 0;
+      color: #667eea;
+    }
+    .migration-info ul {
+      margin: 10px 0;
+    }
+    .migration-info li {
+      margin: 5px 0;
+    }
+    pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏫 Migration 027: School System & Two-Tier Onboarding</h1>
+    <p>This migration creates the schools table and adds school-related fields for Phase 6B implementation.</p>
+
+    <div class="migration-info">
+      <h3>📋 What this migration does:</h3>
+      <ul>
+        <li>✅ Creates <code>schools</code> table for distribution channels</li>
+        <li>✅ Adds school-related fields to <code>users</code> table:
+          <ul>
+            <li><code>school_created</code> - Tracks school-created accounts</li>
+            <li><code>profile_completion_tier</code> - 'basic' or 'full'</li>
+            <li><code>home_completion_required</code> - Needs home onboarding</li>
+            <li><code>school_id</code> - Reference to school</li>
+            <li><code>home_completed_at</code> - Completion timestamp</li>
+          </ul>
+        </li>
+        <li>✅ Creates indexes for performance</li>
+        <li>✅ Sets up Row Level Security (RLS) policies</li>
+        <li>✅ Adds documentation comments</li>
+      </ul>
+    </div>
+
+    <button id="runMigration" onclick="runMigration()">Run Migration 027</button>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODY4NjcwOSwiZXhwIjoyMDc0MjYyNzA5fQ.fXvyvHrUoNLdAr1expbRsguM8fkmurrNQi3-7xk8-TM';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    function addStatus(message, type = 'info') {
+      const statusDiv = document.getElementById('status');
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `status ${type}`;
+      msgDiv.textContent = message;
+      statusDiv.appendChild(msgDiv);
+      statusDiv.scrollTop = statusDiv.scrollHeight;
+    }
+
+    async function runMigration() {
+      const button = document.getElementById('runMigration');
+      button.disabled = true;
+      document.getElementById('status').innerHTML = '';
+
+      addStatus('🚀 Starting Migration 027...', 'info');
+
+      try {
+        // Migration SQL
+        const migrationSQL = `
+-- Migration 027: School System and Two-Tier Onboarding
+BEGIN;
+
+-- Create schools table
+CREATE TABLE IF NOT EXISTS schools (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_name TEXT NOT NULL,
+  school_district TEXT,
+  state TEXT NOT NULL,
+  school_type TEXT CHECK (school_type IN ('high_school', 'college', 'university', 'community_college')),
+  custom_slug TEXT UNIQUE NOT NULL,
+  signup_url TEXT GENERATED ALWAYS AS ('https://chatnil.io/school/' || custom_slug || '/signup') STORED,
+  qr_code_url TEXT,
+  logo_url TEXT,
+  primary_color TEXT DEFAULT '#3B82F6',
+  students_registered INTEGER DEFAULT 0,
+  students_completed INTEGER DEFAULT 0,
+  contact_name TEXT,
+  contact_email TEXT,
+  contact_phone TEXT,
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES users(id)
+);
+
+-- Add school-related fields to users table
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS school_created BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS profile_completion_tier TEXT DEFAULT 'full' CHECK (profile_completion_tier IN ('basic', 'full')),
+  ADD COLUMN IF NOT EXISTS home_completion_required BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS school_id UUID REFERENCES schools(id),
+  ADD COLUMN IF NOT EXISTS home_completed_at TIMESTAMPTZ;
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_schools_slug ON schools(custom_slug);
+CREATE INDEX IF NOT EXISTS idx_schools_state ON schools(state);
+CREATE INDEX IF NOT EXISTS idx_schools_active ON schools(active);
+CREATE INDEX IF NOT EXISTS idx_users_school_id ON users(school_id);
+CREATE INDEX IF NOT EXISTS idx_users_completion_tier ON users(profile_completion_tier);
+CREATE INDEX IF NOT EXISTS idx_users_school_created ON users(school_created);
+
+-- Enable RLS
+ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+DROP POLICY IF EXISTS "Anyone can view active schools" ON schools;
+CREATE POLICY "Anyone can view active schools" ON schools FOR SELECT USING (active = true);
+
+DROP POLICY IF EXISTS "Service role full access to schools" ON schools;
+CREATE POLICY "Service role full access to schools" ON schools FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+-- Trigger for updated_at
+DROP TRIGGER IF EXISTS trigger_schools_updated_at ON schools;
+CREATE TRIGGER trigger_schools_updated_at
+  BEFORE UPDATE ON schools
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Comments
+COMMENT ON TABLE schools IS 'Schools as distribution channels for student athlete signups, not user accounts';
+COMMENT ON COLUMN schools.custom_slug IS 'URL-friendly identifier for school signup pages';
+COMMENT ON COLUMN schools.signup_url IS 'Auto-generated signup URL for this school';
+COMMENT ON COLUMN schools.students_registered IS 'Total number of students who created accounts via this school';
+COMMENT ON COLUMN schools.students_completed IS 'Number of students who completed home onboarding';
+COMMENT ON COLUMN users.school_created IS 'True if account was created via school signup (FERPA-compliant minimal data)';
+COMMENT ON COLUMN users.profile_completion_tier IS 'basic = school signup only, full = completed home onboarding';
+COMMENT ON COLUMN users.home_completion_required IS 'True if user needs to complete profile at home';
+COMMENT ON COLUMN users.school_id IS 'Reference to school if account was created via school signup';
+COMMENT ON COLUMN users.home_completed_at IS 'Timestamp when user completed home onboarding (upgraded from basic to full)';
+
+COMMIT;
+        `;
+
+        addStatus('📝 Executing SQL migration...', 'info');
+
+        const { data, error } = await supabase.rpc('exec_sql', {
+          query: migrationSQL
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        addStatus('✅ Migration 027 completed successfully!', 'success');
+        addStatus('📊 Changes applied:', 'info');
+        addStatus('  • schools table created', 'success');
+        addStatus('  • 5 new columns added to users table', 'success');
+        addStatus('  • 6 indexes created for performance', 'success');
+        addStatus('  • RLS policies configured', 'success');
+        addStatus('  • Triggers and comments added', 'success');
+        addStatus('\n🎉 Database is ready for Phase 6B!', 'success');
+        addStatus('\n📋 Next step: Run npm run seed:school to create test school', 'info');
+
+      } catch (error) {
+        addStatus(`❌ Migration failed: ${error.message}`, 'error');
+        addStatus(`\n📋 Error details: ${JSON.stringify(error, null, 2)}`, 'error');
+        button.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

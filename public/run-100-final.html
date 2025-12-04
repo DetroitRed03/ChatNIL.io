@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Apply Migration 100</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body style="font-family: monospace; padding: 40px; background: #1e1e1e; color: #d4d4d4;">
+  <h1 style="color: #4ade80;">Migration 100: Agency Dashboard</h1>
+  <button onclick="apply()" style="padding: 15px 30px; font-size: 16px; cursor: pointer; background: #4ade80; border: none; border-radius: 8px; font-weight: bold;">Apply Now</button>
+  <pre id="out" style="margin-top: 20px;"></pre>
+  
+  <script type="module">
+    const sb = supabase.createClient(
+      'https://lqskiijspudfocddkhqs.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRraHFzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTU5MzM1NCwiZXhwIjoyMDc3MTY5MzU0fQ.LpapT51choXCwTfpbE81AIc4JC9QOO0FpOtqUxZ405I'
+    );
+    
+    window.apply = async () => {
+      const out = document.getElementById('out');
+      out.textContent = '🔄 Applying migration...\n\n';
+      
+      const sql = await fetch('/migrations/100_agency_dashboard_infrastructure.sql').then(r => r.text());
+      
+      const { error } = await sb.rpc('exec_sql', { query: sql });
+      
+      if (error) {
+        out.textContent += '❌ Error: ' + error.message + '\n' + JSON.stringify(error, null, 2);
+      } else {
+        out.textContent += '✅ Migration 100 applied successfully!\n\n';
+        out.textContent += '📦 Created:\n';
+        out.textContent += '  - 6 tables\n';
+        out.textContent += '  - 3 views\n';
+        out.textContent += '  - 3 functions\n';
+        out.textContent += '  - All RLS policies\n';
+      }
+    };
+  </script>
+</body>
+</html>

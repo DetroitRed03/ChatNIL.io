@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Copy SQL - Apply to Supabase</title>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      max-width: 1600px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #00ff00;
+    }
+    h1 { color: #00ff00; }
+    button {
+      background: #00ff00;
+      color: #000;
+      border: none;
+      padding: 15px 30px;
+      font-size: 18px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      margin: 20px 0;
+      font-weight: bold;
+    }
+    button:hover { background: #00cc00; }
+    .success { color: #00ff00; font-size: 24px; margin: 20px 0; }
+    pre {
+      background: #000;
+      padding: 20px;
+      overflow-x: auto;
+      border: 2px solid #00ff00;
+      max-height: 600px;
+      overflow-y: auto;
+      font-size: 14px;
+    }
+    .steps {
+      background: #111;
+      padding: 20px;
+      margin: 20px 0;
+      border-left: 5px solid #00ff00;
+    }
+    .steps li { margin: 10px 0; font-size: 16px; }
+    a { color: #00aaff; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>📋 COPY & APPLY MATCHMAKING DATA</h1>
+
+  <div class="steps">
+    <h2>3 SIMPLE STEPS:</h2>
+    <ol>
+      <li><strong>Click the button below</strong> to copy SQL to clipboard</li>
+      <li><strong>Open Supabase SQL Editor:</strong> <a href="https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/sql/new" target="_blank">Click Here</a></li>
+      <li><strong>Paste & Run</strong> the SQL in the editor</li>
+    </ol>
+  </div>
+
+  <button onclick="copySQLNow()" id="copyBtn">📋 CLICK TO COPY SQL (Step 1)</button>
+
+  <div id="status"></div>
+
+  <h3>SQL Preview:</h3>
+  <pre id="sqlPreview">Loading SQL...</pre>
+
+  <script>
+    // Load SQL
+    fetch('/seed-matchmaking.sql')
+      .then(res => res.text())
+      .then(sql => {
+        document.getElementById('sqlPreview').textContent = sql;
+        window.sqlContent = sql;
+      });
+
+    function copySQLNow() {
+      if (!window.sqlContent) {
+        alert('SQL not loaded yet, please wait...');
+        return;
+      }
+
+      navigator.clipboard.writeText(window.sqlContent).then(() => {
+        const status = document.getElementById('status');
+        status.innerHTML = `
+          <div class="success">
+            ✅ SQL COPIED TO CLIPBOARD!<br><br>
+            Now go to Step 2:<br>
+            <a href="https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/sql/new" target="_blank" style="font-size: 20px;">
+              → OPEN SUPABASE SQL EDITOR
+            </a>
+          </div>
+        `;
+
+        // Auto-open Supabase SQL Editor
+        window.open('https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/sql/new', '_blank');
+
+      }).catch(err => {
+        alert('Copy failed: ' + err.message + '\\n\\nPlease manually select and copy the SQL below.');
+      });
+    }
+  </script>
+</body>
+</html>

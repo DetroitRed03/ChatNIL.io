@@ -1,937 +1,1196 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { ProtectedRoute } from '@/components/AuthGuard';
-import { supabase } from '@/lib/supabase';
-import AppShell from '@/components/Chat/AppShell';
-import Header from '@/components/Header';
-import ProfileImageUpload from '@/components/ProfileImageUpload';
-import SportAutocomplete from '@/components/SportAutocomplete';
-import SchoolAutocomplete from '@/components/SchoolAutocomplete';
-import NILInterestsSelect from '@/components/NILInterestsSelect';
-import AchievementsInput from '@/components/AchievementsInput';
-import NILGoalsInput from '@/components/NILGoalsInput';
-import SocialMediaInput from '@/components/SocialMediaInput';
-import BadgeShowcase from '@/components/badges/BadgeShowcase';
+import { useRouter } from 'next/navigation';
 import {
   User,
-  School,
+  GraduationCap,
   Trophy,
-  Target,
-  Edit3,
-  Save,
-  X,
-  ChevronRight,
-  Home,
-  AlertCircle,
-  CheckCircle,
-  Star,
+  Instagram,
+  Twitter,
   TrendingUp,
-  Zap,
-  RefreshCw,
-  Info
+  Sparkles,
+  Save,
+  Eye,
+  Heart,
+  DollarSign,
+  Image as ImageIcon,
+  CheckCircle2,
+  Music,
 } from 'lucide-react';
+import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Badge } from '@/components/ui/Badge';
+import { Progress } from '@/components/ui/Progress';
+import { CreativeSlider } from '@/components/ui/CreativeSlider';
+import { PhotoUpload } from '@/components/PhotoUpload';
+import { fetchOwnProfile, updateProfile, type ProfileData } from '@/lib/profile-data';
+import { calculateProfileCompletion } from '@/lib/profile-completion';
+import { formatCurrency, formatNumber } from '@/lib/utils';
+import {
+  SportsPositionPicker,
+  PositionPickerModal,
+  SecondarySportsManager,
+  type SecondarySport,
+} from '@/components/profile/shared';
+import { ProfileSectionCard } from '@/components/profile/edit/ProfileSectionCard';
+import { PortfolioManagementSection } from '@/components/portfolio/PortfolioManagementSection';
 
-interface ProfileSection {
-  id: string;
-  title: string;
-  icon: any;
-  fields: Array<{
-    key: string;
-    label: string;
-    value: any;
-    type: 'text' | 'email' | 'date' | 'number' | 'select' | 'textarea' | 'array' | 'sport-autocomplete' | 'position' | 'school-autocomplete' | 'nil-interests' | 'achievements' | 'nil-goals' | 'nil-concerns' | 'social-media';
-    options?: string[];
-  }>;
-}
-
-function ProfilePageContent() {
+export default function ProfileEditPage() {
   const { user } = useAuth();
+  const router = useRouter();
+
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [editingSection, setEditingSection] = useState<string | null>(null);
-  const [editData, setEditData] = useState<any>({});
-  const [profile, setProfile] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [profileCompletion, setProfileCompletion] = useState(0);
+  const [positionModalOpen, setPositionModalOpen] = useState(false);
+  const [secondarySportsModalIndex, setSecondarySportsModalIndex] = useState<number | null>(null);
+
+  // Personal Info
+  const [bio, setBio] = useState('');
+  const [major, setMajor] = useState('');
+  const [gpa, setGpa] = useState('');
+
+  // Athletic Info
+  const [primarySport, setPrimarySport] = useState<{ sport: string; position?: string }>({
+    sport: '',
+    position: '',
+  });
+  const [secondarySports, setSecondarySports] = useState<SecondarySport[]>([]);
+  const [achievements, setAchievements] = useState('');
+  const [coachName, setCoachName] = useState('');
+  const [coachEmail, setCoachEmail] = useState('');
+
+  // Athlete Stats
+  const [heightInches, setHeightInches] = useState('');
+  const [weightLbs, setWeightLbs] = useState('');
+  const [jerseyNumber, setJerseyNumber] = useState('');
+
+  // Social Media
+  const [instagramHandle, setInstagramHandle] = useState('');
+  const [instagramFollowers, setInstagramFollowers] = useState(0);
+  const [instagramEngagement, setInstagramEngagement] = useState(0);
+  const [tiktokHandle, setTiktokHandle] = useState('');
+  const [tiktokFollowers, setTiktokFollowers] = useState(0);
+  const [tiktokEngagement, setTiktokEngagement] = useState(0);
+  const [twitterHandle, setTwitterHandle] = useState('');
+  const [twitterFollowers, setTwitterFollowers] = useState(0);
+  const [twitterEngagement, setTwitterEngagement] = useState(0);
+
+  // Interests
+  const [contentInterests, setContentInterests] = useState<string[]>([]);
+  const [brandAffinity, setBrandAffinity] = useState<string[]>([]);
+  const [causes, setCauses] = useState<string[]>([]);
+  const [lifestyleInterests, setLifestyleInterests] = useState<string[]>([]);
+  const [hobbies, setHobbies] = useState<string[]>([]);
+
+  // NIL Preferences
+  const [dealTypes, setDealTypes] = useState<string[]>([]);
+  const [minCompensation, setMinCompensation] = useState(0);
+  const [maxCompensation, setMaxCompensation] = useState(50000);
+  const [partnershipLength, setPartnershipLength] = useState('');
+  const [contentTypesWilling, setContentTypesWilling] = useState<string[]>([]);
+  const [travelWilling, setTravelWilling] = useState(false);
 
   useEffect(() => {
-    // Since we're in a ProtectedRoute, user should always exist here
-    // But we still need to handle the case where user data is still loading
-    if (!user) {
-      console.log('⚠️ User is null in ProtectedRoute - waiting for AuthGuard...');
-      return;
-    }
-
-    console.log('✅ Profile page: User authenticated, loading profile data...');
-
-    if (user.profile) {
-      // Profile data is already available from AuthContext
-      setProfile(user.profile);
-      setLoading(false);
-      console.log('✅ Profile data loaded from AuthContext');
-    } else {
-      // If user exists but profile is missing, try direct fetch
-      const fetchProfileDirectly = async () => {
-        try {
-          console.log('📞 Fetching profile directly from database...');
-          const { data: profile, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-
-          if (error) {
-            console.error('❌ Profile fetch error:', error);
-            setError(`Failed to load profile: ${error.message}`);
-            setLoading(false);
-            return;
-          }
-
-          if (profile) {
-            console.log('✅ Profile fetched successfully');
-            setProfile(profile);
-            setLoading(false);
-          } else {
-            console.log('⚠️ No profile found in database');
-            setError('No profile found. Please complete onboarding to create your profile.');
-            setLoading(false);
-          }
-        } catch (error) {
-          console.error('💥 Error in profile fetch:', error);
-          setError('An unexpected error occurred while loading your profile');
-          setLoading(false);
-        }
-      };
-
-      fetchProfileDirectly();
+    if (user?.id) {
+      loadProfile();
     }
   }, [user]);
 
-  // Add timeout effect to prevent infinite loading
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (loading && !profile) {
-        console.log('⏰ Loading timeout reached (10 seconds)');
-        setLoadingTimeout(true);
-        setError('Profile loading is taking longer than expected. Please refresh the page or try again.');
-        setLoading(false);
-      }
-    }, 10000); // 10 second timeout
-
-    return () => clearTimeout(timeout);
-  }, [loading, profile]);
-
-  const calculateCompletion = () => {
-    if (!profile) return { percentage: 0, completed: 0, total: 15 };
-
-    const fieldChecks = [
-      { field: 'first_name', value: profile.first_name, priority: 'high' },
-      { field: 'last_name', value: profile.last_name, priority: 'high' },
-      { field: 'email', value: profile.email, priority: 'high' },
-      { field: 'date_of_birth', value: profile.date_of_birth, priority: 'medium' },
-      { field: 'phone', value: profile.phone, priority: 'high' },
-      { field: 'school_name', value: profile.school_name, priority: 'high' },
-      { field: 'graduation_year', value: profile.graduation_year, priority: 'high' },
-      { field: 'major', value: profile.major, priority: 'medium' },
-      { field: 'gpa', value: profile.gpa, priority: 'medium' },
-      { field: 'primary_sport', value: profile.primary_sport, priority: 'high' },
-      { field: 'position', value: profile.position, priority: 'high' },
-      { field: 'achievements', value: profile.achievements && profile.achievements.length > 0, priority: 'high' },
-      { field: 'nil_interests', value: profile.nil_interests && profile.nil_interests.length > 0, priority: 'high' },
-      { field: 'nil_concerns', value: profile.nil_concerns && profile.nil_concerns.length > 0, priority: 'medium' },
-      { field: 'social_media_handles', value: profile.social_media_handles, priority: 'high' }
-    ];
-
-    const totalFields = fieldChecks.length;
-    const completedFields = fieldChecks.filter(check => check.value).length;
-    const percentage = Math.round((completedFields / totalFields) * 100);
-
-    return { percentage, completed: completedFields, total: totalFields, fieldChecks };
-  };
-
-  const getMissingFields = () => {
-    if (!profile) return [];
-
-    const fieldInfo = {
-      first_name: { label: 'First Name', nilImportance: 'Required for brand partnerships and contracts', priority: 'high' },
-      last_name: { label: 'Last Name', nilImportance: 'Required for brand partnerships and contracts', priority: 'high' },
-      email: { label: 'Email', nilImportance: 'Primary contact for NIL opportunities', priority: 'high' },
-      date_of_birth: { label: 'Date of Birth', nilImportance: 'Age verification for certain sponsorships', priority: 'medium' },
-      phone: { label: 'Phone Number', nilImportance: 'Direct contact for urgent opportunities', priority: 'high' },
-      school_name: { label: 'School Name', nilImportance: 'Local brand partnerships and compliance requirements', priority: 'high' },
-      graduation_year: { label: 'Graduation Year', nilImportance: 'Eligibility timeline for opportunities', priority: 'high' },
-      major: { label: 'Major', nilImportance: 'Academic-focused sponsorships and tutoring deals', priority: 'medium' },
-      gpa: { label: 'GPA', nilImportance: 'Academic performance bonuses and scholarships', priority: 'medium' },
-      primary_sport: { label: 'Primary Sport', nilImportance: 'Sport-specific brand partnerships and equipment deals', priority: 'high' },
-      position: { label: 'Position', nilImportance: 'Position-specific endorsements and coaching opportunities', priority: 'high' },
-      achievements: { label: 'Achievements', nilImportance: 'Showcase accomplishments for higher-value deals', priority: 'high' },
-      nil_interests: { label: 'NIL Interests', nilImportance: 'Match with relevant brand categories and opportunities', priority: 'high' },
-      nil_concerns: { label: 'NIL Concerns', nilImportance: 'Avoid conflicts and ensure comfortable partnerships', priority: 'medium' },
-      social_media_handles: { label: 'Social Media', nilImportance: 'Essential for social media sponsorships and follower verification', priority: 'high' }
-    };
-
-    const missing: any[] = [];
-    Object.entries(fieldInfo).forEach(([key, info]) => {
-      const value = profile[key as keyof typeof profile];
-      const isEmpty = !value || (Array.isArray(value) && value.length === 0);
-
-      if (isEmpty) {
-        missing.push({
-          key,
-          ...info
-        });
-      }
-    });
-
-    // Sort by priority: high first, then medium
-    return missing.sort((a, b) => {
-      if (a.priority === 'high' && b.priority !== 'high') return -1;
-      if (b.priority === 'high' && a.priority !== 'high') return 1;
-      return 0;
-    });
-  };
-
-  const profileSections: ProfileSection[] = [
-    {
-      id: 'personal',
-      title: 'Personal Information',
-      icon: User,
-      fields: [
-        { key: 'first_name', label: 'First Name', value: profile?.first_name, type: 'text' },
-        { key: 'last_name', label: 'Last Name', value: profile?.last_name, type: 'text' },
-        { key: 'email', label: 'Email', value: profile?.email, type: 'email' },
-        { key: 'date_of_birth', label: 'Date of Birth', value: profile?.date_of_birth, type: 'date' },
-        { key: 'phone', label: 'Phone', value: profile?.phone, type: 'text' },
-        { key: 'parent_email', label: 'Parent Email', value: profile?.parent_email, type: 'email' },
-        { key: 'bio', label: 'Bio', value: profile?.bio, type: 'textarea' },
-      ]
-    },
-    {
-      id: 'school',
-      title: 'School Information',
-      icon: School,
-      fields: [
-        { key: 'school_name', label: 'School Name', value: profile?.school_name, type: 'school-autocomplete' },
-        { key: 'school_level', label: 'School Level', value: profile?.school_level, type: 'select', options: ['high_school', 'college_freshman', 'college_sophomore', 'college_junior', 'college_senior', 'graduate'] },
-        { key: 'graduation_year', label: 'Graduation Year', value: profile?.graduation_year, type: 'number' },
-        { key: 'major', label: 'Major', value: profile?.major, type: 'text' },
-        { key: 'gpa', label: 'GPA', value: profile?.gpa, type: 'number' },
-      ]
-    },
-    {
-      id: 'athletic',
-      title: 'Athletic Information',
-      icon: Trophy,
-      fields: [
-        { key: 'primary_sport', label: 'Primary Sport', value: profile?.primary_sport, type: 'sport-autocomplete' },
-        { key: 'position', label: 'Position', value: profile?.position, type: 'position' }, // Handled by sport-autocomplete
-        { key: 'secondary_sports', label: 'Other Sports', value: profile?.secondary_sports, type: 'array' },
-        { key: 'achievements', label: 'Achievements', value: profile?.achievements, type: 'achievements' },
-        { key: 'coach_name', label: 'Coach Name', value: profile?.coach_name, type: 'text' },
-        { key: 'coach_email', label: 'Coach Email', value: profile?.coach_email, type: 'email' },
-      ]
-    },
-    {
-      id: 'nil',
-      title: 'NIL Information',
-      icon: Target,
-      fields: [
-        { key: 'nil_interests', label: 'NIL Interests', value: profile?.nil_interests, type: 'nil-interests' },
-        { key: 'nil_goals', label: 'NIL Goals', value: profile?.nil_goals, type: 'nil-goals' },
-        { key: 'nil_concerns', label: 'NIL Concerns', value: profile?.nil_concerns, type: 'nil-concerns' },
-        { key: 'social_media_handles', label: 'Social Media', value: profile?.social_media_handles, type: 'social-media' },
-      ]
-    }
-  ];
-
-  const handleEdit = (sectionId: string) => {
-    setEditingSection(sectionId);
-    const section = profileSections.find(s => s.id === sectionId);
-    if (section) {
-      const data: any = {};
-      section.fields.forEach(field => {
-        // Initialize fields based on type to avoid PostgreSQL errors
-        if (field.type === 'date') {
-          // Use null for empty date fields
-          data[field.key] = field.value || null;
-        } else if (field.type === 'array' || field.type === 'nil-interests' || field.type === 'achievements' || field.type === 'nil-goals' || field.type === 'nil-concerns') {
-          // Use empty array for array-based fields
-          data[field.key] = field.value || [];
-        } else {
-          // Use empty string for text fields
-          data[field.key] = field.value || '';
-        }
-      });
-      setEditData(data);
-    }
-  };
-
-  const handleSave = async (sectionId: string) => {
-    setSaving(true);
-    console.log('💾 Saving profile data:', editData);
-
+  const loadProfile = async () => {
     try {
-      // Get the current section to check field types
-      const section = profileSections.find(s => s.id === sectionId);
-      const fieldTypesMap: Record<string, string> = {};
-      section?.fields.forEach(field => {
-        fieldTypesMap[field.key] = field.type;
+      setLoading(true);
+      const data = await fetchOwnProfile(user!.id);
+      setProfile(data);
+
+      // Populate form fields
+      // Personal
+      setBio(data.bio || '');
+      setMajor(data.major || '');
+      setGpa(data.gpa?.toString() || '');
+
+      // Athletic
+      setPrimarySport({
+        sport: data.primary_sport || '',
+        position: data.position || '',
       });
 
-      // Sanitize data before sending to API
-      const sanitizedData: any = {};
-      Object.keys(editData).forEach(key => {
-        const value = editData[key];
-        const fieldType = fieldTypesMap[key];
-
-        // Convert empty strings to null for date fields to avoid PostgreSQL error
-        if (value === '' && (key.includes('date') || fieldType === 'date')) {
-          sanitizedData[key] = null;
+      // Handle secondary_sports - convert from string format if needed
+      const secondarySportsData = data.secondary_sports || [];
+      const normalizedSecondarySports = secondarySportsData.map((item: any) => {
+        // If it's already an object with sport/position, use it
+        if (typeof item === 'object' && item.sport) {
+          return item;
         }
-        // Convert empty strings to empty arrays for array-type fields
-        else if (value === '' && (fieldType === 'array' || fieldType === 'nil-interests' || fieldType === 'achievements' || fieldType === 'nil-goals' || fieldType === 'nil-concerns')) {
-          sanitizedData[key] = [];
+        // If it's a string like "Soccer - Goalkeeper", parse it
+        if (typeof item === 'string') {
+          const parts = item.split(' - ');
+          return {
+            sport: parts[0]?.trim() || '',
+            position: parts[1]?.trim() || undefined,
+          };
         }
-        // Keep the value as-is
-        else {
-          sanitizedData[key] = value;
-        }
+        // Fallback to empty object
+        return { sport: '', position: undefined };
       });
+      setSecondarySports(normalizedSecondarySports);
 
-      console.log('💾 Sanitized data:', sanitizedData);
+      setAchievements(data.achievements?.join('\n') || '');
+      setCoachName(data.coach_name || '');
+      setCoachEmail(data.coach_email || '');
 
-      // Call API to update profile using service role
-      const response = await fetch('/api/user/update-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: user?.id,
-          updates: sanitizedData,
-        }),
-      });
+      // Athlete stats
+      setHeightInches(data.height_inches?.toString() || '');
+      setWeightLbs(data.weight_lbs?.toString() || '');
+      setJerseyNumber(data.jersey_number?.toString() || '');
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMessage = data.details
-          ? `Failed to update profile: ${data.details}`
-          : data.error || 'Failed to update profile';
-        throw new Error(errorMessage);
+      // Social media stats
+      if (data.social_media_stats) {
+        if (data.social_media_stats.instagram) {
+          setInstagramHandle(data.social_media_stats.instagram.handle || '');
+          setInstagramFollowers(data.social_media_stats.instagram.followers || 0);
+          setInstagramEngagement(data.social_media_stats.instagram.engagement_rate || 0);
+        }
+        if (data.social_media_stats.tiktok) {
+          setTiktokHandle(data.social_media_stats.tiktok.handle || '');
+          setTiktokFollowers(data.social_media_stats.tiktok.followers || 0);
+          setTiktokEngagement(data.social_media_stats.tiktok.engagement_rate || 0);
+        }
+        if (data.social_media_stats.twitter) {
+          setTwitterHandle(data.social_media_stats.twitter.handle || '');
+          setTwitterFollowers(data.social_media_stats.twitter.followers || 0);
+          setTwitterEngagement(data.social_media_stats.twitter.engagement_rate || 0);
+        }
       }
 
-      console.log('✅ Profile updated successfully:', data);
+      // Interests
+      setContentInterests(data.content_creation_interests || []);
+      setBrandAffinity(data.brand_affinity || []);
+      setCauses(data.causes_care_about || []);
+      setLifestyleInterests(data.lifestyle_interests || []);
+      setHobbies(data.hobbies || []);
 
-      // Update local profile state
-      setProfile({ ...profile, ...editData });
-      setEditingSection(null);
-      setEditData({});
+      // NIL Preferences
+      if (data.nil_preferences) {
+        setDealTypes(data.nil_preferences.preferred_deal_types || []);
+        setMinCompensation(data.nil_preferences.min_compensation || 0);
+        setMaxCompensation(data.nil_preferences.max_compensation || 50000);
+        setPartnershipLength(data.nil_preferences.preferred_partnership_length || '');
+        setContentTypesWilling(data.nil_preferences.content_types_willing || []);
+        setTravelWilling(data.nil_preferences.travel_willing || false);
+      }
 
-      // Show success message
-      alert('✅ Profile updated successfully!');
-    } catch (error: any) {
-      console.error('❌ Failed to update profile:', error);
-      alert(`❌ Failed to save changes: ${error.message || 'Unknown error'}`);
+      // Calculate completion
+      const completion = calculateProfileCompletion(data);
+      setProfileCompletion(completion.percentage);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-save with debouncing (500ms)
+  const autoSave = useCallback(
+    async (updates: Partial<ProfileData>) => {
+      if (!user?.id) return;
+
+      try {
+        setSaveStatus('saving');
+        await updateProfile(user.id, updates);
+        setSaveStatus('saved');
+
+        // Reset to idle after 2 seconds
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } catch (error) {
+        console.error('Auto-save error:', error);
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      }
+    },
+    [user]
+  );
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+
+      const achievementsArray = achievements.split('\n').filter((a) => a.trim());
+
+      const updates = {
+        bio,
+        major,
+        gpa: gpa ? parseFloat(gpa) : undefined,
+        primary_sport: primarySport.sport,
+        position: primarySport.position,
+        secondary_sports: Array.isArray(secondarySports) && secondarySports.length > 0 ? secondarySports : null,
+        achievements: achievementsArray.length > 0 ? achievementsArray : null,
+        coach_name: coachName,
+        coach_email: coachEmail,
+        height_inches: heightInches ? parseInt(heightInches) : null,
+        weight_lbs: weightLbs ? parseInt(weightLbs) : null,
+        jersey_number: jerseyNumber ? parseInt(jerseyNumber) : null,
+        social_media_stats: {
+          instagram: instagramHandle
+            ? {
+                handle: instagramHandle,
+                followers: instagramFollowers,
+                engagement_rate: instagramEngagement,
+              }
+            : null,
+          tiktok: tiktokHandle
+            ? {
+                handle: tiktokHandle,
+                followers: tiktokFollowers,
+                engagement_rate: tiktokEngagement,
+              }
+            : null,
+          twitter: twitterHandle
+            ? {
+                handle: twitterHandle,
+                followers: twitterFollowers,
+                engagement_rate: twitterEngagement,
+              }
+            : null,
+        },
+        content_creation_interests: Array.isArray(contentInterests) && contentInterests.length > 0 ? contentInterests : null,
+        brand_affinity: Array.isArray(brandAffinity) && brandAffinity.length > 0 ? brandAffinity : null,
+        causes_care_about: Array.isArray(causes) && causes.length > 0 ? causes : null,
+        lifestyle_interests: Array.isArray(lifestyleInterests) && lifestyleInterests.length > 0 ? lifestyleInterests : null,
+        hobbies: Array.isArray(hobbies) && hobbies.length > 0 ? hobbies : null,
+        nil_preferences: {
+          preferred_deal_types: Array.isArray(dealTypes) && dealTypes.length > 0 ? dealTypes : null,
+          min_compensation: minCompensation !== undefined ? minCompensation : null,
+          max_compensation: maxCompensation !== undefined ? maxCompensation : null,
+          preferred_partnership_length: partnershipLength,
+          content_types_willing: Array.isArray(contentTypesWilling) && contentTypesWilling.length > 0 ? contentTypesWilling : null,
+          travel_willing: travelWilling,
+        },
+      };
+
+      console.log('🔍 Saving profile with updates:', JSON.stringify(updates, null, 2));
+      await updateProfile(user!.id, updates as Partial<ProfileData>);
+      alert('Profile updated successfully!');
+      await loadProfile();
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Failed to save profile. Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleCancel = () => {
-    setEditingSection(null);
-    setEditData({});
-  };
-
-  const renderFieldValue = (field: any) => {
-    if (!field.value) {
-      return <span className="text-gray-400 italic">Not provided</span>;
-    }
-
-    switch (field.type) {
-      case 'array':
-        if (Array.isArray(field.value)) {
-          return field.value.length > 0
-            ? field.value.join(', ')
-            : <span className="text-gray-400 italic">None added</span>;
-        }
-        return <span className="text-gray-400 italic">None added</span>;
-
-      case 'textarea':
-        return typeof field.value === 'string'
-          ? field.value
-          : JSON.stringify(field.value, null, 2);
-
-      case 'date':
-        return field.value ? new Date(field.value).toLocaleDateString() : 'Not provided';
-
-      case 'social-media':
-        if (typeof field.value === 'object' && field.value !== null) {
-          const handles = Object.entries(field.value)
-            .filter(([_, value]) => value) // Only show platforms with values
-            .map(([platform, handle]) => `${platform}: @${handle}`)
-            .join(', ');
-          return handles || <span className="text-gray-400 italic">No social media added</span>;
-        }
-        return <span className="text-gray-400 italic">No social media added</span>;
-
-      default:
-        return field.value;
+  const handleViewPublicProfile = () => {
+    if (profile?.username) {
+      router.push(`/athletes/${profile.username}`);
+    } else {
+      alert('You need a username to view your public profile');
     }
   };
 
-  const renderEditField = (field: any, sectionFields: any[]) => {
-    // Get value with appropriate default based on field type
-    let value = editData[field.key];
-
-    if (value === undefined || value === null) {
-      if (['array', 'nil-interests', 'achievements', 'nil-goals', 'nil-concerns'].includes(field.type)) {
-        value = [];
-      } else if (field.type === 'social-media') {
-        value = {};
-      } else {
-        value = '';
-      }
-    }
-
-    const baseInputClasses = "w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white shadow-sm transition-all duration-200 hover:border-orange-300 font-medium";
-
-    // Skip position field - it's handled by sport-autocomplete
-    if (field.type === 'position') {
-      return null;
-    }
-
-    switch (field.type) {
-      case 'sport-autocomplete': {
-        // Find the position field to get its value
-        const positionField = sectionFields.find(f => f.key === 'position');
-        return (
-          <SportAutocomplete
-            sportValue={editData['primary_sport'] || ''}
-            positionValue={editData['position'] || ''}
-            onSportChange={(sport) => setEditData({...editData, primary_sport: sport})}
-            onPositionChange={(position) => setEditData({...editData, position: position})}
-          />
-        );
-      }
-      case 'school-autocomplete':
-        return (
-          <SchoolAutocomplete
-            value={editData[field.key] || ''}
-            onChange={(value) => setEditData({...editData, [field.key]: value})}
-            placeholder="Search for your school..."
-            includeLevel={true}
-          />
-        );
-      case 'nil-interests':
-        return (
-          <NILInterestsSelect
-            value={editData[field.key] || []}
-            onChange={(value) => setEditData({...editData, [field.key]: value})}
-          />
-        );
-      case 'achievements':
-        return (
-          <AchievementsInput
-            value={editData[field.key] || []}
-            onChange={(value) => setEditData({...editData, [field.key]: value})}
-            placeholder="Add an achievement..."
-          />
-        );
-      case 'nil-goals':
-        return (
-          <NILGoalsInput
-            value={editData[field.key] || []}
-            onChange={(value) => setEditData({...editData, [field.key]: value})}
-            placeholder="Add a NIL goal..."
-          />
-        );
-      case 'nil-concerns':
-        return (
-          <NILGoalsInput
-            value={editData[field.key] || []}
-            onChange={(value) => setEditData({...editData, [field.key]: value})}
-            placeholder="Add a NIL concern..."
-          />
-        );
-      case 'social-media':
-        return (
-          <SocialMediaInput
-            value={editData[field.key] || {}}
-            onChange={(value) => setEditData({...editData, [field.key]: value})}
-          />
-        );
-      case 'textarea':
-        return (
-          <textarea
-            value={typeof value === 'string' ? value : JSON.stringify(value, null, 2)}
-            onChange={(e) => setEditData({...editData, [field.key]: e.target.value})}
-            className={`${baseInputClasses} resize-none`}
-            rows={4}
-            placeholder={`Enter your ${field.label.toLowerCase()}...`}
-          />
-        );
-
-      case 'array':
-        return (
-          <input
-            type="text"
-            value={Array.isArray(value) ? value.join(', ') : value}
-            onChange={(e) => setEditData({...editData, [field.key]: e.target.value.split(', ').filter(Boolean)})}
-            className={baseInputClasses}
-            placeholder="Enter items separated by commas"
-          />
-        );
-
-      case 'number':
-        return (
-          <input
-            type="number"
-            value={value}
-            onChange={(e) => setEditData({...editData, [field.key]: parseFloat(e.target.value) || ''})}
-            className={baseInputClasses}
-            placeholder={`Enter ${field.label.toLowerCase()}`}
-          />
-        );
-
-      case 'select':
-        return (
-          <select
-            value={value}
-            onChange={(e) => setEditData({...editData, [field.key]: e.target.value})}
-            className={baseInputClasses}
-          >
-            <option value="">Select {field.label}</option>
-            {field.options?.map((option) => (
-              <option key={option} value={option}>
-                {option.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-              </option>
-            ))}
-          </select>
-        );
-
-      default:
-        return (
-          <input
-            type={field.type}
-            value={value}
-            onChange={(e) => setEditData({...editData, [field.key]: e.target.value})}
-            className={baseInputClasses}
-            placeholder={`Enter your ${field.label.toLowerCase()}...`}
-          />
-        );
+  // Toggle functions for multi-select
+  const toggleItem = (array: string[], setArray: (arr: string[]) => void, item: string) => {
+    if (array.includes(item)) {
+      setArray(array.filter((i) => i !== item));
+    } else {
+      setArray([...array, item]);
     }
   };
 
-  // Show loading state
+  // Section completion calculation functions
+  const calculatePersonalCompletion = () => {
+    let filled = 0;
+    let total = 3;
+    if (bio.trim()) filled++;
+    if (major.trim()) filled++;
+    if (gpa.trim()) filled++;
+    return Math.round((filled / total) * 100);
+  };
+
+  const calculateAthleticCompletion = () => {
+    let filled = 0;
+    let total = 2; // primary sport + position required
+    if (primarySport.sport) filled++;
+    if (primarySport.position) filled++;
+    return Math.round((filled / total) * 100);
+  };
+
+  const calculatePhotoCompletion = () => {
+    let filled = 0;
+    let total = 2; // profile photo + cover photo
+    if (profile?.profile_photo_url) filled++;
+    if (profile?.cover_photo_url) filled++;
+    return Math.round((filled / total) * 100);
+  };
+
+  const calculateSocialCompletion = () => {
+    let filled = 0;
+    let total = 1; // At least one complete platform
+
+    // Check if Instagram has data (handle optional, followers required)
+    if (instagramFollowers > 0 && instagramEngagement > 0) {
+      filled++;
+    }
+    // Check if TikTok has data (handle optional, followers required)
+    if (tiktokFollowers > 0 && tiktokEngagement > 0) {
+      filled++;
+    }
+    // Check if Twitter has data (handle optional, followers required)
+    if (twitterFollowers > 0 && twitterEngagement > 0) {
+      filled++;
+    }
+
+    return filled >= total ? 100 : Math.round((filled / total) * 100);
+  };
+
+  const calculateInterestsCompletion = () => {
+    const totalItems =
+      contentInterests.length +
+      brandAffinity.length +
+      causes.length +
+      lifestyleInterests.length +
+      hobbies.length;
+
+    // At least 2 items selected across all categories
+    return totalItems >= 2 ? 100 : Math.round((totalItems / 2) * 100);
+  };
+
+  const calculateNILCompletion = () => {
+    let filled = 0;
+    let total = 3;
+
+    // Deal types selected
+    if (dealTypes.length > 0) filled++;
+
+    // Compensation range set
+    if (minCompensation > 0 || maxCompensation > 0) filled++;
+
+    // At least one content type willing
+    if (contentTypesWilling.length > 0) filled++;
+
+    return Math.round((filled / total) * 100);
+  };
+
+  const calculatePortfolioCompletion = () => {
+    if (!profile?.content_samples || !Array.isArray(profile.content_samples)) {
+      return 0;
+    }
+
+    const portfolioItems = profile.content_samples;
+    if (portfolioItems.length === 0) {
+      return 0; // No items = 0%
+    }
+
+    // Has at least 1 item = 50%
+    // Has 3+ items = 100%
+    if (portfolioItems.length >= 3) {
+      return 100;
+    } else if (portfolioItems.length >= 1) {
+      return 50;
+    }
+
+    return 0;
+  };
+
+  if (!user) {
+    return null;
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">
-            {loadingTimeout ? 'Still loading...' : 'Loading profile...'}
-          </p>
-          {loadingTimeout && (
-            <p className="mt-2 text-sm text-gray-500">
-              This is taking longer than usual. Please be patient or refresh the page.
-            </p>
-          )}
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-center">
+          <motion.div
+            className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          />
+          <p className="text-gray-600">Loading profile...</p>
         </div>
       </div>
     );
   }
 
-  // Show error state
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="h-8 w-8 text-red-600" />
-          </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Profile Loading Error</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <div className="space-y-3">
-            <button
-              onClick={() => {
-                setError(null);
-                setLoading(true);
-                setLoadingTimeout(false);
-                window.location.reload();
-              }}
-              className="w-full px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-            >
-              Refresh Page
-            </button>
-            {error.includes('onboarding') && (
-              <button
-                onClick={() => window.location.href = '/onboarding'}
-                className="w-full px-4 py-2 border border-orange-500 text-orange-600 rounded-lg hover:bg-orange-50 transition-colors"
-              >
-                Complete Onboarding
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show "no profile" state (shouldn't normally happen if error handling works correctly)
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <User className="h-8 w-8 text-gray-400" />
-          </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">No Profile Found</h2>
-          <p className="text-gray-600 mb-4">We couldn't find your profile information.</p>
-          <button
-            onClick={() => window.location.href = '/onboarding'}
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-          >
-            Complete Onboarding
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const completionData = calculateCompletion();
-  const missingFields = getMissingFields();
-
-  // Main profile render
   return (
-    <AppShell>
-      <Header />
-      <div className="min-h-full overflow-y-auto bg-gradient-to-br from-orange-50 via-white to-purple-50 py-6 px-4 sm:p-6 pb-12">
-      {/* Profile Header */}
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 mb-8 overflow-hidden">
-        {/* Background Pattern */}
-        <div className="h-24 bg-gradient-to-r from-orange-400 via-orange-500 to-purple-500 relative">
-          <div className="absolute inset-0 bg-black bg-opacity-10"></div>
-          <div className="absolute inset-0" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }}></div>
-        </div>
-
-        <div className="px-6 pb-6 -mt-12 relative">
-          <div className="flex items-end justify-between">
-            <div className="flex items-end space-x-4">
-              <div className="relative">
-                <ProfileImageUpload
-                  currentImageUrl={profile?.profile_image_url}
-                  onImageUpdate={(imageUrl) => {
-                    setProfile({ ...profile, profile_image_url: imageUrl });
-                  }}
-                  size="large"
-                />
-                <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg">
-                  <span className="text-2xl">
-                    {profile?.role === 'athlete' ? '🏆' : profile?.role === 'coach' ? '👨‍🏫' : '👨‍👩‍👧‍👦'}
-                  </span>
-                </div>
-              </div>
-              <div className="pb-2">
-                <h1 className="text-3xl font-bold text-gray-900 mb-1">{user?.name}</h1>
-                <p className="text-gray-600 capitalize font-medium">{profile?.role} Profile</p>
-                <p className="text-sm text-gray-500 mt-1 flex items-center">
-                  <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
-                  Click avatar to upload photo
-                </p>
-              </div>
-            </div>
-
-            {/* Completion Badge */}
-            <div className="text-right pb-2">
-              <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold shadow-lg ${
-                completionData.percentage >= 80
-                  ? 'bg-gradient-to-r from-green-400 to-green-500 text-white'
-                  : completionData.percentage >= 50
-                  ? 'bg-gradient-to-r from-orange-400 to-orange-500 text-white'
-                  : 'bg-gradient-to-r from-red-400 to-red-500 text-white'
-              }`}>
-                {completionData.percentage >= 80 && <CheckCircle className="h-4 w-4 mr-2" />}
-                {completionData.percentage < 80 && <AlertCircle className="h-4 w-4 mr-2" />}
-                {completionData.percentage}% Complete
-              </div>
-              <p className="text-sm text-gray-600 mt-2 font-medium">
-                {completionData.completed}/{completionData.total} fields completed
+    <>
+      <div className="overflow-y-auto bg-[#FAF6F1]">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Edit Profile</h1>
+              <p className="text-gray-600 mt-1">
+                Manage your athlete profile and increase your visibility
               </p>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div>
-        {/* Profile Completion Guidance */}
-        {completionData.percentage < 100 && (
-          <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-2xl border border-orange-200 p-6 mb-8">
-            <div className="flex items-start space-x-4">
-              <div className="flex-shrink-0">
-                <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-white" />
+            <div className="flex gap-3">
+              {/* Save Status Indicator */}
+              {saveStatus !== 'idle' && (
+                <div
+                  className={`px-4 py-2 rounded-xl font-medium flex items-center gap-2 ${
+                    saveStatus === 'saving'
+                      ? 'bg-blue-100 text-blue-700'
+                      : saveStatus === 'saved'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}
+                >
+                  {saveStatus === 'saving' && (
+                    <>
+                      <motion.div
+                        className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      />
+                      Saving...
+                    </>
+                  )}
+                  {saveStatus === 'saved' && (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      Saved!
+                    </>
+                  )}
+                  {saveStatus === 'error' && <>Error saving</>}
                 </div>
-              </div>
-
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-orange-900 mb-2">
-                  Complete Your Profile for Maximum NIL Opportunities
-                </h3>
-
-                {/* Progress Bar */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-orange-800">
-                      Progress: {completionData.completed}/{completionData.total} fields
-                    </span>
-                    <span className="text-sm font-medium text-orange-800">
-                      {completionData.percentage}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-white rounded-full h-3 border border-orange-200">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        completionData.percentage >= 80
-                          ? 'bg-green-500'
-                          : completionData.percentage >= 50
-                          ? 'bg-orange-500'
-                          : 'bg-red-500'
-                      }`}
-                      style={{ width: `${completionData.percentage}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                <p className="text-orange-700 text-sm mb-4">
-                  A complete profile increases your chances of being matched with relevant NIL opportunities by up to 3x.
-                </p>
-
-                {/* Missing Fields */}
-                {missingFields.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-orange-900 mb-3 flex items-center">
-                      <Star className="h-4 w-4 mr-2" />
-                      Missing Fields ({missingFields.length})
-                    </h4>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {missingFields.slice(0, 6).map((field) => (
-                        <div
-                          key={field.key}
-                          className="bg-white rounded-lg p-3 border border-orange-200 hover:border-orange-300 transition-colors"
-                        >
-                          <div className="flex items-center mb-2">
-                            <div className={`w-2 h-2 rounded-full mr-2 ${
-                              field.priority === 'high' ? 'bg-red-500' : 'bg-orange-400'
-                            }`}></div>
-                            <span className="font-medium text-gray-900 text-sm">
-                              {field.label}
-                            </span>
-                            {field.priority === 'high' && (
-                              <Zap className="h-3 w-3 text-red-500 ml-1" />
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-600 leading-relaxed">
-                            {field.nilImportance}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                    {missingFields.length > 6 && (
-                      <p className="text-sm text-orange-700 mt-3">
-                        +{missingFields.length - 6} more fields to complete for maximum NIL potential
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Success Message for Complete Profile */}
-        {completionData.percentage === 100 && (
-          <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-2xl border border-green-200 p-6 mb-8">
-            <div className="flex items-center space-x-4">
-              <div className="flex-shrink-0">
-                <div className="w-12 h-12 bg-green-500 rounded-2xl flex items-center justify-center">
-                  <CheckCircle className="h-6 w-6 text-white" />
-                </div>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-green-900 mb-2">
-                  🎉 Profile Complete! You're Ready for NIL Success
-                </h3>
-                <p className="text-green-700 text-sm">
-                  Your complete profile maximizes your visibility to brands and NIL opportunities.
-                  Keep your information updated as your athletic career progresses.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Badge Showcase Section */}
-        {user && (
-          <div className="mb-8">
-            <BadgeShowcase userId={user.id} />
-          </div>
-        )}
-
-        {/* Journey Management Section */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 mb-8 overflow-hidden">
-          <div className="bg-gradient-to-r from-purple-500 via-purple-600 to-indigo-600 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-white bg-opacity-20 rounded-lg">
-                  <RefreshCw className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Your Journey</h2>
-                  <p className="text-purple-100 text-sm">Current role and onboarding status</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-4">
-                <div className="text-5xl">
-                  {profile?.role === 'athlete' ? '🏆' : profile?.role === 'coach' ? '👨‍🏫' : '👨‍👩‍👧‍👦'}
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 mb-1">Current Role</div>
-                  <div className="text-2xl font-bold text-gray-900 capitalize">{profile?.role}</div>
-                  <div className="text-sm text-gray-500 mt-1">
-                    Joined {new Date(profile?.created_at || '').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                  </div>
-                </div>
-              </div>
+              )}
 
               <button
-                onClick={() => window.location.href = '/settings'}
-                className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl hover:from-purple-600 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
+                onClick={handleViewPublicProfile}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors flex items-center gap-2"
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Change Role
+                <Eye className="h-5 w-5" />
+                View Public Profile
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-6 py-2 bg-primary-500 text-white rounded-xl font-semibold hover:bg-primary-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                <Save className="h-5 w-5" />
+                {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
+          </div>
 
-            <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
-              <div className="flex items-start space-x-3">
-                <Info className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h4 className="font-semibold text-purple-900 mb-1">Want to switch your journey?</h4>
-                  <p className="text-sm text-purple-700 leading-relaxed">
-                    You can change your role at any time in Settings. Changing your role will restart the onboarding process
-                    to help you set up your new profile correctly. Your account data will be preserved.
-                  </p>
+          {/* Profile Completion */}
+          <Card className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-gray-900">Profile Strength</h3>
+                  <span className="text-2xl font-bold text-primary-600">
+                    {profileCompletion}%
+                  </span>
                 </div>
+                <Progress value={profileCompletion} className="h-3" />
+              </div>
+              <div className="p-4 bg-primary-100 rounded-xl">
+                <Sparkles className="h-8 w-8 text-primary-600" />
               </div>
             </div>
-          </div>
-        </div>
+            {profileCompletion < 100 && (
+              <p className="text-sm text-gray-600 mt-3">
+                Complete your profile to increase your visibility to brands and agencies!
+              </p>
+            )}
+          </Card>
 
-        <div className="grid gap-6">
-          {profileSections.map((section, index) => {
-            const Icon = section.icon;
-            const isEditing = editingSection === section.id;
-
-            return (
-              <div
-                key={section.id}
-                className="bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-2xl">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
-                      <Icon className="h-5 w-5 text-white" />
-                    </div>
-                    <h2 className="text-xl font-bold text-gray-900">{section.title}</h2>
+          {/* Profile Sections - Vertical Scrollable */}
+          <div className="space-y-6">
+            {/* 1. Personal Information Section */}
+            <ProfileSectionCard
+              id="personal"
+              title="Personal Information"
+              description="Tell us about yourself"
+              icon={User}
+              completionPercentage={calculatePersonalCompletion()}
+              defaultExpanded={true}
+            >
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Bio</label>
+                  <textarea
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    rows={4}
+                    maxLength={500}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                    placeholder="Tell brands about yourself, your interests, and what makes you unique..."
+                  />
+                  <div className="flex justify-between mt-1">
+                    <p className="text-sm text-gray-500">
+                      Introduce yourself to potential brand partners
+                    </p>
+                    <p className="text-sm text-gray-400">{bio.length}/500</p>
                   </div>
-
-                  {!isEditing ? (
-                    <button
-                      onClick={() => handleEdit(section.id)}
-                      className="inline-flex items-center px-4 py-2 text-sm font-medium bg-white text-gray-700 border border-gray-200 rounded-xl hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all duration-200 shadow-sm hover:shadow-md"
-                    >
-                      <Edit3 className="h-4 w-4 mr-2" />
-                      Edit
-                    </button>
-                  ) : (
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => handleSave(section.id)}
-                        disabled={saving}
-                        className="inline-flex items-center px-4 py-2 text-sm font-medium bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 disabled:opacity-50 shadow-lg hover:shadow-xl"
-                      >
-                        <Save className="h-4 w-4 mr-2" />
-                        {saving ? 'Saving...' : 'Save'}
-                      </button>
-                      <button
-                        onClick={handleCancel}
-                        disabled={saving}
-                        className="inline-flex items-center px-4 py-2 text-sm font-medium bg-white text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-gray-800 transition-all duration-200 shadow-sm"
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Cancel
-                      </button>
-                    </div>
-                  )}
                 </div>
 
-                <div className="px-6 py-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {section.fields.map((field) => {
-                      // Skip position field rendering - it's handled by sport-autocomplete
-                      if (isEditing && field.type === 'position') {
-                        return null;
-                      }
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">School</label>
+                    <Input value={profile?.school_name || ''} disabled />
+                    <p className="text-xs text-gray-500 mt-1">Set during onboarding</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Graduation Year
+                    </label>
+                    <Input value={profile?.graduation_year || ''} disabled />
+                    <p className="text-xs text-gray-500 mt-1">Set during onboarding</p>
+                  </div>
+                </div>
 
-                      return (
-                        <div key={field.key} className={`group ${field.type === 'sport-autocomplete' ? 'md:col-span-2' : ''}`}>
-                          {/* Only show label for non-sport-autocomplete fields in edit mode */}
-                          {(!isEditing || field.type !== 'sport-autocomplete') && (
-                            <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                              <span className="w-2 h-2 bg-orange-400 rounded-full mr-2"></span>
-                              {field.label}
-                            </label>
-                          )}
-                          {isEditing ? (
-                            <div className="relative">
-                              {renderEditField(field, section.fields)}
-                            </div>
-                          ) : (
-                          <div className="bg-gray-50 rounded-xl p-4 min-h-[3rem] flex items-center text-gray-900 font-medium border border-gray-200 group-hover:bg-orange-50 group-hover:border-orange-200 transition-all duration-200">
-                            {renderFieldValue(field)}
-                          </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Major</label>
+                    <Input
+                      value={major}
+                      onChange={(e) => setMajor(e.target.value)}
+                      placeholder="e.g., Business Administration"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      GPA (Optional)
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="4.0"
+                      value={gpa}
+                      onChange={(e) => setGpa(e.target.value)}
+                      placeholder="3.50"
+                    />
                   </div>
                 </div>
               </div>
-            );
-          })}
+            </ProfileSectionCard>
+
+            {/* 2. Profile Photos Section */}
+            <ProfileSectionCard
+              id="photos"
+              title="Profile Photos"
+              description="Upload your profile and cover photos"
+              icon={ImageIcon}
+              completionPercentage={calculatePhotoCompletion()}
+            >
+              <div className="space-y-8">
+                {/* Profile Photo */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Profile Photo</h3>
+                      <p className="text-sm text-gray-600">
+                        Square photo that appears next to your name (400x400 recommended)
+                      </p>
+                    </div>
+                    <Badge className="bg-primary-100 text-primary-700">
+                      {profile?.profile_photo_url ? 'Uploaded' : 'Not Set'}
+                    </Badge>
+                  </div>
+                  <PhotoUpload
+                    photoType="profile"
+                    currentPhotoUrl={profile?.profile_photo_url}
+                    onUploadSuccess={(url) => {
+                      setProfile({ ...profile, profile_photo_url: url });
+                      setSaveStatus('saved');
+                      setTimeout(() => setSaveStatus('idle'), 2000);
+                    }}
+                    onUploadError={(error) => {
+                      console.error('Profile photo upload error:', error);
+                      setSaveStatus('error');
+                      setTimeout(() => setSaveStatus('idle'), 3000);
+                    }}
+                  />
+                </div>
+
+                {/* Cover Photo */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Cover Photo</h3>
+                      <p className="text-sm text-gray-600">
+                        Wide banner photo for your profile header (1584x396 recommended)
+                      </p>
+                    </div>
+                    <Badge className="bg-primary-100 text-primary-700">
+                      {profile?.cover_photo_url ? 'Uploaded' : 'Not Set'}
+                    </Badge>
+                  </div>
+                  <PhotoUpload
+                    photoType="cover"
+                    currentPhotoUrl={profile?.cover_photo_url}
+                    onUploadSuccess={(url) => {
+                      setProfile({ ...profile, cover_photo_url: url });
+                      setSaveStatus('saved');
+                      setTimeout(() => setSaveStatus('idle'), 2000);
+                    }}
+                    onUploadError={(error) => {
+                      console.error('Cover photo upload error:', error);
+                      setSaveStatus('error');
+                      setTimeout(() => setSaveStatus('idle'), 3000);
+                    }}
+                  />
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex gap-3">
+                    <div className="flex-shrink-0">
+                      <Sparkles className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-blue-900 mb-1">Photo Tips</h4>
+                      <ul className="text-sm text-blue-700 space-y-1">
+                        <li>• Use high-quality images for best results</li>
+                        <li>• Profile photos work best with simple backgrounds</li>
+                        <li>• Cover photos can showcase your personality and achievements</li>
+                        <li>• Images are automatically optimized and compressed</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ProfileSectionCard>
+
+            {/* 3. Athletic Information Section */}
+            <ProfileSectionCard
+              id="athletic"
+              title="Athletic Information"
+              description="Your sports and achievements"
+              icon={Trophy}
+              completionPercentage={calculateAthleticCompletion()}
+            >
+              <div className="space-y-6">
+                {/* Primary Sport with Position Picker */}
+                <div>
+                  <SportsPositionPicker
+                    value={primarySport}
+                    onChange={(sport, position) =>
+                      setPrimarySport({ sport, position })
+                    }
+                    label="Primary Sport *"
+                    showPositionButton
+                    onOpenPositionPicker={() => setPositionModalOpen(true)}
+                  />
+                </div>
+
+                {/* Secondary Sports Manager */}
+                <SecondarySportsManager
+                  sports={secondarySports}
+                  onChange={setSecondarySports}
+                  maxSports={3}
+                />
+
+                {/* Achievements */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Achievements & Honors
+                  </label>
+                  <textarea
+                    value={achievements}
+                    onChange={(e) => setAchievements(e.target.value)}
+                    rows={4}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                    placeholder="List your awards, championships, records, or notable achievements (one per line)"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">One achievement per line</p>
+                </div>
+
+                {/* Coach Info */}
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Coach Name (Optional)
+                    </label>
+                    <Input
+                      value={coachName}
+                      onChange={(e) => setCoachName(e.target.value)}
+                      placeholder="Coach's full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Coach Email (Optional)
+                    </label>
+                    <Input
+                      type="email"
+                      value={coachEmail}
+                      onChange={(e) => setCoachEmail(e.target.value)}
+                      placeholder="coach@school.edu"
+                    />
+                  </div>
+                </div>
+
+                {/* Athlete Stats */}
+                <div>
+                  <h4 className="text-md font-semibold text-gray-900 mb-3">
+                    Athlete Stats (Optional)
+                  </h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    These stats will appear on your public profile as part of your athlete résumé
+                  </p>
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Height (inches)
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="96"
+                        value={heightInches}
+                        onChange={(e) => setHeightInches(e.target.value)}
+                        placeholder="e.g., 74 for 6'2&quot;"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {heightInches && parseInt(heightInches) > 0
+                          ? `${Math.floor(parseInt(heightInches) / 12)}'${parseInt(heightInches) % 12}"`
+                          : 'Enter total inches'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Weight (lbs)
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="500"
+                        value={weightLbs}
+                        onChange={(e) => setWeightLbs(e.target.value)}
+                        placeholder="e.g., 185"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Jersey Number
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="99"
+                        value={jerseyNumber}
+                        onChange={(e) => setJerseyNumber(e.target.value)}
+                        placeholder="e.g., 23"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ProfileSectionCard>
+
+            {/* 4. Social Media Stats Section */}
+            <ProfileSectionCard
+              id="social"
+              title="Social Media Stats"
+              description="Your social media presence"
+              icon={TrendingUp}
+              completionPercentage={calculateSocialCompletion()}
+            >
+              <div className="space-y-8">
+                {/* Instagram */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
+                      <Instagram className="h-5 w-5 text-white" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900">Instagram</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Handle
+                      </label>
+                      <Input
+                        value={instagramHandle}
+                        onChange={(e) => setInstagramHandle(e.target.value)}
+                        placeholder="@username"
+                      />
+                    </div>
+                    <div>
+                      <CreativeSlider
+                        label="Followers"
+                        min={0}
+                        max={10000000}
+                        step={1000}
+                        value={instagramFollowers}
+                        onChange={(val) => setInstagramFollowers(val as number)}
+                        formatValue={(val) => formatNumber(val)}
+                        showValue
+                        gradientColors={['#c13584', '#e1306c']}
+                      />
+                    </div>
+                    <div>
+                      <CreativeSlider
+                        label="Engagement Rate (%)"
+                        min={0}
+                        max={20}
+                        step={0.1}
+                        value={instagramEngagement}
+                        onChange={(val) => setInstagramEngagement(val as number)}
+                        formatValue={(val) => `${val.toFixed(1)}%`}
+                        showValue
+                        gradientColors={['#c13584', '#e1306c']}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* TikTok */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-br from-black to-gray-800 rounded-lg">
+                      <Music className="h-5 w-5 text-white" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900">TikTok</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Handle
+                      </label>
+                      <Input
+                        value={tiktokHandle}
+                        onChange={(e) => setTiktokHandle(e.target.value)}
+                        placeholder="@username"
+                      />
+                    </div>
+                    <div>
+                      <CreativeSlider
+                        label="Followers"
+                        min={0}
+                        max={10000000}
+                        step={1000}
+                        value={tiktokFollowers}
+                        onChange={(val) => setTiktokFollowers(val as number)}
+                        formatValue={(val) => formatNumber(val)}
+                        showValue
+                        gradientColors={['#000000', '#ff0050']}
+                      />
+                    </div>
+                    <div>
+                      <CreativeSlider
+                        label="Engagement Rate (%)"
+                        min={0}
+                        max={20}
+                        step={0.1}
+                        value={tiktokEngagement}
+                        onChange={(val) => setTiktokEngagement(val as number)}
+                        formatValue={(val) => `${val.toFixed(1)}%`}
+                        showValue
+                        gradientColors={['#000000', '#ff0050']}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Twitter */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg">
+                      <Twitter className="h-5 w-5 text-white" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900">Twitter</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Handle
+                      </label>
+                      <Input
+                        value={twitterHandle}
+                        onChange={(e) => setTwitterHandle(e.target.value)}
+                        placeholder="@username"
+                      />
+                    </div>
+                    <div>
+                      <CreativeSlider
+                        label="Followers"
+                        min={0}
+                        max={10000000}
+                        step={1000}
+                        value={twitterFollowers}
+                        onChange={(val) => setTwitterFollowers(val as number)}
+                        formatValue={(val) => formatNumber(val)}
+                        showValue
+                        gradientColors={['#1DA1F2', '#0d8dd6']}
+                      />
+                    </div>
+                    <div>
+                      <CreativeSlider
+                        label="Engagement Rate (%)"
+                        min={0}
+                        max={20}
+                        step={0.1}
+                        value={twitterEngagement}
+                        onChange={(val) => setTwitterEngagement(val as number)}
+                        formatValue={(val) => `${val.toFixed(1)}%`}
+                        showValue
+                        gradientColors={['#1DA1F2', '#0d8dd6']}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ProfileSectionCard>
+
+            {/* 4. Interests & Hobbies Section */}
+            <ProfileSectionCard
+              id="interests"
+              title="Interests & Hobbies"
+              description="What makes you unique"
+              icon={Heart}
+              completionPercentage={calculateInterestsCompletion()}
+            >
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Content Creation Interests
+                  </label>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Select the types of content you enjoy creating
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      'Sports Training',
+                      'Game Day Vlogs',
+                      'Fitness & Nutrition',
+                      'Fashion & Style',
+                      'Campus Life',
+                      'Mental Health Advocacy',
+                      'Product Reviews',
+                      'Tutorials',
+                    ].map((interest) => (
+                      <button
+                        key={interest}
+                        type="button"
+                        onClick={() => toggleItem(contentInterests, setContentInterests, interest)}
+                        className={`px-4 py-2 rounded-lg border-2 transition-colors ${
+                          contentInterests.includes(interest)
+                            ? 'border-primary-500 bg-primary-50 text-primary-900'
+                            : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-700'
+                        }`}
+                      >
+                        <span className="text-sm font-medium">{interest}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Causes You Care About
+                  </label>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Social causes and issues important to you
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      'Youth Sports Access',
+                      'Mental Health Awareness',
+                      'Gender Equality in Sports',
+                      'Education',
+                      'Environmental Sustainability',
+                      'Social Justice',
+                    ].map((cause) => (
+                      <button
+                        key={cause}
+                        type="button"
+                        onClick={() => toggleItem(causes, setCauses, cause)}
+                        className={`px-4 py-2 rounded-lg border-2 transition-colors ${
+                          causes.includes(cause)
+                            ? 'border-green-500 bg-green-50 text-green-900'
+                            : 'border-gray-200 hover:border-green-300 hover:bg-green-50 text-gray-700'
+                        }`}
+                      >
+                        <span className="text-sm font-medium">{cause}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Lifestyle Interests & Hobbies
+                  </label>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Hobbies and activities outside of sports
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      'Music',
+                      'Fashion',
+                      'Photography',
+                      'Travel',
+                      'Gaming',
+                      'Cooking',
+                      'Art',
+                      'Technology',
+                    ].map((hobby) => (
+                      <button
+                        key={hobby}
+                        type="button"
+                        onClick={() => toggleItem(hobbies, setHobbies, hobby)}
+                        className={`px-4 py-2 rounded-lg border-2 transition-colors ${
+                          hobbies.includes(hobby)
+                            ? 'border-accent-500 bg-accent-50 text-accent-900'
+                            : 'border-gray-200 hover:border-accent-300 hover:bg-accent-50 text-gray-700'
+                        }`}
+                      >
+                        <span className="text-sm font-medium">{hobby}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </ProfileSectionCard>
+
+            {/* 5. NIL Preferences Section */}
+            <ProfileSectionCard
+              id="nil"
+              title="NIL Preferences"
+              description="Your partnership preferences"
+              icon={DollarSign}
+              completionPercentage={calculateNILCompletion()}
+            >
+              <div className="space-y-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <p className="text-sm text-blue-900">
+                    <strong>Help brands find you!</strong> Share your NIL preferences to match with
+                    the right partnership opportunities.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preferred Deal Types
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      'Sponsored Posts',
+                      'Brand Ambassador',
+                      'Content Creation',
+                      'Event Appearances',
+                      'Product Endorsements',
+                    ].map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => toggleItem(dealTypes, setDealTypes, type)}
+                        className={`px-4 py-2 rounded-lg border-2 transition-colors ${
+                          dealTypes.includes(type)
+                            ? 'border-primary-500 bg-primary-50 text-primary-900'
+                            : 'border-gray-200 hover:border-primary-300 text-gray-700'
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <CreativeSlider
+                    label="Compensation Range (USD)"
+                    min={0}
+                    max={100000}
+                    step={500}
+                    value={[minCompensation, maxCompensation]}
+                    onChange={(val) => {
+                      const [min, max] = val as [number, number];
+                      setMinCompensation(min);
+                      setMaxCompensation(max);
+                    }}
+                    formatValue={(val) => formatCurrency(val)}
+                    range
+                    snapPoints={[1000, 5000, 10000, 25000, 50000, 75000]}
+                    showValue
+                    gradientColors={['#f97316', '#f59e0b']}
+                  />
+                  <p className="text-sm text-gray-500 mt-2">
+                    Drag both ends to set your desired compensation range
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Content Types Willing to Create
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      'Instagram Posts & Stories',
+                      'TikTok Videos',
+                      'YouTube Videos',
+                      'Blog Posts',
+                      'Podcast Appearances',
+                    ].map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() =>
+                          toggleItem(contentTypesWilling, setContentTypesWilling, type)
+                        }
+                        className={`px-4 py-2 rounded-lg border-2 transition-colors ${
+                          contentTypesWilling.includes(type)
+                            ? 'border-primary-500 bg-primary-50 text-primary-900'
+                            : 'border-gray-200 hover:border-primary-300 text-gray-700'
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={travelWilling}
+                      onChange={(e) => setTravelWilling(e.target.checked)}
+                      className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Willing to travel for brand partnerships
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </ProfileSectionCard>
+
+            {/* 6. Portfolio Section */}
+            <ProfileSectionCard
+              id="portfolio"
+              title="Portfolio"
+              description="Showcase your work"
+              icon={ImageIcon}
+              completionPercentage={calculatePortfolioCompletion()}
+            >
+              {user?.id && <PortfolioManagementSection userId={user.id} />}
+            </ProfileSectionCard>
+          </div>
         </div>
       </div>
-      </div>
-    </AppShell>
-  );
-}
 
-export default function ProfilePage() {
-  return (
-    <ProtectedRoute>
-      <ProfilePageContent />
-    </ProtectedRoute>
+      {/* Position Picker Modal for Primary Sport */}
+      <PositionPickerModal
+        sport={primarySport.sport}
+        currentPosition={primarySport.position}
+        isOpen={positionModalOpen}
+        onClose={() => setPositionModalOpen(false)}
+        onSelect={(position) => {
+          setPrimarySport({ ...primarySport, position });
+          setPositionModalOpen(false);
+        }}
+        allowCustom
+      />
+    </>
   );
 }

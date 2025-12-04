@@ -126,8 +126,8 @@ export default function ProfileImageUpload({
 
   const getUserInitials = () => {
     if (!user) return 'U';
-    const firstName = user.first_name || user.firstName || '';
-    const lastName = user.last_name || user.lastName || '';
+    const firstName = user.first_name || (user as any).firstName || '';
+    const lastName = user.last_name || (user as any).lastName || '';
     if (firstName && lastName) {
       return `${firstName[0]}${lastName[0]}`.toUpperCase();
     }

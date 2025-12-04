@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check PostgREST Configuration</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        h1 { color: #4CAF50; }
+        .input-group {
+            margin: 20px 0;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #2d2d2d;
+            border: 1px solid #3e3e3e;
+            color: #d4d4d4;
+            font-family: monospace;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #45a049; }
+        .output {
+            background: #2d2d2d;
+            padding: 15px;
+            border-left: 4px solid #4CAF50;
+            margin: 20px 0;
+            white-space: pre-wrap;
+        }
+        .error { border-left-color: #f44336; color: #f44336; }
+        .success { border-left-color: #4CAF50; color: #4CAF50; }
+        .warning { border-left-color: #ff9800; color: #ff9800; }
+    </style>
+</head>
+<body>
+    <h1>🔧 PostgREST Configuration Checker</h1>
+
+    <div class="input-group">
+        <label>Supabase URL:</label>
+        <input type="text" id="url" placeholder="https://xxx.supabase.co" value="https://lqskiijspudfocddhkqs.supabase.co">
+
+        <label>Service Role Key:</label>
+        <input type="password" id="key" placeholder="eyJ...">
+    </div>
+
+    <button onclick="checkConfig()">Check Configuration</button>
+    <button onclick="testPostgREST()">Test PostgREST API</button>
+
+    <div id="output"></div>
+
+    <script>
+        function log(msg, type = 'info') {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.className = 'output ' + type;
+            div.textContent = msg;
+            output.appendChild(div);
+        }
+
+        function clear() {
+            document.getElementById('output').innerHTML = '';
+        }
+
+        async function checkConfig() {
+            clear();
+            const url = document.getElementById('url').value;
+            const key = document.getElementById('key').value;
+
+            log('🔍 Checking PostgREST Configuration\n' + '='.repeat(80));
+
+            try {
+                // Check PostgREST root endpoint
+                log('\n1️⃣ Checking PostgREST root endpoint...');
+                const response = await fetch(url + '/rest/v1/', {
+                    headers: {
+                        'apikey': key,
+                        'Authorization': 'Bearer ' + key
+                    }
+                });
+
+                const data = await response.json();
+                log('✅ PostgREST is running');
+                log('Tables exposed: ' + Object.keys(data).length);
+                log('Available tables: ' + Object.keys(data).join(', '));
+
+                if (!data.users) {
+                    log('\n❌ PROBLEM FOUND: users table is NOT exposed to PostgREST!', 'error');
+                    log('\nPossible causes:', 'warning');
+                    log('1. public schema not in "Exposed schemas" setting');
+                    log('2. PostgREST not configured to see public schema');
+                    log('3. Table permissions missing (but we already granted those)');
+                } else {
+                    log('\n✅ users table IS exposed to PostgREST!', 'success');
+                }
+
+            } catch (err) {
+                log('❌ Error: ' + err.message, 'error');
+            }
+        }
+
+        async function testPostgREST() {
+            clear();
+            const url = document.getElementById('url').value;
+            const key = document.getElementById('key').value;
+
+            log('🧪 Testing PostgREST API\n' + '='.repeat(80));
+
+            try {
+                log('\n1️⃣ Testing users table access...');
+                const response = await fetch(url + '/rest/v1/users?select=id&limit=1', {
+                    headers: {
+                        'apikey': key,
+                        'Authorization': 'Bearer ' + key
+                    }
+                });
+
+                log('Response status: ' + response.status);
+                const text = await response.text();
+
+                if (response.status === 200) {
+                    log('✅ SUCCESS! PostgREST can access users table', 'success');
+                    log('Response: ' + text);
+                } else if (response.status === 404 || text.includes('PGRST')) {
+                    log('❌ PGRST205 Error - Schema cache issue persists', 'error');
+                    log('Response: ' + text);
+                    log('\n💡 Next steps:', 'warning');
+                    log('1. Check API Settings in Supabase Dashboard');
+                    log('2. Ensure "public" is in Exposed Schemas');
+                    log('3. Try restarting project one more time');
+                } else {
+                    log('⚠️ Unexpected response: ' + text, 'warning');
+                }
+
+            } catch (err) {
+                log('❌ Error: ' + err.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

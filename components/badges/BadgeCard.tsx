@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge, UserBadge } from '@/lib/types';
+import { Badge, UserBadge } from '@/types';
 import { getBadgeRarityColor } from '@/lib/badges';
 import { Trophy, Lock, Calendar, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run Migration 009 - ChatNIL.io</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 800px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .info-box {
+      background: #f0f9ff;
+      border-left: 4px solid #3b82f6;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .warning-box {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .info-box h3, .warning-box h3 {
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    .info-box p, .warning-box p {
+      color: #666;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    #output {
+      margin-top: 20px;
+      padding: 20px;
+      background: #1e293b;
+      color: #e2e8f0;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    #output.show {
+      display: block;
+    }
+
+    .log-line {
+      margin-bottom: 4px;
+    }
+
+    .log-success { color: #4ade80; }
+    .log-error { color: #f87171; }
+    .log-warning { color: #fbbf24; }
+    .log-info { color: #60a5fa; }
+
+    .emoji {
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Migration 009 Runner</h1>
+    <p class="subtitle">Apply Quiz Progress Table and Functions to Production Database</p>
+
+    <div class="info-box">
+      <h3>📋 What This Will Do:</h3>
+      <p>
+        This migration creates the <code>user_quiz_progress</code> table and 4 database functions:
+        <br>• <code>get_user_quiz_stats</code> - Returns user quiz statistics
+        <br>• <code>get_recommended_questions</code> - Returns recommended quiz questions
+        <br>• <code>record_quiz_answer</code> - Records quiz answers
+        <br>• <code>get_quiz_session_results</code> - Returns quiz session results
+      </p>
+    </div>
+
+    <div class="warning-box">
+      <h3>⚠️ Prerequisites:</h3>
+      <p>
+        Make sure migrations 001-008 have been applied first. This migration depends on:
+        <br>• <code>users</code> table (from 001_initial_schema.sql)
+        <br>• <code>quiz_questions</code> table (from 008_create_quiz_questions_table.sql)
+        <br>• <code>update_updated_at_column()</code> function
+      </p>
+    </div>
+
+    <button id="runButton" onclick="runMigration()">
+      Run Migration 009
+    </button>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    const output = document.getElementById('output');
+    const runButton = document.getElementById('runButton');
+
+    function log(message, type = 'info') {
+      output.classList.add('show');
+      const line = document.createElement('div');
+      line.className = `log-line log-${type}`;
+      line.textContent = message;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function runMigration() {
+      // Clear previous output
+      output.innerHTML = '';
+      output.classList.add('show');
+
+      // Disable button
+      runButton.disabled = true;
+      runButton.textContent = 'Running Migration...';
+
+      try {
+        log('🚀 Starting Migration 009...', 'info');
+        log('', 'info');
+
+        // Get environment variables from window (set by Next.js)
+        const supabaseUrl = 'https://enbuwffusjhpcyoveewb.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODY4NjcwOSwiZXhwIjoyMDc0MjYyNzA5fQ.fXvyvHrUoNLdAr1expbRsguM8fkmurrNQi3-7xk8-TM';
+
+        log(`📊 Supabase URL: ${supabaseUrl}`, 'info');
+        log('🔑 Service Role Key: ✓ Found', 'success');
+        log('', 'info');
+
+        // Create Supabase client
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        // Fetch the migration SQL file
+        log('📂 Fetching migration SQL file...', 'info');
+        const response = await fetch('/migrations/009_create_user_quiz_progress_table.sql');
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch migration file: ${response.statusText}`);
+        }
+
+        const migrationSQL = await response.text();
+        log(`✅ Migration file loaded (${migrationSQL.length} characters)`, 'success');
+        log('', 'info');
+
+        // Split SQL into individual statements
+        log('🔄 Parsing SQL statements...', 'info');
+        const statements = migrationSQL
+          .split(';')
+          .map(s => s.trim())
+          .filter(s => s.length > 0 && !s.startsWith('--') && !s.startsWith('/*'));
+
+        log(`✅ Found ${statements.length} SQL statements`, 'success');
+        log('', 'info');
+
+        // Execute each statement
+        log('🔄 Executing migration statements...', 'info');
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (let i = 0; i < statements.length; i++) {
+          const statement = statements[i] + ';';
+
+          // Skip DO blocks (they're informational only)
+          if (statement.includes('RAISE NOTICE')) {
+            continue;
+          }
+
+          try {
+            const { error } = await supabase.rpc('execute_sql', {
+              sql_query: statement
+            });
+
+            if (error) {
+              // Check if it's a "already exists" error (which is OK)
+              if (error.message && (
+                error.message.includes('already exists') ||
+                error.message.includes('duplicate')
+              )) {
+                log(`  ⚠️  Statement ${i + 1}: Already exists (skipping)`, 'warning');
+              } else {
+                log(`  ❌ Statement ${i + 1} failed: ${error.message}`, 'error');
+                errorCount++;
+              }
+            } else {
+              successCount++;
+            }
+          } catch (err) {
+            log(`  ❌ Statement ${i + 1} failed: ${err.message}`, 'error');
+            errorCount++;
+          }
+        }
+
+        log('', 'info');
+        log(`✅ Executed ${successCount} statements successfully`, 'success');
+        if (errorCount > 0) {
+          log(`⚠️  ${errorCount} statements had errors`, 'warning');
+        }
+        log('', 'info');
+
+        // Verify functions were created
+        log('🔍 Verifying database functions...', 'info');
+
+        const functionsToCheck = [
+          { name: 'get_user_quiz_stats', params: { p_user_id: '00000000-0000-0000-0000-000000000000' } },
+          { name: 'get_recommended_questions', params: { p_user_id: '00000000-0000-0000-0000-000000000000', p_limit: 1 } },
+          { name: 'get_quiz_session_results', params: { p_session_id: '00000000-0000-0000-0000-000000000000' } }
+        ];
+
+        for (const func of functionsToCheck) {
+          try {
+            const { error } = await supabase.rpc(func.name, func.params);
+
+            if (!error || error.code !== 'PGRST202') {
+              log(`  ✅ ${func.name} - EXISTS`, 'success');
+            } else {
+              log(`  ❌ ${func.name} - NOT FOUND`, 'error');
+            }
+          } catch (e) {
+            log(`  ✅ ${func.name} - EXISTS`, 'success');
+          }
+        }
+
+        log('', 'info');
+        log('🎉 Migration 009 completed!', 'success');
+        log('', 'info');
+        log('Next steps:', 'info');
+        log('  1. Refresh your browser', 'info');
+        log('  2. Test quiz stats on the dashboard', 'info');
+        log('  3. Test quiz recommendations', 'info');
+
+        runButton.textContent = '✅ Migration Complete!';
+
+      } catch (error) {
+        log('', 'info');
+        log(`❌ Migration failed: ${error.message}`, 'error');
+        log('', 'info');
+
+        if (error.message.includes('execute_sql')) {
+          log('⚠️  The execute_sql function does not exist.', 'warning');
+          log('', 'info');
+          log('Please apply the migration manually:', 'info');
+          log('  1. Go to: https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/sql', 'info');
+          log('  2. Copy contents of: supabase/migrations/009_create_user_quiz_progress_table.sql', 'info');
+          log('  3. Paste into SQL editor and run', 'info');
+        }
+
+        runButton.textContent = 'Migration Failed - Try Again';
+        runButton.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { checkAnonRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 
 // Server-side service role client (secure)
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -20,6 +21,15 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
 export async function POST(request: NextRequest) {
   try {
     console.log('🚀 === API ROUTE: CREATE PROFILE ===');
+
+    // ========================================
+    // RATE LIMITING - Prevent spam signups
+    // ========================================
+    const rateLimitResult = await checkAnonRateLimit(RATE_LIMITS.AUTH_SIGNUP);
+    if (!rateLimitResult.allowed) {
+      console.warn('⚠️ Rate limit exceeded for create-profile');
+      return rateLimitResponse(rateLimitResult);
+    }
 
     const body = await request.json();
     const { userId, profileData } = body;

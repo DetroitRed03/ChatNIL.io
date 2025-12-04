@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UserRole } from '@/lib/types';
+import { UserRole } from '@/types';
 
 // Base onboarding step interface
 export interface OnboardingStep {
@@ -35,6 +35,10 @@ export interface OnboardingState {
   isLoading: boolean;
   hasStarted: boolean;
   profileCompletionPercentage: number;
+  // Phase 6B: Two-tier onboarding support
+  mode: 'standard' | 'completion';  // standard = full onboarding, completion = home completion only
+  skipSteps: string[];              // Step IDs to skip in the flow
+  prefilledData: Record<string, any>; // Data already collected (e.g., at school)
 }
 
 // Athlete onboarding schemas - relaxed for partial completion
@@ -45,6 +49,8 @@ export const athletePersonalInfoSchema = z.object({
   email: z.string().email('Please enter a valid email'),
   phone: z.string().optional(),
   parentEmail: z.string().email('Parent email is required').optional(),
+  heightInches: z.number().min(48, 'Height must be at least 48 inches').max(96, 'Height must be under 96 inches').optional(),
+  weightLbs: z.number().min(80, 'Weight must be at least 80 lbs').max(400, 'Weight must be under 400 lbs').optional(),
 });
 
 export const athleteSchoolInfoSchema = z.object({
@@ -58,6 +64,7 @@ export const athleteSchoolInfoSchema = z.object({
 export const athleteSportsInfoSchema = z.object({
   primarySport: z.string().optional(),
   position: z.string().optional(),
+  jerseyNumber: z.number().min(0, 'Jersey number must be 0 or greater').max(99, 'Jersey number must be 99 or less').optional(),
   secondarySports: z.array(z.string()).optional(),
   achievements: z.string().optional(),
   stats: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
@@ -204,6 +211,8 @@ export const agencyVerificationSchema = z.object({
   ready_for_verification: z.boolean().default(false),
 });
 
+// School onboarding schemas
+
 // Athlete Enhancement schemas (Migration 016)
 export const athleteSocialMediaSchema = z.object({
   social_media_stats: z.array(z.object({
@@ -259,9 +268,17 @@ export const athleteContentSamplesSchema = z.object({
     brand: z.string().optional(),
     featured: z.boolean(),
   })).optional(),
-  bio: z.string().min(50).max(500),
+  bio: z.string().max(500),
   profile_video_url: z.string().url().optional().or(z.literal('')),
   skip_samples: z.boolean().default(false),
+}).refine((data) => {
+  // If skipping, bio can be empty or any length (just needs to be under 500)
+  if (data.skip_samples) return true;
+  // If not skipping, bio must be at least 50 characters
+  return data.bio.length >= 50;
+}, {
+  message: "Bio must be at least 50 characters or check 'Skip for now'",
+  path: ['bio'],
 });
 
 // Combined schemas for type inference
@@ -314,6 +331,8 @@ export const FIELD_WEIGHTS: Record<UserRole, FieldWeight[]> = {
     { fieldName: 'dateOfBirth', weight: 3, isRequired: false },
     { fieldName: 'phone', weight: 2, isRequired: false },
     { fieldName: 'parentEmail', weight: 2, isRequired: false },
+    { fieldName: 'heightInches', weight: 2, isRequired: false },
+    { fieldName: 'weightLbs', weight: 2, isRequired: false },
 
     // School Info (20% total weight)
     { fieldName: 'schoolName', weight: 3, isRequired: false },
@@ -325,6 +344,7 @@ export const FIELD_WEIGHTS: Record<UserRole, FieldWeight[]> = {
     // Sports Info (25% total weight)
     { fieldName: 'primarySport', weight: 4, isRequired: false },
     { fieldName: 'position', weight: 3, isRequired: false },
+    { fieldName: 'jerseyNumber', weight: 2, isRequired: false },
     { fieldName: 'achievements', weight: 2, isRequired: false },
     { fieldName: 'coachName', weight: 2, isRequired: false },
     { fieldName: 'coachEmail', weight: 2, isRequired: false },
@@ -354,6 +374,36 @@ export const FIELD_WEIGHTS: Record<UserRole, FieldWeight[]> = {
     { fieldName: 'dashboardAccess', weight: 4, isRequired: false },
     { fieldName: 'approvalSettings', weight: 3, isRequired: false },
     { fieldName: 'communicationPrefs', weight: 3, isRequired: false },
+  ],
+
+  agency: [
+    // Company Info
+    { fieldName: 'companyName', weight: 5, isRequired: true },
+    { fieldName: 'email', weight: 5, isRequired: true },
+    { fieldName: 'website', weight: 3, isRequired: false },
+    { fieldName: 'industry', weight: 3, isRequired: false },
+    { fieldName: 'companySize', weight: 2, isRequired: false },
+    // Targeting
+    { fieldName: 'targetSports', weight: 3, isRequired: false },
+    { fieldName: 'budgetRange', weight: 3, isRequired: false },
+    { fieldName: 'campaignTypes', weight: 3, isRequired: false },
+    // Brand Values
+    { fieldName: 'brandValues', weight: 3, isRequired: false },
+    { fieldName: 'mission', weight: 2, isRequired: false },
+  ],
+
+  school: [
+    // School admin - minimal for now
+    { fieldName: 'schoolName', weight: 5, isRequired: true },
+    { fieldName: 'email', weight: 5, isRequired: true },
+    { fieldName: 'role', weight: 3, isRequired: false },
+  ],
+
+  business: [
+    // Business - similar to agency
+    { fieldName: 'businessName', weight: 5, isRequired: true },
+    { fieldName: 'email', weight: 5, isRequired: true },
+    { fieldName: 'industry', weight: 3, isRequired: false },
   ],
 };
 

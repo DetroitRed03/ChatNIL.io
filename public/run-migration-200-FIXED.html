@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Apply Migration 200 (FIXED)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #00ff00; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 10px 0; }
+    #output { white-space: pre-wrap; background: #000; padding: 15px; border: 1px solid #00ff00; margin-top: 20px; }
+    .warning { color: #ffaa00; font-weight: bold; }
+    .success { color: #00ff00; font-weight: bold; }
+    .error { color: #ff0000; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>🔧 Migration 200 (FIXED) - Database Merge</h1>
+  <p class="warning">⚠️ This will add 40+ columns to your new database</p>
+  <p class="warning">Targets: athlete_public_profiles (not athlete_profiles)</p>
+  
+  <button onclick="runMigration()">🚀 RUN MIGRATION 200 (FIXED)</button>
+  <button onclick="location.reload()">🔄 Refresh Page</button>
+  
+  <div id="output">Waiting to run migration...</div>
+
+  <script>
+    const SUPABASE_URL = 'https://lqskiijspudfocddhkqs.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTU5MzM1NCwiZXhwIjoyMDc3MTY5MzU0fQ.LpapT51choXCwTfpbE81AIc4JC9QOO0FpOtqUxZ405I';
+    
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+      output.innerHTML += `<span class="${className}">${message}</span>\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function runMigration() {
+      const output = document.getElementById('output');
+      output.innerHTML = '';
+      
+      log('🚀 Starting Migration 200 (FIXED)...\n', 'success');
+      log('━'.repeat(80));
+      
+      const migration = `
+-- Add personal info columns to users
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth date;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_email text;
+
+-- Add columns to athlete_public_profiles
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS graduation_year integer;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS major text;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS gpa numeric(3,2);
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS height_inches integer;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS weight_lbs integer;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS jersey_number integer;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS secondary_sports jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS stats jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS nil_interests text[];
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS nil_concerns text[];
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS nil_goals text[];
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS nil_preferences jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS instagram_handle text;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS instagram_followers bigint DEFAULT 0;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS instagram_engagement_rate numeric(5,2);
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS tiktok_handle text;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS tiktok_followers bigint DEFAULT 0;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS tiktok_engagement_rate numeric(5,2);
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS twitter_handle text;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS twitter_followers bigint DEFAULT 0;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS youtube_channel text;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS youtube_subscribers bigint DEFAULT 0;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS total_followers bigint DEFAULT 0;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS avg_engagement_rate numeric(5,2);
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS twitch_channel text;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS linkedin_url text;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS cover_photo_url text;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS profile_video_url text;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS content_samples jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS preferred_partnership_types text[];
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS brand_preferences jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS content_categories jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS is_available_for_partnerships boolean DEFAULT true;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS achievements text[];
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS estimated_fmv numeric(12,2);
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS profile_completion_score integer DEFAULT 0;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS profile_completion_tier text DEFAULT 'bronze';
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS last_profile_update timestamp with time zone;
+ALTER TABLE athlete_public_profiles ADD COLUMN IF NOT EXISTS profile_views integer DEFAULT 0;
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_athlete_public_profiles_graduation_year ON athlete_public_profiles(graduation_year);
+CREATE INDEX IF NOT EXISTS idx_athlete_public_profiles_gpa ON athlete_public_profiles(gpa);
+CREATE INDEX IF NOT EXISTS idx_athlete_public_profiles_completion_score ON athlete_public_profiles(profile_completion_score);
+CREATE INDEX IF NOT EXISTS idx_athlete_public_profiles_completion_tier ON athlete_public_profiles(profile_completion_tier);
+CREATE INDEX IF NOT EXISTS idx_users_first_name ON users(first_name);
+CREATE INDEX IF NOT EXISTS idx_users_last_name ON users(last_name);
+CREATE INDEX IF NOT EXISTS idx_users_date_of_birth ON users(date_of_birth);
+`;
+
+      try {
+        log('\n📝 Executing migration SQL...');
+        log('Target: athlete_public_profiles table', 'warning');
+        
+        const { data, error } = await supabase.rpc('exec_sql', { query: migration });
+        
+        if (error) {
+          log(`\n❌ ERROR: ${error.message}`, 'error');
+          log(JSON.stringify(error, null, 2), 'error');
+          return;
+        }
+        
+        log('\n✅ Migration executed successfully!', 'success');
+        log('\n📊 Summary:', 'success');
+        log('  • Added 5 columns to users table');
+        log('  • Added 40+ columns to athlete_public_profiles table');
+        log('  • Created 7 performance indexes');
+        log('\n🎯 Database is ready for Sarah Johnson migration!', 'success');
+        log('\n━'.repeat(80));
+        log('\n📋 Next Steps:', 'warning');
+        log('1. Go back to terminal');
+        log('2. Tell Claude: "Done - migration applied"');
+        log('3. Claude will create Sarah Johnson profile');
+        
+      } catch (err) {
+        log(`\n❌ EXCEPTION: ${err.message}`, 'error');
+        log(err.stack, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

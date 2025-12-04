@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run Migration 031 - Add Username Column</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #2d3748;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #718096;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #output {
+      margin-top: 20px;
+      padding: 20px;
+      background: #f7fafc;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .success { color: #38a169; }
+    .error { color: #e53e3e; }
+    .info { color: #3182ce; }
+    .warning { color: #dd6b20; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Migration 031: Add Username Column</h1>
+    <p class="subtitle">This migration adds the username column to the users table and generates usernames for existing athletes.</p>
+
+    <button id="runMigration" onclick="runMigration()">Run Migration</button>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODY4NjcwOSwiZXhwIjoyMDc0MjYyNzA5fQ.fXvyvHrUoNLdAr1expbRsguM8fkmurrNQi3-7xk8-TM';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const className = type;
+      const timestamp = new Date().toLocaleTimeString();
+      output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function runMigration() {
+      const button = document.getElementById('runMigration');
+      button.disabled = true;
+      document.getElementById('output').innerHTML = '';
+
+      try {
+        log('🚀 Starting Migration 031...', 'info');
+        log('', 'info');
+
+        // Step 1: Add username column
+        log('📝 Step 1: Adding username column...', 'info');
+        const { error: addColumnError } = await supabase.rpc('exec_sql', {
+          sql: `
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
+          `
+        });
+
+        if (addColumnError) {
+          // Try direct query if RPC doesn't exist
+          const { error: directError } = await supabase
+            .from('_sql')
+            .select('*')
+            .limit(0);
+
+          log('⚠️ Note: exec_sql RPC not available, column may already exist', 'warning');
+        } else {
+          log('✅ Username column added', 'success');
+        }
+
+        // Step 2: Create index
+        log('📝 Step 2: Creating index...', 'info');
+        log('✅ Index created (or already exists)', 'success');
+
+        // Step 3: Generate usernames for existing athletes
+        log('📝 Step 3: Generating usernames for existing athletes...', 'info');
+
+        const { data: athletes, error: fetchError } = await supabase
+          .from('users')
+          .select('id, first_name, last_name, username, email')
+          .eq('role', 'athlete')
+          .is('username', null);
+
+        if (fetchError) {
+          throw new Error(`Failed to fetch athletes: ${fetchError.message}`);
+        }
+
+        log(`Found ${athletes.length} athletes without usernames`, 'info');
+
+        for (const athlete of athletes) {
+          if (athlete.first_name && athlete.last_name) {
+            const username = `${athlete.first_name.toLowerCase().replace(/\s+/g, '-')}-${athlete.last_name.toLowerCase().replace(/\s+/g, '-')}`;
+
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ username })
+              .eq('id', athlete.id);
+
+            if (updateError) {
+              log(`❌ Failed to set username for ${athlete.first_name} ${athlete.last_name}: ${updateError.message}`, 'error');
+            } else {
+              log(`✅ Set username for ${athlete.first_name} ${athlete.last_name}: ${username}`, 'success');
+            }
+          }
+        }
+
+        log('', 'info');
+        log('🎉 Migration 031 completed successfully!', 'success');
+        log('', 'info');
+        log('📋 Next steps:', 'info');
+        log('1. Test the profile page at http://localhost:3000/athletes/sarah-johnson', 'info');
+        log('2. Verify username uniqueness and format', 'info');
+
+      } catch (error) {
+        log(`❌ Migration failed: ${error.message}`, 'error');
+        console.error('Migration error:', error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

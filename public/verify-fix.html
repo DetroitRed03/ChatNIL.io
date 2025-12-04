@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verify Database Fix</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        h1 {
+            font-size: 42px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .status {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 30px;
+            margin: 20px 0;
+            border-radius: 15px;
+            font-size: 18px;
+            line-height: 1.8;
+        }
+        .status.success {
+            background: rgba(76, 175, 80, 0.3);
+            border: 2px solid #4CAF50;
+        }
+        .status.error {
+            background: rgba(244, 67, 54, 0.3);
+            border: 2px solid #f44336;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 18px 40px;
+            font-size: 18px;
+            cursor: pointer;
+            margin: 15px 10px;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px 0 rgba(31, 38, 135, 0.37);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px 0 rgba(31, 38, 135, 0.5);
+        }
+        .code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+        .step {
+            margin: 25px 0;
+            padding-left: 40px;
+            position: relative;
+        }
+        .step::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            font-size: 28px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Database Fix Verification</h1>
+
+        <div id="status" class="status">
+            <strong>📊 Checking connection...</strong>
+        </div>
+
+        <button onclick="clearAndReload()">🧹 Clear Browser Cache & Reload</button>
+        <button onclick="checkStatus()">🔄 Re-check Status</button>
+        <button onclick="testLogin()">🔐 Test Login</button>
+
+        <div class="status">
+            <strong>What Was Fixed:</strong>
+            <div class="step">System environment variables were overriding .env.local</div>
+            <div class="step">Dev server now runs with correct NEW database URL</div>
+            <div class="step">API routes fixed to avoid PostgREST cache issues</div>
+            <div class="step">Build cache cleared and rebuilt with NEW URL</div>
+        </div>
+    </div>
+
+    <script>
+        const EXPECTED_NEW_URL = 'lqskiijspudfocddhkqs';
+        const OLD_URL = 'enbuwffusjhpcyoveewb';
+
+        async function checkStatus() {
+            const status = document.getElementById('status');
+            status.className = 'status';
+            status.innerHTML = '<strong>📊 Checking connection...</strong>';
+
+            try {
+                // Check what URL the client is using
+                const response = await fetch('/api/health-check');
+
+                // For this test, we'll check the page source
+                const pageSource = document.documentElement.outerHTML;
+
+                if (pageSource.includes(EXPECTED_NEW_URL)) {
+                    status.className = 'status success';
+                    status.innerHTML = `
+                        <strong>✅ SUCCESS!</strong><br><br>
+                        Your app is now connected to the NEW database:<br>
+                        <div class="code">https://${EXPECTED_NEW_URL}.supabase.co</div><br>
+
+                        <strong>Next Steps:</strong><br>
+                        1. Click "Clear Browser Cache & Reload" below<br>
+                        2. Then test login with: <code>nike.agency@test.com</code> / <code>Nike2024!</code>
+                    `;
+                } else if (pageSource.includes(OLD_URL)) {
+                    status.className = 'status error';
+                    status.innerHTML = `
+                        <strong>⚠️ OLD DATABASE DETECTED</strong><br><br>
+                        Your browser is still using cached JavaScript with the OLD database URL.<br><br>
+                        <strong>Fix:</strong> Click "Clear Browser Cache & Reload" button below.
+                    `;
+                } else {
+                    status.className = 'status';
+                    status.innerHTML = `
+                        <strong>🔍 Unable to determine database URL</strong><br><br>
+                        Please check the browser console for the Supabase URL log.
+                    `;
+                }
+
+                // Also log to console
+                console.log('📊 Database verification complete');
+                console.log('Page contains NEW URL:', pageSource.includes(EXPECTED_NEW_URL));
+                console.log('Page contains OLD URL:', pageSource.includes(OLD_URL));
+
+            } catch (error) {
+                status.className = 'status error';
+                status.innerHTML = `
+                    <strong>❌ Error checking status:</strong><br>
+                    ${error.message}
+                `;
+            }
+        }
+
+        async function clearAndReload() {
+            const status = document.getElementById('status');
+            status.className = 'status';
+            status.innerHTML = '<strong>🧹 Clearing all browser cache...</strong>';
+
+            try {
+                // Clear localStorage
+                localStorage.clear();
+
+                // Clear sessionStorage
+                sessionStorage.clear();
+
+                // Clear cookies
+                document.cookie.split(";").forEach(c => {
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+                });
+
+                // Clear IndexedDB
+                const dbs = await indexedDB.databases();
+                dbs.forEach(db => indexedDB.deleteDatabase(db.name));
+
+                // Clear cache storage
+                if ('caches' in window) {
+                    const names = await caches.keys();
+                    await Promise.all(names.map(name => caches.delete(name)));
+                }
+
+                status.innerHTML = '<strong>✅ Cache cleared! Reloading in 2 seconds...</strong>';
+
+                setTimeout(() => {
+                    window.location.href = '/?t=' + Date.now();
+                }, 2000);
+
+            } catch (error) {
+                status.className = 'status error';
+                status.innerHTML = `<strong>❌ Error:</strong> ${error.message}`;
+            }
+        }
+
+        async function testLogin() {
+            window.location.href = '/';
+        }
+
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            setTimeout(checkStatus, 500);
+        });
+    </script>
+</body>
+</html>

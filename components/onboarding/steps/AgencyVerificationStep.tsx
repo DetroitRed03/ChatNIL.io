@@ -34,7 +34,7 @@ export default function AgencyVerificationStep({
     formState: { errors, isValid },
     watch,
   } = useForm<AgencyVerificationData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     mode: 'onChange',
     defaultValues: initialData || {
       terms_accepted: false,

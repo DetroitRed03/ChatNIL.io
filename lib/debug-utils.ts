@@ -26,7 +26,7 @@ export interface ComponentDebugInfo {
 class DebugUtils {
   private stateSnapshots: Map<string, StateSnapshot[]> = new Map();
   private componentInfo: Map<string, ComponentDebugInfo> = new Map();
-  private memoryLeakDetector: Map<string, WeakRef<any>> = new Map();
+  private memoryLeakDetector: Map<string, any> = new Map();
   private stateWatchers: Map<string, ((state: any, prevState?: any) => void)[]> = new Map();
 
   // State Management Debugging
@@ -207,17 +207,19 @@ class DebugUtils {
     return Array.from(this.componentInfo.values());
   }
 
-  // Memory Leak Detection
+  // Memory Leak Detection (simplified - WeakRef not available in current TS target)
   trackObjectForLeaks(key: string, obj: any): void {
-    this.memoryLeakDetector.set(key, new WeakRef(obj));
+    // Store object reference for debugging (note: this prevents GC, use only in dev)
+    this.memoryLeakDetector.set(key, { obj, trackedAt: Date.now() });
   }
 
   checkForMemoryLeaks(): { [key: string]: boolean } {
     const results: { [key: string]: boolean } = {};
 
-    for (const [key, weakRef] of this.memoryLeakDetector.entries()) {
-      const obj = weakRef.deref();
-      results[key] = obj !== undefined; // true means object still exists (potential leak)
+    const entries = Array.from(this.memoryLeakDetector.entries());
+    for (let i = 0; i < entries.length; i++) {
+      const [key, tracked] = entries[i];
+      results[key] = tracked?.obj !== undefined; // true means object still exists
     }
 
     const leaks = Object.entries(results).filter(([, exists]) => exists);

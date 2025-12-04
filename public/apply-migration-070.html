@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apply Migration 070</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1000px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #0a0a0a;
+      color: #e0e0e0;
+    }
+    .container {
+      background: #1a1a1a;
+      border-radius: 8px;
+      padding: 30px;
+      border: 1px solid #333;
+    }
+    h1 { color: #fff; margin-top: 0; }
+    h2 { color: #4ade80; margin-top: 30px; }
+    pre {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 15px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .success { color: #4ade80; }
+    .error { color: #ef4444; }
+    .warning { color: #fbbf24; }
+    button {
+      background: #4ade80;
+      color: #0a0a0a;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin: 10px 10px 10px 0;
+    }
+    button:hover { background: #22c55e; }
+    button:disabled {
+      background: #333;
+      color: #666;
+      cursor: not-allowed;
+    }
+    #output {
+      margin-top: 20px;
+      padding: 15px;
+      background: #0a0a0a;
+      border-radius: 4px;
+      border: 1px solid #333;
+      min-height: 100px;
+      font-family: 'Courier New', monospace;
+      white-space: pre-wrap;
+    }
+    .step {
+      margin: 20px 0;
+      padding: 15px;
+      background: #0f0f0f;
+      border-left: 3px solid #4ade80;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Apply Migration 070: Profile Photos</h1>
+    <p>This will add profile photo and cover photo support to the ChatNIL platform.</p>
+
+    <h2>📋 What This Migration Does:</h2>
+    <div class="step">
+      <strong>1. Database Columns</strong>
+      <ul>
+        <li><code>cover_photo_url</code> - URL to cover/banner photo</li>
+        <li><code>profile_photo_uploaded_at</code> - Timestamp for cache busting</li>
+        <li><code>cover_photo_uploaded_at</code> - Timestamp for cache busting</li>
+        <li><code>height_inches</code> - Athlete height</li>
+        <li><code>weight_lbs</code> - Athlete weight</li>
+        <li><code>jersey_number</code> - Athlete jersey number</li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <strong>2. Storage Infrastructure</strong>
+      <ul>
+        <li>Creates <code>athlete-profile-media</code> bucket (PUBLIC)</li>
+        <li>10MB file size limit</li>
+        <li>Allowed types: JPEG, PNG, WebP, GIF</li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <strong>3. Security Policies</strong>
+      <ul>
+        <li>Users can upload to their own folder</li>
+        <li>Public read access for profile photos</li>
+        <li>Users can update/delete their own files</li>
+      </ul>
+    </div>
+
+    <h2>⚡ Execute Migration</h2>
+    <p class="warning">⚠️ This requires service role access to modify database schema.</p>
+
+    <button onclick="executeMigration()" id="executeBtn">Execute Migration</button>
+    <button onclick="copySQL()">Copy SQL to Clipboard</button>
+    <button onclick="openDashboard()">Open Supabase Dashboard</button>
+
+    <div id="output"></div>
+
+    <h2>📝 Manual Execution Alternative</h2>
+    <p>If the automatic execution fails, copy the SQL below and run it in the Supabase SQL Editor:</p>
+    <pre id="sqlContent">Loading migration SQL...</pre>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODY4NjcwOSwiZXhwIjoyMDc0MjYyNzA5fQ.fXvyvHrUoNLdAr1expbRsguM8fkmurrNQi3-7xk8-TM';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const MIGRATION_SQL = `-- ============================================================================
+-- Migration 070: Profile and Cover Photo Support
+-- ============================================================================
+
+BEGIN;
+
+-- 1. Add photo URL columns
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cover_photo_url TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_uploaded_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cover_photo_uploaded_at TIMESTAMPTZ;
+
+-- 2. Add athlete stats
+ALTER TABLE users ADD COLUMN IF NOT EXISTS height_inches INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS weight_lbs INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS jersey_number INTEGER;
+
+-- 3. Create indexes
+CREATE INDEX IF NOT EXISTS idx_users_has_profile_photo ON users(profile_photo_url) WHERE profile_photo_url IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_has_cover_photo ON users(cover_photo_url) WHERE cover_photo_url IS NOT NULL;
+
+-- 4. Create storage bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'athlete-profile-media',
+  'athlete-profile-media',
+  true,
+  10485760,
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- 5. RLS Policies
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can upload profile media to own folder" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can view profile media" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own profile media" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own profile media" ON storage.objects;
+
+CREATE POLICY "Users can upload profile media to own folder"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'athlete-profile-media' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
+
+CREATE POLICY "Anyone can view profile media"
+ON storage.objects FOR SELECT TO public
+USING (bucket_id = 'athlete-profile-media');
+
+CREATE POLICY "Users can update own profile media"
+ON storage.objects FOR UPDATE TO authenticated
+USING (
+  bucket_id = 'athlete-profile-media' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+)
+WITH CHECK (
+  bucket_id = 'athlete-profile-media' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
+
+CREATE POLICY "Users can delete own profile media"
+ON storage.objects FOR DELETE TO authenticated
+USING (
+  bucket_id = 'athlete-profile-media' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
+
+COMMIT;`;
+
+    window.supabase = supabase;
+    window.MIGRATION_SQL = MIGRATION_SQL;
+
+    // Display SQL content
+    document.getElementById('sqlContent').textContent = MIGRATION_SQL;
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const timestamp = new Date().toLocaleTimeString();
+      const prefix = type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️';
+      output.innerHTML += `<span class="${type}">[${timestamp}] ${prefix} ${message}</span>\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    window.executeMigration = async function() {
+      const btn = document.getElementById('executeBtn');
+      btn.disabled = true;
+      document.getElementById('output').innerHTML = '';
+
+      log('Starting Migration 070 execution...');
+
+      try {
+        // Step 1: Add columns to users table
+        log('Step 1/5: Adding photo URL columns to users table...');
+        const { error: alterError } = await supabase
+          .from('users')
+          .select('id')
+          .limit(1);
+
+        if (alterError) {
+          log(`Database connection error: ${alterError.message}`, 'error');
+          log('Please execute migration manually via Supabase Dashboard', 'warning');
+          btn.disabled = false;
+          return;
+        }
+
+        log('✓ Database connection verified', 'success');
+        log('');
+        log('⚠️ Supabase JS client cannot execute DDL statements (ALTER TABLE, CREATE POLICY, etc.)', 'warning');
+        log('');
+        log('📋 MANUAL EXECUTION REQUIRED:', 'warning');
+        log('1. Copy the SQL below (or click "Copy SQL to Clipboard")');
+        log('2. Open Supabase Dashboard SQL Editor');
+        log('3. Paste and run the SQL');
+        log('');
+        log('After running the migration, the photo upload API will be ready!', 'success');
+
+      } catch (err) {
+        log(`Unexpected error: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    window.copySQL = function() {
+      navigator.clipboard.writeText(MIGRATION_SQL).then(() => {
+        log('SQL copied to clipboard! Now paste it in Supabase SQL Editor.', 'success');
+      }).catch(err => {
+        log('Failed to copy: ' + err.message, 'error');
+      });
+    };
+
+    window.openDashboard = function() {
+      window.open('https://enbuwffusjhpcyoveewb.supabase.co/project/default/sql/new', '_blank');
+      log('Opened Supabase SQL Editor in new tab', 'success');
+    };
+  </script>
+</body>
+</html>

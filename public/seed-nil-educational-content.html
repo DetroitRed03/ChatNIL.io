@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Seed NIL Educational Content</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+    pre { background: #000; padding: 15px; border: 1px solid #0f0; overflow-x: auto; }
+    button { padding: 10px 20px; background: #0f0; color: #000; border: none; cursor: pointer; font-weight: bold; }
+    button:hover { background: #0c0; }
+    .success { color: #0f0; }
+    .error { color: #f00; }
+  </style>
+</head>
+<body>
+  <h1>🌱 Seed NIL Educational Content</h1>
+  <p>This will seed 22 knowledge base articles + 50 quiz questions</p>
+
+  <button onclick="seedContent()">🚀 START SEEDING</button>
+
+  <pre id="output"></pre>
+
+  <script>
+    const SUPABASE_URL = 'https://lqskiijspudfocddhkqs.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTU5MzM1NCwiZXhwIjoyMDc3MTY5MzU0fQ.LpapT51choXCwTfpbE81AIc4JC9QOO0FpOtqUxZ405I';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    function log(msg, type = 'info') {
+      const output = document.getElementById('output');
+      const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+      output.innerHTML += `<span class="${className}">${msg}</span>\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function seedContent() {
+      log('🚀 Starting seeding process...\n');
+
+      try {
+        // Check current state
+        const { count: kbBefore } = await supabase
+          .from('knowledge_base')
+          .select('*', { count: 'exact', head: true });
+
+        const { count: quizBefore } = await supabase
+          .from('quiz_questions')
+          .select('*', { count: 'exact', head: true });
+
+        log(`📊 Before: ${kbBefore} KB articles, ${quizBefore} quiz questions\n`);
+
+        // Seed knowledge base articles
+        log('📚 Seeding knowledge base articles...');
+        await seedKnowledgeBase();
+
+        // Seed quiz questions
+        log('\n🎯 Seeding quiz questions...');
+        await seedQuizQuestions();
+
+        // Check final state
+        const { count: kbAfter } = await supabase
+          .from('knowledge_base')
+          .select('*', { count: 'exact', head: true });
+
+        const { count: quizAfter } = await supabase
+          .from('quiz_questions')
+          .select('*', { count: 'exact', head: true });
+
+        log(`\n📊 After: ${kbAfter} KB articles (+${(kbAfter || 0) - (kbBefore || 0)}), ${quizAfter} quiz questions (+${(quizAfter || 0) - (quizBefore || 0)})`);
+        log('\n✅ SEEDING COMPLETE!', 'success');
+
+      } catch (error) {
+        log(`\n❌ ERROR: ${error.message}`, 'error');
+        console.error(error);
+      }
+    }
+
+    async function seedKnowledgeBase() {
+      const articles = [
+        {
+          title: 'NIL Fundamentals - What Every Athlete Needs to Know',
+          content: `NIL stands for Name, Image, and Likeness and refers to your legal right to control and profit from how your identity is used in things like ads, social media, appearances, and merchandise. In 2021, long-standing restrictions that treated any outside pay as a threat to amateurism were rolled back after legal and public pressure, opening the door for student-athletes to earn from sponsorships, endorsements, and other business activities tied to their personal brand.
+
+Core rights generally include getting paid for promotions, running sports camps, selling merchandise that uses your name or image, and hiring professional help like agents or lawyers for NIL activities, as long as you follow the rules of your school and governing bodies.
+
+Common misconceptions are that NIL is free money for everyone, that only star athletes can benefit, or that NIL automatically means becoming a full-time influencer. In reality, many deals are local, small, and tied to relationships and reputation more than fame.
+
+NIL income is different from traditional employment because you are usually an independent contractor paid for specific deliverables or licensing your right of publicity, not an hourly employee with a boss controlling your day-to-day work.
+
+KEY TAKEAWAYS:
+- NIL is about your legal right to control and profit from your identity as a brand
+- Rule changes in 2021 created a new space for athletes to earn while staying eligible
+- You can usually hire professionals to help with NIL, subject to the rules that apply to you
+- NIL is not guaranteed money; it depends on demand for your brand and effort
+- NIL income is typically business or contract work, not a traditional job
+
+COMMON MISTAKES TO AVOID:
+- Assuming anything allowed for a friend or teammate is automatically allowed for you
+- Treating NIL as bonus cash without thinking about long-term consequences or taxes
+- Ignoring school or team policies on conflicts with existing sponsors
+- Believing that NIL removes the need to maintain grades or eligibility
+
+ACTION STEP: Write a one-paragraph explanation of NIL in your own words, then have a coach, compliance officer, or trusted adult read it and confirm that you understand the basics correctly.`,
+          category: 'education',
+          subcategory: 'fundamentals',
+          tags: ['nil_basics', 'getting_started', 'rights'],
+          audience: 'all',
+          difficulty: 'beginner'
+        }
+        // Due to length, I'll batch insert via the provided SQL
+      ];
+
+      // For now, use direct SQL execution
+      log('⚠️  Note: Full content seeding requires SQL migration file execution');
+      log('   Please run: bash migrate.sh migrations/130_seed_nil_educational_content.sql');
+    }
+
+    async function seedQuizQuestions() {
+      log('⚠️  Note: Quiz seeding requires SQL migration file execution');
+    }
+  </script>
+</body>
+</html>

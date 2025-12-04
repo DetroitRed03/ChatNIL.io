@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cleanup Duplicate Chats - ChatNIL</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; }
+    .status {
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .info { background: #e3f2fd; color: #1976d2; border-left: 4px solid #1976d2; }
+    .success { background: #e8f5e9; color: #388e3c; border-left: 4px solid #388e3c; }
+    .error { background: #ffebee; color: #d32f2f; border-left: 4px solid #d32f2f; }
+    .warning { background: #fff3e0; color: #f57c00; border-left: 4px solid #f57c00; }
+    button {
+      background: #d32f2f;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 500;
+      margin: 10px 5px;
+    }
+    button:hover { background: #b71c1c; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    button.secondary {
+      background: #1976d2;
+    }
+    button.secondary:hover { background: #1565c0; }
+    #result {
+      margin-top: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    pre {
+      background: #263238;
+      color: #aed581;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧹 Cleanup Duplicate Chats</h1>
+    <p>This tool will remove all duplicate chat sessions from the database.</p>
+
+    <div class="status warning">
+      <strong>⚠️ Warning:</strong> This will delete ALL chat sessions and messages from the database. Use this to start fresh with a clean slate.
+    </div>
+
+    <div>
+      <button onclick="countChats()" id="countBtn" class="secondary">📊 Count Current Chats</button>
+      <button onclick="deleteAllChats()" id="deleteBtn">🗑️ Delete ALL Chats</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    async function countChats() {
+      const resultDiv = document.getElementById('result');
+      const btn = document.getElementById('countBtn');
+
+      btn.disabled = true;
+      resultDiv.innerHTML = '<div class="status info">⏳ Counting chats...</div>';
+
+      try {
+        const userId = '69ccbc5b-165b-4ae9-8789-b8ef9ae40ce1';
+        const response = await fetch(`/api/chat/sessions?userId=${userId}`);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const { sessions } = await response.json();
+
+        resultDiv.innerHTML = `
+          <div class="status success">
+            <strong>✅ Count Complete</strong><br><br>
+            <strong>Total chat sessions:</strong> ${sessions.length}<br><br>
+            <strong>Sessions:</strong>
+            <pre>${JSON.stringify(sessions.map(s => ({
+              id: s.id,
+              title: s.title,
+              created_at: s.created_at
+            })), null, 2)}</pre>
+          </div>
+        `;
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="status error">
+            <strong>❌ Error:</strong> ${error.message}
+          </div>
+        `;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function deleteAllChats() {
+      const confirmed = confirm(
+        'Are you ABSOLUTELY SURE you want to delete ALL chat sessions and messages?\n\n' +
+        'This action CANNOT be undone!'
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      const doubleConfirm = confirm(
+        'Last chance! This will permanently delete everything.\n\n' +
+        'Click OK to proceed with deletion.'
+      );
+
+      if (!doubleConfirm) {
+        return;
+      }
+
+      const resultDiv = document.getElementById('result');
+      const btn = document.getElementById('deleteBtn');
+
+      btn.disabled = true;
+      resultDiv.innerHTML = '<div class="status info">⏳ Deleting all chats...</div>';
+
+      try {
+        // Since we don't have a DELETE endpoint, we'll need to use SQL in Supabase
+        resultDiv.innerHTML = `
+          <div class="status warning">
+            <strong>⚠️ Manual Deletion Required</strong><br><br>
+            <p>Please run this SQL in your Supabase SQL Editor:</p>
+            <pre>-- Delete all chat messages first (foreign key constraint)
+DELETE FROM chat_messages WHERE user_id = '69ccbc5b-165b-4ae9-8789-b8ef9ae40ce1';
+
+-- Delete all chat sessions
+DELETE FROM chat_sessions WHERE user_id = '69ccbc5b-165b-4ae9-8789-b8ef9ae40ce1';
+
+-- Verify deletion
+SELECT COUNT(*) as session_count FROM chat_sessions WHERE user_id = '69ccbc5b-165b-4ae9-8789-b8ef9ae40ce1';
+SELECT COUNT(*) as message_count FROM chat_messages WHERE user_id = '69ccbc5b-165b-4ae9-8789-b8ef9ae40ce1';</pre>
+            <br>
+            <p>After running the SQL, clear your browser's localStorage:</p>
+            <pre>localStorage.clear();
+location.reload();</pre>
+            <br>
+            <button onclick="clearLocalStorage()" class="secondary">Clear localStorage & Reload</button>
+          </div>
+        `;
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <div class="status error">
+            <strong>❌ Error:</strong> ${error.message}
+          </div>
+        `;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function clearLocalStorage() {
+      localStorage.clear();
+      alert('localStorage cleared! Page will reload...');
+      location.reload();
+    }
+  </script>
+</body>
+</html>

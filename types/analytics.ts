@@ -3,7 +3,7 @@
  * Type-safe definitions for all analytics events tracked in the application
  */
 
-import { UserRole } from '@/lib/types';
+import type { UserRole } from './common';
 
 // ============================================================================
 // User Events
@@ -126,6 +126,7 @@ export interface QuizStartedEvent {
     role: UserRole;
     category: string;
     difficulty?: string;
+    question_count?: number;
     session_id: string;
   };
 }

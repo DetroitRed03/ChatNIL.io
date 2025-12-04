@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run Migration 020 Fix</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .error-box {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+    .error-box h3 {
+      margin-top: 0;
+      color: #856404;
+    }
+    .error-box code {
+      background: #f8f9fa;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    #output {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+      white-space: pre-wrap;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .success {
+      color: #28a745;
+      font-weight: bold;
+    }
+    .error {
+      color: #dc3545;
+      font-weight: bold;
+    }
+    .info {
+      color: #17a2b8;
+    }
+    .sql-preview {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .sql-preview pre {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .explanation {
+      background: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .explanation h4 {
+      margin-top: 0;
+      color: #1976D2;
+    }
+    .explanation ul {
+      margin-bottom: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Migration 020 Fix</h1>
+    <p class="subtitle">Fix type mismatch error in update_batch_counts() function</p>
+
+    <div class="error-box">
+      <h3>⚠️ Error Being Fixed:</h3>
+      <p><strong>Signup Error:</strong></p>
+      <p><code>function jsonb_array_length(text[]) does not exist</code></p>
+      <p style="margin-top: 15px;"><strong>Root Cause:</strong> The <code>update_batch_counts()</code> function in Migration 020 was calling <code>jsonb_array_length()</code> on a UUID[] array field (<code>created_user_ids</code>) instead of properly handling different data types.</p>
+    </div>
+
+    <div class="explanation">
+      <h4>🔍 What This Fix Does:</h4>
+      <ul>
+        <li>Replaces the <code>update_batch_counts()</code> function with proper type handling</li>
+        <li>Uses <code>array_length()</code> for UUID[] arrays (<code>created_user_ids</code>)</li>
+        <li>Uses <code>jsonb_array_length()</code> only for JSONB fields (<code>error_log</code>)</li>
+        <li>Adds NULL checking to prevent errors</li>
+        <li>Recreates the trigger with the corrected function</li>
+      </ul>
+    </div>
+
+    <div class="sql-preview">
+      <strong>SQL Migration Preview:</strong>
+      <pre id="sqlPreview">Loading...</pre>
+    </div>
+
+    <button id="runBtn" onclick="runMigration()">🚀 Run Migration Fix</button>
+    <button onclick="location.reload()">🔄 Reload Page</button>
+
+    <div id="output"></div>
+  </div>
+
+  <script type="module">
+    const SUPABASE_URL = 'https://amiywkgwxqzrmjbjbtkz.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtaXl3a2d3eHF6cm1qYmpidGt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA4MDQ0NDcsImV4cCI6MjA0NjM4MDQ0N30.CnqSa-F8KkFm6gG-UaMUCFQOZZGPuOmNEHH_wXLh0qk';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.supabase = supabase;
+
+    // Load and display the SQL
+    fetch('/migrations/020_school_compliance_fix.sql')
+      .then(res => res.text())
+      .then(sql => {
+        document.getElementById('sqlPreview').textContent = sql;
+        window.migrationSQL = sql;
+      })
+      .catch(err => {
+        document.getElementById('sqlPreview').textContent = 'Error loading SQL: ' + err.message;
+      });
+
+    window.runMigration = async function() {
+      const btn = document.getElementById('runBtn');
+      const output = document.getElementById('output');
+
+      btn.disabled = true;
+      output.innerHTML = '<span class="info">⏳ Running migration fix...</span>\n';
+
+      try {
+        // Execute the migration SQL
+        const { data, error } = await supabase.rpc('execute_sql', {
+          sql_query: window.migrationSQL
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        output.innerHTML += '<span class="success">✅ Migration 020 fix applied successfully!</span>\n\n';
+        output.innerHTML += '<span class="info">Details:</span>\n';
+        output.innerHTML += '- Replaced update_batch_counts() function with correct type handling\n';
+        output.innerHTML += '- Fixed UUID[] vs JSONB type mismatch\n';
+        output.innerHTML += '- Recreated trigger on school_account_batches table\n\n';
+        output.innerHTML += '<span class="success">🎉 You can now try signing up again!</span>\n';
+
+      } catch (error) {
+        console.error('Migration error:', error);
+        output.innerHTML += `<span class="error">❌ Error: ${error.message}</span>\n\n`;
+        output.innerHTML += '<strong>Troubleshooting:</strong>\n';
+        output.innerHTML += '1. Make sure you have created the execute_sql function (Migration 001)\n';
+        output.innerHTML += '2. Check that your Supabase connection is working\n';
+        output.innerHTML += '3. Verify you have proper database permissions\n\n';
+        output.innerHTML += '<strong>Alternative:</strong>\n';
+        output.innerHTML += 'You can run this SQL directly in the Supabase SQL Editor:\n';
+        output.innerHTML += 'Dashboard → SQL Editor → New Query → Paste the SQL above → Run\n';
+        btn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

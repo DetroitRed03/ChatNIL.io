@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { splitProfileUpdates, ensureAthleteProfile, isAthleteRole } from '@/lib/profile-field-mapper';
 
 // Helper function to calculate profile completion percentage
 function calculateProfileCompletion(profile: any): number {
@@ -15,12 +16,12 @@ function calculateProfileCompletion(profile: any): number {
     { field: 'graduation_year', value: profile.graduation_year },
     { field: 'major', value: profile.major },
     { field: 'gpa', value: profile.gpa },
-    { field: 'primary_sport', value: profile.primary_sport },
+    { field: 'sport', value: profile.sport }, // Fixed: use 'sport' not 'primary_sport'
     { field: 'position', value: profile.position },
     { field: 'achievements', value: profile.achievements && profile.achievements.length > 0 },
     { field: 'nil_interests', value: profile.nil_interests && profile.nil_interests.length > 0 },
     { field: 'nil_concerns', value: profile.nil_concerns && profile.nil_concerns.length > 0 },
-    { field: 'social_media_handles', value: profile.social_media_handles }
+    { field: 'nil_preferences', value: profile.nil_preferences }
   ];
 
   const totalFields = fieldChecks.length;
@@ -83,49 +84,104 @@ export async function POST(request: NextRequest) {
 
     console.log('📊 Current user profile exists');
 
-    // Prepare updated data with timestamp
-    const updatedData = {
-      ...updates,
-      updated_at: new Date().toISOString(),
-    };
+    // Split updates between users and athlete_profiles tables
+    const { usersUpdates, athleteUpdates, unmapped } = splitProfileUpdates(updates);
+
+    if (unmapped.length > 0) {
+      console.warn('⚠️ Unmapped fields (skipping):', unmapped);
+    }
 
     console.log('💾 Updating user profile...');
-    console.log('📝 Update fields:', Object.keys(updatedData));
+    console.log('👤 Users table updates:', Object.keys(usersUpdates));
+    console.log('🏃 Athlete profile updates:', Object.keys(athleteUpdates));
 
-    // Update user profile in database
-    const { data: updatedUser, error: updateError } = await supabaseAdmin
-      .from('users')
-      .update(updatedData)
-      .eq('id', userId)
-      .select()
-      .single();
+    // Update users table if there are changes
+    let updatedUser = currentUser;
+    if (Object.keys(usersUpdates).length > 0) {
+      const { data, error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({
+          ...usersUpdates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+        .select()
+        .single();
 
-    if (updateError) {
-      console.error('❌ Failed to update user profile:', updateError);
-      console.error('❌ Error details:', {
-        message: updateError.message,
-        details: updateError.details,
-        hint: updateError.hint,
-        code: updateError.code
-      });
-      return NextResponse.json(
-        {
-          error: 'Failed to update profile',
-          details: updateError.message,
-          hint: updateError.hint
-        },
-        { status: 500 }
-      );
+      if (updateError) {
+        console.error('❌ Failed to update users table:', updateError);
+        console.error('❌ Error details:', {
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+          code: updateError.code
+        });
+        return NextResponse.json(
+          {
+            error: 'Failed to update profile',
+            details: updateError.message,
+            hint: updateError.hint
+          },
+          { status: 500 }
+        );
+      }
+
+      updatedUser = data;
+      console.log('✅ Users table updated successfully');
     }
+
+    // Update athlete_profiles table if there are changes and user is an athlete
+    if (isAthleteRole(currentUser.role) && Object.keys(athleteUpdates).length > 0) {
+      // Ensure athlete profile exists
+      const { success: profileExists, error: ensureError } = await ensureAthleteProfile(supabaseAdmin, userId);
+      if (!profileExists) {
+        console.error('⚠️ Failed to ensure athlete profile exists:', ensureError);
+        // Continue anyway - user record might be updated
+      } else {
+        const { error: athleteError } = await supabaseAdmin
+          .from('athlete_profiles')
+          .update({
+            ...athleteUpdates,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId);
+
+        if (athleteError) {
+          console.error('❌ Failed to update athlete_profiles table:', athleteError);
+          return NextResponse.json(
+            {
+              error: 'Failed to update athlete profile',
+              details: athleteError.message
+            },
+            { status: 500 }
+          );
+        }
+
+        console.log('✅ Athlete profile updated successfully');
+      }
+    }
+
+    // Fetch complete updated profile
+    const { data: athleteProfile } = await supabaseAdmin
+      .from('athlete_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const completeProfile = {
+      ...updatedUser,
+      ...athleteProfile,
+      id: updatedUser.id,
+    };
 
     console.log('✅ Profile updated successfully:', {
       userId,
-      updatedFields: Object.keys(updatedData)
+      updatedFields: [...Object.keys(usersUpdates), ...Object.keys(athleteUpdates)]
     });
 
     // Check if profile is now 100% complete and award badge
     try {
-      const completionPercentage = calculateProfileCompletion(updatedUser);
+      const completionPercentage = calculateProfileCompletion(completeProfile);
       console.log(`📊 Profile completion: ${completionPercentage}%`);
 
       if (completionPercentage === 100) {
@@ -151,7 +207,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Profile updated successfully',
-      user: updatedUser
+      user: completeProfile
     });
 
   } catch (error) {

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Migrations Status</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; margin-bottom: 10px; }
+    .subtitle { color: #666; margin-bottom: 30px; }
+    button {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover { background: #059669; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    #results {
+      margin-top: 20px;
+    }
+    .table-check {
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .table-check.exists {
+      background: #d1fae5;
+      border-left: 4px solid #10b981;
+    }
+    .table-check.missing {
+      background: #fee2e2;
+      border-left: 4px solid #ef4444;
+    }
+    .table-name {
+      font-weight: 600;
+      font-family: monospace;
+    }
+    .status {
+      font-size: 14px;
+      padding: 4px 12px;
+      border-radius: 4px;
+    }
+    .status.success {
+      background: #10b981;
+      color: white;
+    }
+    .status.error {
+      background: #ef4444;
+      color: white;
+    }
+    .summary {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f9fafb;
+      border-radius: 6px;
+      border: 2px solid #e5e7eb;
+    }
+    .summary h3 {
+      margin-top: 0;
+      color: #111827;
+    }
+    .next-steps {
+      margin-top: 20px;
+      padding: 15px;
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      border-radius: 4px;
+    }
+    .all-good {
+      margin-top: 20px;
+      padding: 15px;
+      background: #d1fae5;
+      border-left: 4px solid #10b981;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Migration Status Verification</h1>
+    <p class="subtitle">Check if all required database tables exist in Supabase</p>
+
+    <button onclick="checkMigrations()" id="checkBtn">Check Migration Status</button>
+    <button onclick="location.reload()">Refresh Page</button>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2ODY3MDksImV4cCI6MjA3NDI2MjcwOX0.YQeov1zOM5awGJYnFTVlPeJqCLbfR2vGN4RkZEBoPG4';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const REQUIRED_TABLES = [
+      { name: 'chat_sessions', migration: '010', description: 'Chat sessions storage' },
+      { name: 'chat_messages', migration: '011', description: 'Chat messages storage' },
+      { name: 'quiz_questions', migration: '008', description: 'Quiz questions' },
+      { name: 'user_quiz_progress', migration: '009', description: 'Quiz progress tracking' },
+      { name: 'knowledge_base', migration: '012', description: 'Vector-enabled knowledge base' },
+    ];
+
+    async function checkMigrations() {
+      const btn = document.getElementById('checkBtn');
+      const resultsDiv = document.getElementById('results');
+
+      btn.disabled = true;
+      resultsDiv.innerHTML = '<p>Checking tables...</p>';
+
+      const results = [];
+
+      for (const table of REQUIRED_TABLES) {
+        try {
+          const { data, error } = await supabase
+            .from(table.name)
+            .select('count')
+            .limit(1);
+
+          results.push({
+            ...table,
+            exists: !error,
+            error: error?.message
+          });
+        } catch (e) {
+          results.push({
+            ...table,
+            exists: false,
+            error: e.message
+          });
+        }
+      }
+
+      displayResults(results);
+      btn.disabled = false;
+    }
+
+    function displayResults(results) {
+      const resultsDiv = document.getElementById('results');
+      const allExist = results.every(r => r.exists);
+      const existCount = results.filter(r => r.exists).length;
+      const missingCount = results.filter(r => !r.exists).length;
+
+      let html = '<h3>Table Status:</h3>';
+
+      results.forEach(result => {
+        html += `
+          <div class="table-check ${result.exists ? 'exists' : 'missing'}">
+            <div>
+              <div class="table-name">${result.name}</div>
+              <div style="font-size: 13px; color: #666; margin-top: 4px;">
+                Migration ${result.migration}: ${result.description}
+              </div>
+            </div>
+            <span class="status ${result.exists ? 'success' : 'error'}">
+              ${result.exists ? '✅ EXISTS' : '❌ MISSING'}
+            </span>
+          </div>
+        `;
+      });
+
+      html += '<div class="summary">';
+      html += '<h3>Summary</h3>';
+      html += `<p><strong>${existCount} of ${results.length}</strong> required tables exist</p>`;
+
+      if (allExist) {
+        html += '</div>';
+        html += `
+          <div class="all-good">
+            <h3>✅ All Migrations Applied!</h3>
+            <p>All required database tables exist. Your ChatNIL platform is ready with:</p>
+            <ul>
+              <li>✅ Chat system (persistent storage)</li>
+              <li>✅ Quiz system (questions & progress tracking)</li>
+              <li>✅ Knowledge base (vector-enabled for AI search)</li>
+            </ul>
+            <p><strong>Next step:</strong> Update <code>lib/dashboard-data.ts</code> to query real chat_sessions table</p>
+          </div>
+        `;
+      } else {
+        html += '</div>';
+        html += `
+          <div class="next-steps">
+            <h3>⚠️ ${missingCount} Migration(s) Need to be Applied</h3>
+            <p><strong>What to do:</strong></p>
+            <ol>
+              <li>Go to Supabase SQL Editor:
+                <a href="https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/sql" target="_blank">
+                  Open SQL Editor
+                </a>
+              </li>
+              <li>Open file: <code>supabase/migrations/CONSOLIDATED_IMMEDIATE_MIGRATIONS.sql</code></li>
+              <li>Copy the entire contents and paste into SQL Editor</li>
+              <li>Click "Run" to apply all migrations at once</li>
+              <li>Come back here and click "Check Migration Status" again</li>
+            </ol>
+            <p style="margin-top: 15px; font-size: 14px; color: #666;">
+              <strong>Alternative:</strong> Apply individual migration files (008, 009, 010, 011, 012) one by one
+            </p>
+          </div>
+        `;
+      }
+
+      resultsDiv.innerHTML = html;
+    }
+
+    // Auto-check on load
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.getElementById('checkBtn').click();
+      }, 500);
+    });
+  </script>
+</body>
+</html>

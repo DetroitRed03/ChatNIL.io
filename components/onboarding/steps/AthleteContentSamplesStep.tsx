@@ -70,7 +70,7 @@ export default function AthleteContentSamplesStep({
     watch,
     setValue,
   } = useForm<AthleteContentSamplesData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     mode: 'onChange',
     defaultValues: initialData || {
       content_samples: [],

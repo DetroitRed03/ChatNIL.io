@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/fmv-rate-limit-reset",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/fmv-daily-recalculation",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/sync-external-rankings",
+      "schedule": "0 3 * * 0"
+    }
+  ]
+}

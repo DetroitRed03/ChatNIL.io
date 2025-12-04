@@ -1,21 +1,19 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import Header from '@/components/Header';
-import ChatArea from '@/components/ChatArea';
 import SignupRedirectHandler from '@/components/SignupRedirectHandler';
-import AppShell from '@/components/Chat/AppShell';
-import Sidebar from '@/components/Sidebar';
-import SuggestionChips from '@/components/Chat/SuggestionChips';
-import { MessageSquare, Send, Plus, X, FileText, Image, File, Loader2 } from 'lucide-react';
-import { useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { Logo } from '@/components/brand/Logo';
+import { Sparkles, Lightbulb, Shield, TrendingUp, ArrowRight, MessageSquare, Loader2, Square } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AuthModal from '@/components/AuthModal';
-import { UserRole } from '@/lib/types';
-import { useChatHistoryStore } from '@/lib/chat-history-store';
+import { UserRole } from '@/types';
 import { useOnboardingGate } from '@/hooks/useOnboardingGate';
+import { useChatHistoryStore } from '@/lib/chat-history-store';
+import { useChatSync } from '@/hooks/useChatSync';
+import MessageList from '@/components/Chat/MessageList';
+import Composer from '@/components/Chat/Composer';
 
-// File upload interface
 interface UploadedFile {
   id: string;
   name: string;
@@ -25,19 +23,64 @@ interface UploadedFile {
   preview?: string;
 }
 
-// Unified homepage component with consistent layout
-function HomePage() {
+// Suggested prompts for the splash page
+const EXAMPLE_PROMPTS = [
+  "Explain NIL compliance rules for college athletes",
+  "How do I evaluate a brand deal offer?",
+  "What are the tax implications of NIL income?",
+  "Help me understand NCAA eligibility requirements"
+];
+
+const CAPABILITIES = [
+  {
+    icon: Shield,
+    title: "Compliance Guidance",
+    description: "Get expert advice on NIL regulations and NCAA rules"
+  },
+  {
+    icon: TrendingUp,
+    title: "Deal Evaluation",
+    description: "Analyze brand partnerships and sponsorship opportunities"
+  },
+  {
+    icon: Lightbulb,
+    title: "Educational Resources",
+    description: "Learn about contracts, taxes, and legal requirements"
+  },
+  {
+    icon: Sparkles,
+    title: "Personalized Support",
+    description: "Tailored guidance for athletes, parents, and coaches"
+  }
+];
+
+function SplashPage() {
   const { user, login, signup } = useAuth();
   const [inputValue, setInputValue] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const { createChatWithFirstMessage } = useChatHistoryStore();
   const [authModal, setAuthModal] = useState<{ isOpen: boolean; mode: 'login' | 'signup' }>({
     isOpen: false,
     mode: 'login'
   });
+
+  const handlePromptClick = (prompt: string) => {
+    setInputValue(prompt);
+  };
+
+  const handleGetStarted = () => {
+    // If not logged in, prompt to login/signup
+    if (!user) {
+      setAuthModal({ isOpen: true, mode: 'signup' });
+      return;
+    }
+    // If logged in, redirect based on role
+    // TODO: Add more role types when implemented (brand, school_admin, etc.)
+    if (user.role === 'agency') {
+      router.push('/agencies/dashboard');
+    } else {
+      router.push('/dashboard');
+    }
+  };
 
   const handleLogin = async (email: string, password: string) => {
     const result = await login(email, password);
@@ -45,6 +88,12 @@ function HomePage() {
       alert('Login failed: ' + result.error);
     } else {
       setAuthModal({ isOpen: false, mode: 'login' });
+      // Redirect directly to the correct dashboard based on role
+      if (result.user?.role === 'agency') {
+        router.push('/agencies/dashboard');
+      } else {
+        router.push('/dashboard');
+      }
     }
   };
 
@@ -63,250 +112,144 @@ function HomePage() {
     }
   };
 
-  const handleSendMessage = () => {
-    if (!user) {
-      setAuthModal({ isOpen: true, mode: 'login' });
-      return;
-    }
-    // For authenticated users, create a new chat and navigate to it
-    if (inputValue.trim() || attachedFiles.length > 0) {
-      const chatId = createChatWithFirstMessage(inputValue.trim() || 'File attachment');
-      setInputValue('');
-      setAttachedFiles([]);
-      // The layout will automatically show the chat interface since user is authenticated
-      router.refresh(); // Refresh to show the new chat
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
-  const handleInputFocus = () => {
-    if (!inputValue.trim()) {
-      setShowSuggestions(true);
-    }
-  };
-
-  const handleInputBlur = () => {
-    // Delay hiding suggestions to allow for clicks
-    setTimeout(() => setShowSuggestions(false), 150);
-  };
-
-  const handleSuggestionClick = (suggestion: string) => {
-    setInputValue(suggestion);
-    setShowSuggestions(false);
-  };
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const getFileIcon = (type: string) => {
-    if (type.startsWith('image/')) return Image;
-    if (type.includes('pdf') || type.includes('document') || type.includes('text')) return FileText;
-    return File;
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!user) {
-      setAuthModal({ isOpen: true, mode: 'login' });
-      return;
-    }
-
-    const files = event.target.files;
-    if (!files) return;
-
-    const maxSize = 50 * 1024 * 1024; // 50MB limit
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain',
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp'
-    ];
-
-    Array.from(files).forEach(file => {
-      if (file.size > maxSize) {
-        alert(`File "${file.name}" is too large. Maximum size is 50MB.`);
-        return;
-      }
-
-      if (!allowedTypes.includes(file.type)) {
-        alert(`File type "${file.type}" is not supported.`);
-        return;
-      }
-
-      const uploadedFile: UploadedFile = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        file: file
-      };
-
-      // Create preview for images
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          uploadedFile.preview = e.target?.result as string;
-        };
-        reader.readAsDataURL(file);
-      }
-
-      setAttachedFiles(prev => [...prev, uploadedFile]);
-    });
-
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const removeFile = (fileId: string) => {
-    setAttachedFiles(prev => prev.filter(file => file.id !== fileId));
-  };
-
-  const handlePlusClick = () => {
-    if (!user) {
-      setAuthModal({ isOpen: true, mode: 'login' });
-      return;
-    }
-    fileInputRef.current?.click();
-  };
-
   return (
-    <div className="flex h-screen">
-      {/* Sidebar - always visible, non-expandable when not authenticated */}
-      <Sidebar isNonAuth={!user} />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background-secondary to-background flex flex-col">
+      {/* Header */}
+      <header className="flex justify-between items-center px-6 py-4 border-b border-border bg-background-card/50 backdrop-blur-sm">
+        <Logo size="md" variant="full" href="/" />
+        <div className="flex gap-3">
+          <button
+            onClick={() => setAuthModal({ isOpen: true, mode: 'login' })}
+            className="px-4 py-2 text-text-secondary hover:text-text-primary border border-border rounded-lg hover:bg-background-hover transition-colors"
+          >
+            Log in
+          </button>
+          <button
+            onClick={() => setAuthModal({ isOpen: true, mode: 'signup' })}
+            className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors shadow-sm hover:shadow-md"
+          >
+            Sign up
+          </button>
+        </div>
+      </header>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col">
-        {!user && (
-          <header className="flex justify-end items-center p-4">
-            <div className="flex gap-3">
-              <button
-                onClick={() => setAuthModal({ isOpen: true, mode: 'login' })}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Log in
-              </button>
-              <button
-                onClick={() => setAuthModal({ isOpen: true, mode: 'signup' })}
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors shadow-sm hover:shadow-md"
-              >
-                Sign up for free
-              </button>
-            </div>
-          </header>
-        )}
-
-        <main className="flex-1 flex flex-col items-center justify-center">
-          <div className="w-full max-w-3xl px-4">
-            {!user && (
-              <div className="text-center mb-8">
-                <h1 className="text-4xl font-semibold text-gray-900 mb-4">ChatNIL</h1>
-                <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
-                  Your comprehensive NIL compliance assistant. Get expert guidance on Name, Image, and Likeness rules,
-                  contract negotiations, tax implications, and eligibility requirements for student-athletes.
-                </p>
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-3xl mx-auto">
+          {/* Hero Section */}
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-3 mb-6">
+              <div className="w-16 h-16 bg-primary-500 rounded-2xl flex items-center justify-center shadow-lg">
+                <MessageSquare className="h-9 w-9 text-white" />
               </div>
-            )}
+              <h1 className="text-5xl font-bold text-text-primary">ChatNIL</h1>
+            </div>
+            <p className="text-xl text-text-secondary max-w-2xl mx-auto leading-relaxed">
+              Your AI-Powered NIL Companion
+            </p>
+            <p className="text-base text-text-tertiary max-w-xl mx-auto mt-3">
+              Get expert guidance on Name, Image, and Likeness rules, contract negotiations, tax implications, and eligibility requirements.
+            </p>
+          </div>
 
-            {/* Same input box used everywhere - matches chat interface */}
+          {/* Chat Input */}
+          <div className="mb-12">
             <div className="relative">
-              {/* File Upload Input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.doc,.docx,.txt,image/*"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-
-              {/* Attached Files Display */}
-              {attachedFiles.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {attachedFiles.map((file) => {
-                    const IconComponent = getFileIcon(file.type);
-                    return (
-                      <div key={file.id} className="flex items-center bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 max-w-xs">
-                        <IconComponent className="h-4 w-4 text-orange-600 mr-2 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-orange-900 truncate">{file.name}</p>
-                          <p className="text-xs text-orange-600">{formatFileSize(file.size)}</p>
-                        </div>
-                        <button
-                          onClick={() => removeFile(file.id)}
-                          className="ml-2 p-1 hover:bg-orange-100 rounded transition-colors"
-                        >
-                          <X className="h-3 w-3 text-orange-500" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <input
-                type="text"
-                placeholder="Message ChatNIL..."
+              <textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                onKeyPress={handleKeyPress}
-                onFocus={handleInputFocus}
-                onBlur={handleInputBlur}
-                className="w-full pl-14 py-3 pr-14 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white text-gray-900 placeholder-gray-500 shadow-lg hover:shadow-xl focus:shadow-xl transition-all"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleGetStarted();
+                  }
+                }}
+                placeholder="Ask me anything about NIL..."
+                className="w-full px-6 py-4 pr-14 border border-border rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-background-card text-text-primary placeholder-text-muted shadow-lg hover:shadow-xl focus:shadow-xl transition-all"
+                rows={1}
                 style={{
-                  minHeight: '48px'
+                  minHeight: '60px',
+                  maxHeight: '200px'
                 }}
               />
-
-              {/* File Upload Button */}
               <button
-                onClick={handlePlusClick}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 text-gray-500 hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-all flex items-center justify-center"
+                onClick={handleGetStarted}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl transition-all shadow-sm hover:shadow-md flex items-center justify-center"
+                aria-label="Send message"
               >
-                <Plus className="h-5 w-5" />
+                <ArrowRight className="h-5 w-5" />
               </button>
-
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() && attachedFiles.length === 0}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl transition-all shadow-sm hover:shadow-md disabled:shadow-none flex items-center justify-center"
-              >
-                <Send className="h-5 w-5" />
-              </button>
-
-              {/* Suggestion Chips */}
-              <SuggestionChips
-                show={showSuggestions}
-                onSuggestionClick={handleSuggestionClick}
-              />
             </div>
           </div>
-        </main>
-      </div>
+
+          {/* Example Prompts */}
+          <div className="mb-16">
+            <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wide mb-4 text-center">
+              Try asking about
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {EXAMPLE_PROMPTS.map((prompt, index) => (
+                <button
+                  key={index}
+                  onClick={() => handlePromptClick(prompt)}
+                  className="group px-4 py-3 text-left border border-border rounded-xl hover:border-primary-500 hover:bg-primary-50 transition-all text-sm text-text-secondary hover:text-primary-600 bg-background-card"
+                >
+                  <span className="block">{prompt}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Capabilities */}
+          <div>
+            <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wide mb-6 text-center">
+              What ChatNIL can do
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {CAPABILITIES.map((capability, index) => {
+                const Icon = capability.icon;
+                return (
+                  <div
+                    key={index}
+                    className="p-5 border border-border rounded-xl bg-background-card hover:border-primary-300 hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Icon className="h-5 w-5 text-primary-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-text-primary mb-1">
+                          {capability.title}
+                        </h4>
+                        <p className="text-sm text-text-tertiary">
+                          {capability.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="py-6 px-6 border-t border-border bg-background-card/50">
+        <div className="max-w-7xl mx-auto text-center">
+          <p className="text-sm text-text-tertiary">
+            ChatNIL is powered by advanced AI to provide NIL guidance. Always consult with legal and financial professionals for official advice.
+          </p>
+        </div>
+      </footer>
 
       {/* Auth Modal */}
       <AuthModal
         isOpen={authModal.isOpen}
-        mode={authModal.mode}
+        initialMode={authModal.mode}
         onClose={() => setAuthModal({ isOpen: false, mode: 'login' })}
         onLogin={handleLogin}
         onSignup={handleSignup}
-        onSwitchMode={(mode) => setAuthModal({ isOpen: true, mode })}
       />
     </div>
   );
@@ -314,64 +257,519 @@ function HomePage() {
 
 // Authenticated chat interface component
 function ChatInterface() {
+  const { user } = useAuth(); // Add user context for database persistence
   const { isChecking, needsOnboarding, isReady } = useOnboardingGate();
+  const [inputValue, setInputValue] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingText, setTypingText] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastFailedPrompt, setLastFailedPrompt] = useState<string>('');
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // Debug logging for onboarding state
-  console.log('🏠 HomePage ChatInterface - Onboarding Status:', {
-    isChecking,
-    needsOnboarding,
-    isReady
-  });
+  // Initialize chat sync hook - CRITICAL for chat persistence
+  useChatSync();
+
+  const {
+    activeChatId,
+    getActiveChat,
+    createChatWithFirstMessage,
+    addMessageToChat,
+    getDraft,
+    setDraft
+  } = useChatHistoryStore();
+
+  const activeChat = getActiveChat();
+  const hasMessages = activeChat && activeChat.messages.length > 0;
+
+  // Handle initial message from query params (from homepage redirect)
+  useEffect(() => {
+    const initialMessage = searchParams?.get('initialMessage');
+    if (initialMessage && !activeChatId) {
+      setInputValue(decodeURIComponent(initialMessage));
+    }
+  }, [searchParams, activeChatId]);
+
+  // Load draft when active chat changes
+  useEffect(() => {
+    const draft = getDraft();
+    console.log('📝 Loading draft for chat:', activeChatId, 'Draft:', draft);
+    setInputValue(draft);
+  }, [activeChatId, getDraft]);
+
+  // Debug: Log active chat state
+  useEffect(() => {
+    console.log('🔍 Chat state:', {
+      activeChatId,
+      hasMessages,
+      messagesCount: activeChat?.messages?.length || 0,
+      chatTitle: activeChat?.title
+    });
+  }, [activeChatId, hasMessages, activeChat]);
 
   // Show loading state while checking onboarding status to prevent flash
   if (isChecking) {
-    console.log('⏳ Showing onboarding check loading screen');
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Setting up your account</h3>
-          <p className="text-sm text-gray-600">This will only take a moment...</p>
+          <Loader2 className="w-12 h-12 text-primary-500 animate-spin mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-text-primary mb-2">Setting up your account</h3>
+          <p className="text-sm text-text-secondary">This will only take a moment...</p>
         </div>
       </div>
     );
   }
 
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() && attachedFiles.length === 0) return;
+
+    const messageContent = inputValue.trim();
+    const userMessageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const assistantMessageId = `msg_${Date.now() + 1}_ai_${Math.random().toString(36).substr(2, 9)}`;
+
+    console.log('📤 Sending message:', messageContent);
+    console.log('📤 Current activeChatId:', activeChatId);
+
+    // OPTIMISTIC UI: Clear input and draft immediately for better UX
+    setInputValue('');
+    setDraft('');
+    const currentAttachments = [...attachedFiles];
+    setAttachedFiles([]);
+
+    let currentChatId = activeChatId;
+
+    // If no active chat, create one with this first message
+    if (!activeChatId) {
+      console.log('🆕 Creating new chat with first message (optimistic)');
+      currentChatId = createChatWithFirstMessage(messageContent, 'athlete');
+      console.log('✅ New chat created with ID:', currentChatId);
+    } else {
+      console.log('💬 Adding user message to existing chat (optimistic):', activeChatId);
+      // OPTIMISTIC UI: Add user message immediately (no async wait)
+      // Convert UploadedFile[] to Message attachment format
+      const messageAttachments = currentAttachments.map(f => ({
+        type: f.type.startsWith('image/') ? 'image' as const : 'file' as const,
+        url: f.preview || URL.createObjectURL(f.file),
+        name: f.name,
+        mimeType: f.type
+      }));
+      const userMessage = {
+        id: userMessageId,
+        content: messageContent,
+        role: 'user' as const,
+        timestamp: new Date(),
+        attachments: messageAttachments
+      };
+      addMessageToChat(activeChatId, userMessage);
+    }
+
+    // OPTIMISTIC UI: Create assistant placeholder immediately with isStreaming: true
+    const assistantPlaceholder = {
+      id: assistantMessageId,
+      content: '',
+      role: 'assistant' as const,
+      timestamp: new Date(),
+      isStreaming: true
+    };
+
+    if (currentChatId) {
+      addMessageToChat(currentChatId, assistantPlaceholder);
+    }
+    setIsTyping(true);
+    setErrorMessage(null);
+
+    // Create AbortController for cancellation
+    abortControllerRef.current = new AbortController();
+
+    try {
+      // Build messages array for API (expects messages array, not message + chatHistory)
+      const chatHistory = activeChat?.messages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      })) || [];
+
+      const messages = [
+        ...chatHistory,
+        { role: 'user' as const, content: messageContent }
+      ];
+
+      // Call the AI API with streaming
+      const response = await fetch('/api/chat/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages,
+          userRole: user?.role || 'athlete',
+          userId: user?.id
+        }),
+        signal: abortControllerRef.current.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                // Support both 'token' (from API) and 'content' (backward compatibility)
+                const contentChunk = parsed.token || parsed.content;
+
+                if (contentChunk) {
+                  accumulatedContent += contentChunk;
+
+                  // Update the message with accumulated content
+                  // Use activeChatId from store (may have changed from temp ID to UUID)
+                  const { updateChatMessage, activeChatId: storeActiveChatId } = useChatHistoryStore.getState();
+                  const chatIdToUpdate = storeActiveChatId || currentChatId;
+                  if (chatIdToUpdate) {
+                    updateChatMessage(chatIdToUpdate, assistantMessageId, {
+                      content: accumulatedContent,
+                      isStreaming: true
+                    });
+                  }
+                }
+              } catch (e) {
+                // Show error to user instead of silent failure
+                console.warn('Failed to parse SSE data:', data);
+                setErrorMessage('Connection error. Please try again.');
+                const { updateChatMessage, activeChatId: storeActiveChatId } = useChatHistoryStore.getState();
+                const chatIdToUpdate = storeActiveChatId || currentChatId;
+                if (chatIdToUpdate) {
+                  updateChatMessage(chatIdToUpdate, assistantMessageId, {
+                    content: 'Error: Failed to receive response. Please retry.',
+                    isStreaming: false
+                  });
+                }
+                break; // Stop processing this response
+              }
+            }
+          }
+        }
+      }
+
+      // Finalize the message
+      // Use activeChatId from store (may have changed from temp ID to UUID)
+      const { updateChatMessage, activeChatId: finalChatId } = useChatHistoryStore.getState();
+      const chatIdToUpdate = finalChatId || currentChatId;
+      if (chatIdToUpdate) {
+        updateChatMessage(chatIdToUpdate, assistantMessageId, {
+          content: accumulatedContent,
+          isStreaming: false
+        });
+      }
+      setIsTyping(false);
+      abortControllerRef.current = null;
+
+      // Save AI response to database for UUID sessions only
+      // Use the current chat ID from the store (which will be UUID after session creation)
+      const dbChatId = chatIdToUpdate;
+      const isUUID = dbChatId ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dbChatId) : false;
+      if (user?.id && dbChatId && accumulatedContent && isUUID) {
+        try {
+          const response = await fetch('/api/chat/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: user.id,
+              session_id: dbChatId,
+              content: accumulatedContent,
+              role: 'assistant'
+            })
+          });
+
+          if (response.ok) {
+            console.log('✅ AI response saved to database');
+          } else {
+            console.error('❌ Failed to save AI response:', await response.text());
+          }
+        } catch (err) {
+          console.error('❌ Failed to persist AI message:', err);
+          // Non-blocking - already in localStorage
+        }
+      } else if (!isUUID) {
+        console.log('ℹ️ Skipping DB save for temp chat ID - will sync when session is created');
+      }
+
+    } catch (error: any) {
+      // Handle errors - get current chat ID from store
+      const { updateChatMessage, activeChatId: errorChatId } = useChatHistoryStore.getState();
+      const chatIdToUpdate = errorChatId || currentChatId;
+
+      if (error.name === 'AbortError') {
+        console.log('⏹️ Request aborted by user');
+        // Keep partial content on stop
+        if (chatIdToUpdate) {
+          updateChatMessage(chatIdToUpdate, assistantMessageId, {
+            isStreaming: false
+          });
+        }
+      } else {
+        console.error('❌ AI API error:', error);
+        setErrorMessage('Failed to get response. Please try again.');
+        setLastFailedPrompt(messageContent);
+        // Show error in message
+        if (chatIdToUpdate) {
+          updateChatMessage(chatIdToUpdate, assistantMessageId, {
+            content: 'Error: Could not generate response. Please try again.',
+            isStreaming: false
+          });
+        }
+      }
+      setIsTyping(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleStopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  };
+
+  const handleRetry = () => {
+    if (lastFailedPrompt) {
+      setInputValue(lastFailedPrompt);
+      setDraft(lastFailedPrompt);
+      setErrorMessage(null);
+      setLastFailedPrompt('');
+    }
+  };
+
+  const handleAddFile = (file: UploadedFile) => {
+    setAttachedFiles(prev => [...prev, file]);
+  };
+
+  const handleRemoveFile = (fileId: string) => {
+    setAttachedFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
+  const handlePromptClick = (prompt: string) => {
+    setInputValue(prompt);
+    setDraft(prompt);
+  };
+
+  // Save draft as user types
+  const handleInputChange = (value: string) => {
+    setInputValue(value);
+    setDraft(value);
+  };
+
   return (
-    <AppShell>
-      {/* Handle signup redirects that were interrupted by Fast Refresh */}
-      <SignupRedirectHandler />
+    <div className="h-full flex flex-col bg-white">
+        {/* Handle signup redirects that were interrupted by Fast Refresh */}
+        <SignupRedirectHandler />
 
-      {/* Header */}
-      <Header />
+        {/* Show welcome screen if no messages yet */}
+        {!hasMessages ? (
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 overflow-y-auto">
+          <div className="w-full max-w-3xl mx-auto">
+            {/* Hero Section */}
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center gap-3 mb-6">
+                <div className="w-16 h-16 bg-primary-500 rounded-2xl flex items-center justify-center shadow-lg">
+                  <MessageSquare className="h-9 w-9 text-white" />
+                </div>
+                <h1 className="text-5xl font-bold text-text-primary">ChatNIL</h1>
+              </div>
+              <p className="text-xl text-text-secondary max-w-2xl mx-auto leading-relaxed">
+                Your AI-Powered NIL Companion
+              </p>
+              <p className="text-base text-text-tertiary max-w-xl mx-auto mt-3 mb-8">
+                Get expert guidance on Name, Image, and Likeness rules, contract negotiations, tax implications, and eligibility requirements.
+              </p>
 
-      {/* Main Chat Area - now flex-1 within AppShell */}
-      <ChatArea />
-    </AppShell>
+              {/* Composer (centered on welcome screen) */}
+              <div className="max-w-2xl mx-auto">
+                <Composer
+                  inputValue={inputValue}
+                  setInputValue={handleInputChange}
+                  onSendMessage={handleSendMessage}
+                  disabled={isTyping}
+                  attachedFiles={attachedFiles}
+                  onAddFile={handleAddFile}
+                  onRemoveFile={handleRemoveFile}
+                />
+              </div>
+            </div>
+
+            {/* Example Prompts */}
+            <div className="mb-12">
+              <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wide mb-4 text-center">
+                Try asking about
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {EXAMPLE_PROMPTS.map((prompt, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handlePromptClick(prompt)}
+                    className="group px-4 py-3 text-left border border-border rounded-xl hover:border-primary-500 hover:bg-primary-50 transition-all text-sm text-text-secondary hover:text-primary-600 bg-background-card"
+                  >
+                    <span className="block">{prompt}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Capabilities */}
+            <div>
+              <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wide mb-6 text-center">
+                What ChatNIL can do
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {CAPABILITIES.map((capability, index) => {
+                  const Icon = capability.icon;
+                  return (
+                    <div
+                      key={index}
+                      className="p-5 border border-border rounded-xl bg-background-card hover:border-primary-300 hover:shadow-md transition-all"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Icon className="h-5 w-5 text-primary-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-text-primary mb-1">
+                            {capability.title}
+                          </h4>
+                          <p className="text-sm text-text-tertiary">
+                            {capability.description}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Message List - scrollable area */}
+          <div className="flex-1 overflow-y-auto">
+            <MessageList
+              messages={activeChat?.messages || []}
+              isTyping={isTyping}
+              typingText={typingText}
+              isAnimatingResponse={false}
+            />
+          </div>
+          {/* Composer - fixed at bottom, always visible */}
+          <div className="flex-shrink-0 border-t border-gray-200 bg-white">
+            {/* Error message with Retry button */}
+            {errorMessage && (
+              <div className="bg-red-50 border-b border-red-200">
+                <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-red-800">{errorMessage}</span>
+                  </div>
+                  <button
+                    onClick={handleRetry}
+                    className="px-3 py-1.5 text-sm font-medium text-red-700 hover:text-red-900 hover:bg-red-100 rounded-lg transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Stop button during streaming */}
+            {isTyping && (
+              <div className="bg-orange-50 border-b border-orange-200">
+                <div className="max-w-3xl mx-auto px-4 py-2 flex items-center justify-center">
+                  <button
+                    onClick={handleStopStreaming}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-orange-300 text-orange-700 hover:bg-orange-100 rounded-lg transition-colors font-medium text-sm"
+                  >
+                    <Square className="w-4 h-4" />
+                    Stop generating
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Centered composer container */}
+            <div className="max-w-3xl mx-auto px-4 py-3">
+              <Composer
+                inputValue={inputValue}
+                setInputValue={handleInputChange}
+                onSendMessage={handleSendMessage}
+                disabled={isTyping}
+                attachedFiles={attachedFiles}
+                onAddFile={handleAddFile}
+                onRemoveFile={handleRemoveFile}
+              />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
 export default function Home() {
   const { user, isLoading } = useAuth();
+  const router = useRouter();
+
+  // Redirect agency users to their dashboard
+  useEffect(() => {
+    if (!isLoading && user) {
+      if (user.role === 'agency') {
+        console.log('🔀 Redirecting agency user to /agencies/dashboard');
+        router.push('/agencies/dashboard');
+      }
+    }
+  }, [user, isLoading, router]);
 
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Loading ChatNIL</h3>
-          <p className="text-sm text-gray-600">Please wait...</p>
+          <Loader2 className="w-12 h-12 text-primary-500 animate-spin mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-text-primary mb-2">Loading ChatNIL</h3>
+          <p className="text-sm text-text-secondary">Please wait...</p>
         </div>
       </div>
     );
   }
 
-  // Show unified homepage for non-authenticated users
-  if (!user) {
-    return <HomePage />;
+  // Don't render chat interface for agency users (they'll be redirected)
+  if (user?.role === 'agency') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-primary-500 animate-spin mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-text-primary mb-2">Redirecting...</h3>
+          <p className="text-sm text-text-secondary">Taking you to your dashboard</p>
+        </div>
+      </div>
+    );
   }
 
-  // Show chat interface for authenticated users (with onboarding gate)
-  return <ChatInterface />;
+  // Navigation is now handled by NavigationShell in layout.tsx
+  return !user ? <SplashPage /> : <ChatInterface />;
 }

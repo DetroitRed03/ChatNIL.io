@@ -1,0 +1,19 @@
+COPY THESE SECTIONS FROM YOUR MESSAGE (SQL CODE ONLY):
+
+1. From STEP 1 - Copy the CREATE TABLE and CREATE INDEX statements
+2. From STEP 2 - Copy ALL 8 INSERT statements (Core NIL Education)  
+3. From STEP 3 - Copy ALL 7 INSERT statements (Compliance)
+4. From STEP 4 - Copy ALL 7 INSERT statements (High School)
+5. From STEP 5 - Copy the ALTER TABLE statement
+6. From STEP 6 - Copy ALL INSERT statements for quiz questions
+
+DO NOT COPY:
+- Markdown headers (# symbols)
+- Emoji or special characters
+- Section titles
+- Triple backticks (```)
+- Just the SQL statements themselves
+
+THEN:
+- Paste into Supabase SQL Editor
+- Click RUN

@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { User, UserRole, AthleteProfile, ParentProfile, CoachProfile } from '@/lib/types';
+import { User, UserRole, AthleteProfile, ParentProfile, CoachProfile } from '@/types';
 import { supabase, resetSupabaseSession } from '@/lib/supabase';
 import { prepareForSignup, setSignupSession, clearRedirectStorage, isFreshSession, setDebugMode, clearAllAuthStorage } from '@/lib/auth-storage';
 import { useChatHistoryStore } from '@/lib/chat-history-store';
@@ -26,7 +26,7 @@ interface AuthContextType {
   isLoading: boolean;
   isLoadingProfile: boolean;
   isReady: boolean; // Indicates auth initialization is complete
-  login: (email: string, password: string) => Promise<{ error?: string }>;
+  login: (email: string, password: string) => Promise<{ error?: string; user?: ExtendedUser }>;
   signup: (data: SignupData) => Promise<{ error?: string }>;
   // Legacy signup for backward compatibility
   signupLegacy: (name: string, email: string, password: string) => Promise<{ error?: string }>;
@@ -107,11 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const loadUserProfile = async (userId: string, force: boolean = false) => {
+  const loadUserProfile = async (userId: string, force: boolean = false): Promise<ExtendedUser | null> => {
     // Prevent race conditions by checking if we're already loading this user
     if (!force && profileLoadingRef.current === userId) {
       console.log('🔄 Profile already loading for userId:', userId, '- skipping duplicate request');
-      return;
+      return null;
     }
 
     // Check if we're currently loading a different user and this isn't forced
@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check if this request is still relevant (user might have changed during loading)
       if (profileLoadingRef.current !== userId) {
         console.log('🚫 Profile load result obsolete for userId:', userId, '- current loading:', profileLoadingRef.current);
-        return;
+        return null;
       }
 
       if (!response.ok || !result.success) {
@@ -156,40 +156,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Clear loading state but don't throw - let the app handle gracefully
         profileLoadingRef.current = null;
         setIsLoadingProfile(false);
-        return;
+        return null;
       }
 
       const profile = result.profile;
       if (profile) {
         console.log('📋 Raw profile data from API:', profile);
 
-        const userData = {
+        // Spread all profile fields into userData for direct access
+        const userData: ExtendedUser = {
           id: profile.id,
           name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.name || 'User',
           email: profile.email,
           role: profile.role,
-          profile: profile
+          profile: profile,
+          // Phase 6B: Include school fields for direct access
+          school_created: profile.school_created,
+          profile_completion_tier: profile.profile_completion_tier,
+          home_completion_required: profile.home_completion_required,
+          school_id: profile.school_id,
+          school_name: profile.school_name,
+          home_completed_at: profile.home_completed_at,
+          // Include other commonly accessed fields
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          onboarding_completed: profile.onboarding_completed,
+          graduation_year: profile.graduation_year,
+          primary_sport: profile.primary_sport,
         };
 
         console.log('👤 Setting user state with:', userData);
         console.log('🎯 Onboarding status:', profile.onboarding_completed);
+        console.log('🏫 Phase 6B fields included:', {
+          school_created: userData.school_created,
+          profile_completion_tier: userData.profile_completion_tier,
+          home_completion_required: userData.home_completion_required,
+        });
 
         // Only set user if this is still the current request
         if (profileLoadingRef.current === userId) {
           setUser(userData);
           console.log('✅ User state has been set successfully via API');
+          return userData;
         } else {
           console.log('🚫 Skipping user state update - request obsolete');
+          return null;
         }
       } else {
         console.log('⚠️ No profile data found in API response');
         if (profileLoadingRef.current === userId) {
           setUser(null);
         }
+        return null;
       }
     } catch (error) {
       console.error('💥 Error in loadUserProfile via API:', error);
       // Don't set user to null on error - maintain current state
+      return null;
     } finally {
       // Only clear loading state if this was the current request
       if (profileLoadingRef.current === userId) {
@@ -222,17 +245,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.user) {
-        await loadUserProfile(data.user.id);
+        const userData = await loadUserProfile(data.user.id);
 
         // Track login event
         loginTimeRef.current = new Date();
-        if (user?.role) {
+        if (userData?.role) {
           trackEvent('user_login', {
             user_id: data.user.id,
-            role: user.role,
+            role: userData.role,
             login_method: 'email',
           });
         }
+
+        setIsLoading(false);
+        return { user: userData || undefined };
       }
 
       setIsLoading(false);
@@ -455,7 +481,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Load the complete profile
         console.log('📞 About to call loadUserProfile...');
-        await loadUserProfile(authData.user.id);
+        const loadedUser = await loadUserProfile(authData.user.id);
         console.log('✅ loadUserProfile completed successfully');
 
         // Track signup event
@@ -469,13 +495,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         console.log('🎉 === SIGNUP PROCESS COMPLETE ===');
         console.log('✅ User authenticated and profile created');
-        console.log('🎯 useOnboardingGate will handle redirect automatically');
-        console.log('📊 Final user state after signup:', user);
+        console.log('📊 Final user state after signup:', loadedUser);
+
+        // CRITICAL FIX: Explicit redirect for athletes to onboarding
+        // This prevents the race condition where signup() returns before useOnboardingGate mounts
+        if (data.role === 'athlete' && typeof window !== 'undefined') {
+          console.log('🎯 Redirecting new athlete to onboarding...');
+          setIsLoading(false);
+          window.location.href = '/onboarding';
+          return {};
+        }
+
+        // For agency users, redirect to agency dashboard
+        if (data.role === 'agency' && typeof window !== 'undefined') {
+          console.log('🎯 Redirecting new agency to agency dashboard...');
+          setIsLoading(false);
+          window.location.href = '/agencies/dashboard';
+          return {};
+        }
       }
 
       setIsLoading(false);
       console.log('✅ Signup function returning success (no errors)');
-      console.log('🚀 RETURNING from AuthContext.signup() - useOnboardingGate will redirect');
       return {};
     } catch (error) {
       console.error('💥 === UNEXPECTED SIGNUP ERROR ===');

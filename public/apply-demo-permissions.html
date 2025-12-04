@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Apply Demo Permissions</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <h1>Apply Demo Endpoint Permissions</h1>
+  <div id="output"></div>
+
+  <script>
+    const SUPABASE_URL = 'https://hposjqtfbcchhgcavypj.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwb3NqcXRmYmNjaGhnY2F2eXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA3NjAwMDEsImV4cCI6MjA0NjMzNjAwMX0.X2xYQHuYSLKjfTY0rqnZjqK-3W5mbnQ3HxEqDhHOXMw';
+
+    const { createClient } = supabase;
+    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const output = document.getElementById('output');
+
+    function log(msg, isError = false) {
+      const p = document.createElement('p');
+      p.textContent = msg;
+      p.style.color = isError ? 'red' : 'black';
+      output.appendChild(p);
+      console.log(msg);
+    }
+
+    async function applyPermissions() {
+      log('Starting permission grant process...');
+
+      // First, sign in as admin to get elevated privileges
+      // Note: This assumes you're already logged in or will handle auth
+
+      const statements = [
+        "GRANT ALL ON agency_campaigns TO service_role",
+        "GRANT ALL ON athlete_public_profiles TO service_role",
+        "GRANT ALL ON campaign_athlete_invites TO service_role",
+        "GRANT ALL ON agency_athlete_messages TO service_role",
+        "GRANT SELECT ON agency_campaigns TO anon, authenticated",
+        "GRANT SELECT ON athlete_public_profiles TO anon, authenticated"
+      ];
+
+      for (const stmt of statements) {
+        try {
+          log(`Executing: ${stmt}...`);
+
+          // Use the SQL endpoint
+          const { data, error } = await client.rpc('exec_sql', { sql: stmt });
+
+          if (error) {
+            log(`Error: ${error.message}`, true);
+          } else {
+            log('✓ Success');
+          }
+        } catch (err) {
+          log(`Error: ${err.message}`, true);
+        }
+      }
+
+      log('Permission grant process complete!');
+    }
+
+    applyPermissions();
+  </script>
+</body>
+</html>

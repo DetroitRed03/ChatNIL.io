@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import Sidebar from '@/components/Sidebar';
+import Sidebar from '@/components/Navigation/Sidebar';
 
 interface AppShellProps {
   children: ReactNode;
@@ -12,6 +12,18 @@ export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const [isScrollablePage, setIsScrollablePage] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(256); // Default: 256px (w-64)
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check for mobile viewport
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     // Determine if current page needs scrolling
@@ -52,7 +64,9 @@ export default function AppShell({ children }: AppShellProps) {
           setSidebarWidth(collapsed ? 48 : 256); // w-12 = 48px, w-64 = 256px
         }
       } catch (e) {
-        console.error('Error reading sidebar state:', e);
+        // Silently ignore parse errors - localStorage may have corrupted data
+        // Just use default state
+        setSidebarWidth(256); // Default to expanded
       }
     };
 
@@ -71,6 +85,9 @@ export default function AppShell({ children }: AppShellProps) {
     };
   }, []);
 
+  // On mobile, no sidebar margin needed (sidebar is hidden)
+  const effectiveSidebarWidth = isMobile ? 0 : sidebarWidth;
+
   // Chat interface: fixed height, no scrolling on container
   // Other pages: allow scrolling by removing height constraint
   const containerClasses = isScrollablePage
@@ -86,14 +103,14 @@ export default function AppShell({ children }: AppShellProps) {
       {/* Collapsible Sidebar - now fixed */}
       <Sidebar />
 
-      {/* Main Content Area - offset by sidebar width */}
+      {/* Main Content Area - offset by sidebar width (not on mobile) */}
       <div
         className={containerClasses}
         style={isScrollablePage ? {
-          marginLeft: `${sidebarWidth}px`
+          marginLeft: `${effectiveSidebarWidth}px`
         } : {
           height: '100svh',
-          marginLeft: `${sidebarWidth}px`
+          marginLeft: `${effectiveSidebarWidth}px`
         }}
       >
         <div className={mainContentClasses}>

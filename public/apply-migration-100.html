@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Apply Migration 100: Messaging Infrastructure</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1200px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    #output {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      max-height: 600px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+    .warning { color: #fbbf24; }
+    .info { color: #60a5fa; }
+    .progress {
+      background: #e5e7eb;
+      height: 8px;
+      border-radius: 4px;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    .progress-bar {
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗄️ Migration 100: Messaging Infrastructure</h1>
+    <p class="subtitle">Apply database migration for the messaging system</p>
+
+    <button id="applyBtn" onclick="applyMigration()">Apply Migration</button>
+
+    <div class="progress" id="progressContainer" style="display: none;">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script type="module">
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2ODY3MDksImV4cCI6MjA3NDI2MjcwOX0.MhwKzQoea46gY4x5NnEz5pqZGzNzJB3r9lJr-DT1cps';
+
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const output = document.getElementById('output');
+    const progressBar = document.getElementById('progressBar');
+    const progressContainer = document.getElementById('progressContainer');
+
+    function log(message, type = 'info') {
+      const line = document.createElement('div');
+      line.className = type;
+      line.textContent = message;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function updateProgress(percent) {
+      progressBar.style.width = percent + '%';
+    }
+
+    window.applyMigration = async function() {
+      const btn = document.getElementById('applyBtn');
+      btn.disabled = true;
+      output.innerHTML = '';
+      progressContainer.style.display = 'block';
+
+      log('🔄 Starting Migration 100: Messaging Infrastructure\n', 'info');
+      updateProgress(10);
+
+      try {
+        // Step 1: Create conversation_summaries view
+        log('📊 Step 1/5: Creating conversation_summaries view...', 'info');
+        const viewSQL = `
+          CREATE OR REPLACE VIEW conversation_summaries AS
+          SELECT
+            m.match_id,
+            m.match_id as conversation_id,
+            COUNT(*) as total_messages,
+            COUNT(*) FILTER (WHERE m.read_at IS NULL AND m.sender_id != auth.uid()) as unread_count,
+            MAX(m.created_at) as last_message_at,
+            (SELECT content FROM agency_athlete_messages WHERE match_id = m.match_id ORDER BY created_at DESC LIMIT 1) as last_message,
+            (SELECT sender_id FROM agency_athlete_messages WHERE match_id = m.match_id ORDER BY created_at DESC LIMIT 1) as last_sender_id,
+            ma.agency_id,
+            ma.athlete_id,
+            ma.status as match_status,
+            ma.match_score,
+            ma.tier,
+            ag.company_name as agency_name,
+            ag.logo_url as agency_logo,
+            ag.agency_type,
+            CONCAT(u_athlete.first_name, ' ', u_athlete.last_name) as athlete_name,
+            u_athlete.profile_photo_url as athlete_photo,
+            ap.sport as athlete_sport,
+            ap.school as athlete_school
+          FROM agency_athlete_messages m
+          JOIN agency_athlete_matches ma ON ma.id = m.match_id
+          LEFT JOIN agencies ag ON ag.id = ma.agency_id
+          LEFT JOIN users u_athlete ON u_athlete.id = ma.athlete_id
+          LEFT JOIN athlete_profiles ap ON ap.user_id = ma.athlete_id
+          WHERE ma.agency_id = auth.uid() OR ma.athlete_id = auth.uid()
+          GROUP BY m.match_id, ma.agency_id, ma.athlete_id, ma.status, ma.match_score, ma.tier,
+                   ag.company_name, ag.logo_url, ag.agency_type,
+                   u_athlete.first_name, u_athlete.last_name, u_athlete.profile_photo_url,
+                   ap.sport, ap.school
+          ORDER BY last_message_at DESC NULLS LAST;
+        `;
+
+        const { error: viewError } = await supabase.rpc('exec', { sql: viewSQL });
+        if (viewError && !viewError.message.includes('already exists')) {
+          log(`   ⚠️  Could not create view (may need to apply manually): ${viewError.message}`, 'warning');
+        } else {
+          log('   ✅ View created successfully', 'success');
+        }
+        updateProgress(30);
+
+        // Step 2: Create mark_messages_read function
+        log('\n📝 Step 2/5: Creating mark_messages_read function...', 'info');
+        const markReadSQL = `
+          CREATE OR REPLACE FUNCTION mark_messages_read(p_match_id UUID)
+          RETURNS TABLE (updated_count INTEGER, success BOOLEAN, error_message TEXT) AS $$
+          DECLARE
+            v_user_id UUID;
+            v_is_participant BOOLEAN;
+            v_updated_count INTEGER;
+          BEGIN
+            v_user_id := auth.uid();
+            IF v_user_id IS NULL THEN
+              RETURN QUERY SELECT 0, FALSE, 'Not authenticated';
+              RETURN;
+            END IF;
+            SELECT EXISTS(SELECT 1 FROM agency_athlete_matches WHERE id = p_match_id AND (agency_id = v_user_id OR athlete_id = v_user_id)) INTO v_is_participant;
+            IF NOT v_is_participant THEN
+              RETURN QUERY SELECT 0, FALSE, 'Not authorized';
+              RETURN;
+            END IF;
+            WITH updated AS (UPDATE agency_athlete_messages SET read_at = NOW() WHERE match_id = p_match_id AND sender_id != v_user_id AND read_at IS NULL RETURNING id)
+            SELECT COUNT(*)::INTEGER INTO v_updated_count FROM updated;
+            RETURN QUERY SELECT v_updated_count, TRUE, NULL::TEXT;
+          END;
+          $$ LANGUAGE plpgsql SECURITY DEFINER;
+        `;
+        log('   ⚠️  Functions require service role - please apply manually via Supabase SQL Editor', 'warning');
+        updateProgress(50);
+
+        // Step 3: Create get_unread_count function
+        log('\n📊 Step 3/5: Creating get_unread_count function...', 'info');
+        log('   ⚠️  Functions require service role - please apply manually via Supabase SQL Editor', 'warning');
+        updateProgress(60);
+
+        // Step 4: Create indexes
+        log('\n🔍 Step 4/5: Creating performance indexes...', 'info');
+        const indexes = [
+          'CREATE INDEX IF NOT EXISTS idx_messages_match_created ON agency_athlete_messages(match_id, created_at DESC);',
+          'CREATE INDEX IF NOT EXISTS idx_messages_unread ON agency_athlete_messages(sender_id, read_at) WHERE read_at IS NULL;',
+          'CREATE INDEX IF NOT EXISTS idx_messages_sender ON agency_athlete_messages(sender_id, created_at DESC);',
+          'CREATE INDEX IF NOT EXISTS idx_messages_match_sender_read ON agency_athlete_messages(match_id, sender_id, read_at);'
+        ];
+
+        log('   ⚠️  Indexes require service role - please apply manually', 'warning');
+        updateProgress(80);
+
+        // Step 5: Enable realtime
+        log('\n📡 Step 5/5: Enabling realtime for messages...', 'info');
+        log('   ⚠️  Realtime configuration requires Supabase dashboard access', 'warning');
+        updateProgress(90);
+
+        // Done
+        updateProgress(100);
+        log('\n' + '='.repeat(60), 'info');
+        log('\n✅ Migration process complete!', 'success');
+        log('\n⚠️  MANUAL STEPS REQUIRED:', 'warning');
+        log('1. Open Supabase SQL Editor', 'warning');
+        log('2. Copy and run the SQL from: migrations/100_messaging_infrastructure.sql', 'warning');
+        log('3. Verify the following were created:', 'warning');
+        log('   - conversation_summaries view', 'info');
+        log('   - mark_messages_read() function', 'info');
+        log('   - get_unread_count() function', 'info');
+        log('   - Performance indexes', 'info');
+        log('4. Enable Realtime for agency_athlete_messages table in Database > Replication', 'warning');
+
+      } catch (error) {
+        log('\n❌ Error: ' + error.message, 'error');
+        updateProgress(100);
+      } finally {
+        btn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

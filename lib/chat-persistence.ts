@@ -1,12 +1,39 @@
+/**
+ * @deprecated This file is deprecated and should not be used.
+ *
+ * DEPRECATION NOTICE:
+ * This ChatPersistenceService makes direct client-side database calls using createBrowserClient,
+ * which doesn't work properly with Supabase SSR authentication. This results in 401 unauthorized
+ * errors because the client-side Supabase client cannot access the auth session.
+ *
+ * REPLACEMENT:
+ * All chat persistence is now handled through API routes:
+ * - GET  /api/chat/sessions - Load user's chat sessions
+ * - POST /api/chat/sessions - Create/update chat sessions
+ * - POST /api/chat/messages - Add messages to chats
+ *
+ * The lib/chat-history-store.ts now uses these API routes directly via fetch() calls.
+ * The hooks/useChatSync.ts hook manages automatic syncing between localStorage and database.
+ *
+ * DO NOT import or use this file in new code.
+ * This file is kept only for reference and will be removed in a future update.
+ */
+
 import { createClient } from '@/lib/supabase-client';
-import { Database } from '@/lib/types';
+import { Database } from '@/types';
 import { Chat, Message } from '@/lib/chat-history-store';
 
 type ChatSession = Database['public']['Tables']['chat_sessions']['Row'];
 type ChatMessage = Database['public']['Tables']['chat_messages']['Row'];
 
+/**
+ * @deprecated Use API routes instead (see file header for details)
+ */
 export class ChatPersistenceService {
-  private supabase = createClient();
+  // Create client lazily to ensure it picks up current auth session
+  private getClient() {
+    return createClient();
+  }
 
   // Convert database chat session to local Chat format
   private dbSessionToChat(session: any, messages: ChatMessage[]): Chat {
@@ -59,8 +86,9 @@ export class ChatPersistenceService {
   // Sync local chats to database
   async syncToDatabase(chats: Chat[], userId: string): Promise<boolean> {
     try {
+      const supabase = this.getClient();
       // Get existing sessions from database
-      const { data: existingSessions, error: fetchError } = await this.supabase
+      const { data: existingSessions, error: fetchError } = await supabase
         .from('chat_sessions')
         .select('id, updated_at')
         .eq('user_id', userId);
@@ -77,7 +105,7 @@ export class ChatPersistenceService {
 
         if (existingSessionIds.has(chat.id)) {
           // Update existing session
-          const { error: updateError } = await this.supabase
+          const { error: updateError } = await supabase
             .from('chat_sessions')
             .update({
               title: session.title,
@@ -96,7 +124,7 @@ export class ChatPersistenceService {
           }
         } else {
           // Create new session
-          const { error: insertError } = await this.supabase
+          const { error: insertError } = await supabase
             .from('chat_sessions')
             .insert({
               id: session.id,
@@ -130,8 +158,9 @@ export class ChatPersistenceService {
   // Sync messages for a specific session
   private async syncMessagesForSession(sessionId: string, messages: any[], userId: string) {
     try {
+      const supabase = this.getClient();
       // Get existing messages
-      const { data: existingMessages, error: fetchError } = await this.supabase
+      const { data: existingMessages, error: fetchError } = await supabase
         .from('chat_messages')
         .select('id')
         .eq('session_id', sessionId)
@@ -153,7 +182,7 @@ export class ChatPersistenceService {
           user_id: userId
         }));
 
-        const { error: insertError } = await this.supabase
+        const { error: insertError } = await supabase
           .from('chat_messages')
           .insert(messagesToInsert);
 
@@ -169,8 +198,9 @@ export class ChatPersistenceService {
   // Load chats from database
   async loadFromDatabase(userId: string): Promise<Chat[]> {
     try {
+      const supabase = this.getClient();
       // Fetch sessions
-      const { data: sessions, error: sessionError } = await this.supabase
+      const { data: sessions, error: sessionError } = await supabase
         .from('chat_sessions')
         .select('*')
         .eq('user_id', userId)
@@ -187,7 +217,7 @@ export class ChatPersistenceService {
 
       // Fetch all messages for these sessions
       const sessionIds = sessions.map(s => s.id);
-      const { data: messages, error: messageError } = await this.supabase
+      const { data: messages, error: messageError } = await supabase
         .from('chat_messages')
         .select('*')
         .in('session_id', sessionIds)
@@ -223,10 +253,11 @@ export class ChatPersistenceService {
   // Create a new chat session in database
   async createSession(chat: Chat, userId: string): Promise<boolean> {
     try {
+      const supabase = this.getClient();
       const { session, messages } = this.chatToDbSession(chat);
 
       // Create session
-      const { error: sessionError } = await this.supabase
+      const { error: sessionError } = await supabase
         .from('chat_sessions')
         .insert({
           id: session.id,
@@ -252,7 +283,7 @@ export class ChatPersistenceService {
           user_id: userId
         }));
 
-        const { error: messageError } = await this.supabase
+        const { error: messageError } = await supabase
           .from('chat_messages')
           .insert(messagesToInsert);
 
@@ -272,7 +303,8 @@ export class ChatPersistenceService {
   // Add a message to existing session
   async addMessage(sessionId: string, message: Message, userId: string): Promise<boolean> {
     try {
-      const { error } = await this.supabase
+      const supabase = this.getClient();
+      const { error } = await supabase
         .from('chat_messages')
         .insert({
           id: message.id,
@@ -290,7 +322,7 @@ export class ChatPersistenceService {
       }
 
       // Update session timestamp
-      await this.supabase
+      await supabase
         .from('chat_sessions')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', sessionId)
@@ -306,8 +338,9 @@ export class ChatPersistenceService {
   // Delete a chat session
   async deleteSession(sessionId: string, userId: string): Promise<boolean> {
     try {
+      const supabase = this.getClient();
       // Delete messages first
-      const { error: messageError } = await this.supabase
+      const { error: messageError } = await supabase
         .from('chat_messages')
         .delete()
         .eq('session_id', sessionId)
@@ -319,7 +352,7 @@ export class ChatPersistenceService {
       }
 
       // Delete session
-      const { error: sessionError } = await this.supabase
+      const { error: sessionError } = await supabase
         .from('chat_sessions')
         .delete()
         .eq('id', sessionId)

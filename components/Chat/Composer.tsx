@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Plus, X, FileText, Image, File, Mic, MicOff } from 'lucide-react';
+import { Send, Plus, X, FileText, Image, File, Mic, MicOff, AlertTriangle } from 'lucide-react';
 
 interface UploadedFile {
   id: string;
@@ -37,8 +37,13 @@ export default function Composer({
 }: ComposerProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
+  const submitTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     // Check for speech recognition support
@@ -100,12 +105,14 @@ export default function Composer({
 
     Array.from(files).forEach(file => {
       if (file.size > maxSize) {
-        alert(`File "${file.name}" is too large. Maximum size is 50MB.`);
+        setFileError(`File "${file.name}" is too large. Maximum size is 50MB.`);
+        setTimeout(() => setFileError(null), 4000);
         return;
       }
 
       if (!allowedTypes.includes(file.type)) {
-        alert(`File type "${file.type}" is not supported.`);
+        setFileError(`File type not supported. Please use PDF, Word, text, or images.`);
+        setTimeout(() => setFileError(null), 4000);
         return;
       }
 
@@ -153,15 +160,62 @@ export default function Composer({
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleSubmit = () => {
+    // Prevent duplicate submissions
+    if (isSubmitting || disabled || isComposing) return;
+    if (!inputValue.trim() && attachedFiles.length === 0) return;
+
+    // Debounce: prevent rapid re-submission
+    if (submitTimeoutRef.current) {
+      clearTimeout(submitTimeoutRef.current);
+    }
+
+    setIsSubmitting(true);
+    onSendMessage();
+
+    // Reset submission state after delay
+    submitTimeoutRef.current = setTimeout(() => {
+      setIsSubmitting(false);
+      // Keep focus in composer after send
+      textareaRef.current?.focus();
+    }, 500);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Don't send during IME composition (for Japanese, Chinese, Korean input)
+    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
       e.preventDefault();
-      onSendMessage();
+      handleSubmit();
     }
   };
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div className="relative">
+      {/* File Error Toast */}
+      {fileError && (
+        <div className="absolute -top-14 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-2 duration-200">
+          <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-xl shadow-lg">
+            <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+            <span className="text-sm text-red-800">{fileError}</span>
+            <button
+              onClick={() => setFileError(null)}
+              className="ml-2 p-1 hover:bg-red-100 rounded-lg transition-colors"
+            >
+              <X className="w-3.5 h-3.5 text-red-600" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* File Upload Input */}
       <input
         ref={fileInputRef}
@@ -196,58 +250,66 @@ export default function Composer({
         </div>
       )}
 
-      <textarea
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyPress={handleKeyPress}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        placeholder="Message ChatNIL..."
-        className={`w-full pl-14 py-3 border border-gray-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white text-gray-900 placeholder-gray-500 shadow-lg hover:shadow-xl focus:shadow-xl transition-all text-sm ${
-          speechSupported ? 'pr-28' : 'pr-14'
-        }`}
-        rows={1}
-        style={{
-          minHeight: '48px',
-          maxHeight: '160px',
-          lineHeight: '1.5'
-        }}
-      />
-
-      {/* File Upload Button */}
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        className="absolute left-3 bottom-3 w-9 h-9 text-gray-500 hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-all flex items-center justify-center"
-      >
-        <Plus className="h-5 w-5" />
-      </button>
-
-      {/* Voice Recording Button */}
-      {speechSupported && (
+      {/* Input with buttons horizontally inside - Splash page style */}
+      <div className="relative">
+        {/* Upload button - left corner */}
         <button
-          onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
-          className={`absolute right-16 bottom-3 w-9 h-9 rounded-xl transition-all flex items-center justify-center ${
-            isRecording
-              ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse shadow-lg'
-              : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50'
-          }`}
+          onClick={() => fileInputRef.current?.click()}
+          className="absolute left-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-all flex items-center justify-center z-10"
+          aria-label="Attach file"
         >
-          {isRecording ? (
-            <MicOff className="h-5 w-5" />
-          ) : (
-            <Mic className="h-5 w-5" />
-          )}
+          <Plus className="h-5 w-5" />
         </button>
-      )}
 
-      {/* Send Button */}
-      <button
-        onClick={onSendMessage}
-        disabled={disabled || (!inputValue.trim() && attachedFiles.length === 0)}
-        className="absolute right-3 bottom-3 w-9 h-9 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl transition-all shadow-sm hover:shadow-md disabled:shadow-none flex items-center justify-center"
-      >
-        <Send className="h-5 w-5" />
-      </button>
+        {/* Textarea */}
+        <textarea
+          ref={textareaRef}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          placeholder="Message ChatNIL..."
+          disabled={disabled || isSubmitting}
+          className="w-full resize-none rounded-2xl border border-gray-300 pl-12 pr-20 py-3.5 text-base leading-relaxed shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-gray-900 placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-shadow"
+          rows={1}
+          style={{
+            minHeight: '52px',
+            maxHeight: '160px'
+          }}
+        />
+
+        {/* Voice Recording Button - right side, before send */}
+        {speechSupported && (
+          <button
+            onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
+            className={`absolute right-12 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all flex items-center justify-center z-10 ${
+              isRecording
+                ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse shadow-lg'
+                : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50'
+            }`}
+            aria-label={isRecording ? "Stop recording" : "Start voice input"}
+          >
+            {isRecording ? (
+              <MicOff className="h-5 w-5" />
+            ) : (
+              <Mic className="h-5 w-5" />
+            )}
+          </button>
+        )}
+
+        {/* Send Button - right corner */}
+        <button
+          onClick={handleSubmit}
+          disabled={disabled || isSubmitting || isComposing || (!inputValue.trim() && attachedFiles.length === 0)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-40 text-white rounded-xl transition-all shadow-sm hover:shadow-md flex items-center justify-center z-10"
+          aria-label="Send message"
+        >
+          <Send className="h-5 w-5" />
+        </button>
+      </div>
     </div>
   );
 }

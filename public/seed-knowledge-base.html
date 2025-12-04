@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seed Knowledge Base - ChatNIL</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      border-bottom: 3px solid #4CAF50;
+      padding-bottom: 10px;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    #output {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      max-height: 600px;
+      overflow-y: auto;
+      margin-top: 20px;
+      white-space: pre-wrap;
+    }
+    .success { color: #4CAF50; }
+    .error { color: #f44336; }
+    .info { color: #2196F3; }
+    .warning { color: #ff9800; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🌟 Seed Knowledge Base</h1>
+    <p>This tool populates the knowledge_base table with state NIL rules and quiz content.</p>
+
+    <div>
+      <button onclick="seedStateRules()" id="btnStates">Seed State NIL Rules (50 states)</button>
+      <button onclick="seedQuizContent()" id="btnQuiz">Seed Quiz Content (200+ questions)</button>
+      <button onclick="seedAll()" id="btnAll">Seed Everything</button>
+      <button onclick="clearOutput()" style="background: #666;">Clear Output</button>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://lqskiijspudfocddhkqs.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1OTMzNTQsImV4cCI6MjA3NzE2OTM1NH0.z8mqmrIOMHHvTxFEjUIqcLOUlQk-__UXjQYypCVfIFQ';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTU5MzM1NCwiZXhwIjoyMDc3MTY5MzU0fQ.LpapT51choXCwTfpbE81AIc4JC9QOO0FpOtqUxZ405I';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const span = document.createElement('span');
+      span.className = type;
+      span.textContent = message + '\n';
+      output.appendChild(span);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function clearOutput() {
+      document.getElementById('output').innerHTML = '';
+    }
+
+    async function seedStateRules() {
+      const btn = document.getElementById('btnStates');
+      btn.disabled = true;
+
+      try {
+        log('🌟 Seeding State NIL Rules...', 'info');
+        log('');
+
+        // 1. Fetch state rules
+        log('📥 Fetching state NIL rules...');
+        const { data: stateRules, error: fetchError } = await supabase
+          .from('state_nil_rules')
+          .select('*')
+          .order('state_code');
+
+        if (fetchError) {
+          log(`❌ Error fetching state rules: ${fetchError.message}`, 'error');
+          return;
+        }
+
+        log(`✅ Found ${stateRules.length} state NIL rules`, 'success');
+        log('');
+
+        // 2. Check existing
+        log('🔍 Checking for existing entries...');
+        const { data: existing } = await supabase
+          .from('knowledge_base')
+          .select('category')
+          .eq('content_type', 'state_law');
+
+        const existingCodes = new Set((existing || []).map(e => e.category));
+        log(`   Found ${existingCodes.size} existing state entries`);
+        log('');
+
+        // 3. Prepare new entries
+        const newEntries = [];
+
+        for (const rule of stateRules) {
+          if (existingCodes.has(rule.state_code)) continue;
+
+          const content = `# ${rule.state_name} NIL Rules
+
+**State Code**: ${rule.state_code}
+
+## NIL Permission
+- **Allows NIL Deals**: ${rule.allows_nil ? 'Yes' : 'No'}
+- **Effective Date**: ${rule.effective_date || 'Not specified'}
+
+## Requirements
+- **Requires School Approval**: ${rule.requires_school_approval ? 'Yes' : 'No'}
+- **Requires Disclosure**: ${rule.requires_disclosure ? 'Yes' : 'No'}
+- **Allows Recruiting Inducements**: ${rule.allows_recruiting_inducements ? 'Yes' : 'No'}
+
+## Additional Information
+${rule.notes || 'No additional notes available.'}
+
+---
+**Category**: State Compliance
+**State**: ${rule.state_name}`;
+
+          newEntries.push({
+            title: `${rule.state_name} NIL Compliance Rules`,
+            content: content,
+            content_type: 'state_law',
+            category: rule.state_code,
+            tags: [
+              'state-compliance',
+              'nil-rules',
+              rule.state_code.toLowerCase(),
+              rule.state_name.toLowerCase().replace(/\s+/g, '-'),
+              rule.allows_nil ? 'nil-allowed' : 'nil-restricted'
+            ],
+            metadata: {
+              state_code: rule.state_code,
+              state_name: rule.state_name,
+              allows_nil: rule.allows_nil,
+              requires_school_approval: rule.requires_school_approval,
+              requires_disclosure: rule.requires_disclosure,
+              allows_recruiting_inducements: rule.allows_recruiting_inducements,
+              effective_date: rule.effective_date,
+              source: 'state_nil_rules'
+            },
+            target_roles: ['athlete', 'parent', 'agency', 'school'],
+            is_published: true,
+            is_featured: false
+          });
+        }
+
+        if (newEntries.length === 0) {
+          log('✨ All state NIL rules already seeded!', 'success');
+          log(`   Total in knowledge base: ${existingCodes.size} states`);
+          return;
+        }
+
+        // 4. Insert in batches
+        log(`📤 Inserting ${newEntries.length} new state rules...`);
+        const batchSize = 10;
+        let inserted = 0;
+
+        for (let i = 0; i < newEntries.length; i += batchSize) {
+          const batch = newEntries.slice(i, i + batchSize);
+
+          const { data, error } = await supabase
+            .from('knowledge_base')
+            .insert(batch)
+            .select('category');
+
+          if (error) {
+            log(`   ❌ Batch ${Math.floor(i/batchSize) + 1} failed: ${error.message}`, 'error');
+          } else {
+            const codes = data.map(d => d.category).join(', ');
+            log(`   ✅ Batch ${Math.floor(i/batchSize) + 1}: ${codes}`, 'success');
+            inserted += batch.length;
+          }
+        }
+
+        log('');
+        log('═'.repeat(60));
+        log('📊 SEEDING SUMMARY', 'info');
+        log('═'.repeat(60));
+        log(`Total states:           ${stateRules.length}`);
+        log(`Already in KB:          ${existingCodes.size}`);
+        log(`Newly inserted:         ${inserted}`, 'success');
+        log(`Final KB count:         ${existingCodes.size + inserted}`, 'success');
+        log('═'.repeat(60));
+        log('');
+        log('✨ State NIL rules seeding complete!', 'success');
+
+      } catch (error) {
+        log(`❌ Unexpected error: ${error.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function seedQuizContent() {
+      const btn = document.getElementById('btnQuiz');
+      btn.disabled = true;
+
+      try {
+        log('🎓 Seeding Quiz Content...', 'info');
+        log('');
+
+        // 1. Fetch quiz questions
+        log('📥 Fetching quiz questions...');
+        const { data: quizQuestions, error: fetchError } = await supabase
+          .from('quiz_questions')
+          .select('*')
+          .order('category')
+          .order('difficulty');
+
+        if (fetchError) {
+          log(`❌ Error fetching quiz questions: ${fetchError.message}`, 'error');
+          return;
+        }
+
+        log(`✅ Found ${quizQuestions.length} quiz questions`, 'success');
+        log('');
+
+        // 2. Clear existing quiz content
+        log('🗑️  Clearing existing quiz content...');
+        const { error: deleteError } = await supabase
+          .from('knowledge_base')
+          .delete()
+          .eq('content_type', 'educational_article')
+          .like('category', 'quiz_%');
+
+        if (deleteError) {
+          log(`   ⚠️  Warning: ${deleteError.message}`, 'warning');
+        } else {
+          log('   ✅ Cleared existing quiz entries', 'success');
+        }
+        log('');
+
+        // 3. Prepare new entries
+        const newEntries = [];
+
+        for (const q of quizQuestions) {
+          const content = `# ${q.category.replace(/_/g, ' ').toUpperCase()} - Quiz Question
+
+## Question
+${q.question_text}
+
+## Answer Options
+${q.options.map((opt, idx) => `${String.fromCharCode(65 + idx)}. ${opt}`).join('\n')}
+
+## Correct Answer
+${String.fromCharCode(65 + q.correct_answer)}. ${q.options[q.correct_answer]}
+
+## Explanation
+${q.explanation || 'No explanation provided.'}`;
+
+          newEntries.push({
+            title: q.question_text.substring(0, 100),
+            content: content,
+            content_type: 'educational_article',
+            category: `quiz_${q.category}`,
+            tags: ['quiz', 'education', q.category, `difficulty-${q.difficulty}`],
+            metadata: {
+              quiz_category: q.category,
+              difficulty: q.difficulty,
+              points: q.points || 10,
+              correct_answer: q.correct_answer
+            },
+            target_roles: ['athlete', 'parent'],
+            difficulty_level: q.difficulty,
+            is_published: true
+          });
+        }
+
+        // 4. Insert in batches
+        log(`📤 Inserting ${newEntries.length} quiz questions...`);
+        const batchSize = 20;
+        let inserted = 0;
+
+        for (let i = 0; i < newEntries.length; i += batchSize) {
+          const batch = newEntries.slice(i, i + batchSize);
+
+          const { error } = await supabase
+            .from('knowledge_base')
+            .insert(batch);
+
+          if (error) {
+            log(`   ❌ Batch ${Math.floor(i/batchSize) + 1} failed: ${error.message}`, 'error');
+          } else {
+            log(`   ✅ Batch ${Math.floor(i/batchSize) + 1}: Inserted ${batch.length} questions`, 'success');
+            inserted += batch.length;
+          }
+        }
+
+        log('');
+        log('═'.repeat(60));
+        log('📊 SEEDING SUMMARY', 'info');
+        log('═'.repeat(60));
+        log(`Total questions:        ${quizQuestions.length}`);
+        log(`Successfully inserted:  ${inserted}`, 'success');
+        log('═'.repeat(60));
+        log('');
+        log('✨ Quiz content seeding complete!', 'success');
+
+      } catch (error) {
+        log(`❌ Unexpected error: ${error.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function seedAll() {
+      document.getElementById('btnAll').disabled = true;
+      await seedStateRules();
+      log('');
+      log('─'.repeat(60));
+      log('');
+      await seedQuizContent();
+
+      log('');
+      log('🎉 ALL SEEDING COMPLETE!', 'success');
+      document.getElementById('btnAll').disabled = false;
+    }
+  </script>
+</body>
+</html>

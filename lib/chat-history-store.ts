@@ -1,7 +1,50 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Message } from './chat-store';
 import { chatPersistence } from './chat-persistence';
+
+// Message type definition (previously in chat-store.ts)
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  attachments?: Array<{
+    type: 'image' | 'file';
+    url: string;
+    name?: string;
+    mimeType?: string;
+  }>;
+  isStreaming?: boolean;
+}
+
+// Debounce helper for localStorage saves during streaming
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+let pendingSave: { name: string; value: any } | null = null;
+
+const debouncedSave = (name: string, value: any) => {
+  pendingSave = { name, value };
+
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
+
+  saveTimeout = setTimeout(() => {
+    if (pendingSave) {
+      try {
+        const stringValue = typeof pendingSave.value === 'string'
+          ? pendingSave.value
+          : JSON.stringify(pendingSave.value);
+        localStorage.setItem(pendingSave.name, stringValue);
+        // Reduced logging - only log occasionally, not every save
+        console.log('💾 ChatStore: Debounced save complete');
+      } catch (error) {
+        console.error('❌ ChatStore: Error in debounced save:', error);
+      }
+      pendingSave = null;
+    }
+    saveTimeout = null;
+  }, 500); // 500ms debounce - saves at most twice per second
+};
 
 export type RoleContext = 'athlete' | 'parent' | 'coach';
 
@@ -37,11 +80,14 @@ export interface ChatHistoryState {
   setActiveChat: (chatId: string) => void;
   addMessageToChat: (chatId: string, message: Message) => void;
   updateChatMessage: (chatId: string, messageId: string, updates: Partial<Message>) => void;
+  editMessage: (chatId: string, messageId: string, newContent: string) => Promise<void>;
+  deleteMessage: (chatId: string, messageId: string) => Promise<void>;
+  regenerateMessage: (chatId: string, messageId: string) => Promise<void>;
   setChatDraft: (chatId: string, draft: string) => void;
   setDraft: (draft: string | null) => void;
   getDraft: () => string;
-  renameChat: (chatId: string, title: string) => void;
-  deleteChat: (chatId: string) => void;
+  renameChat: (chatId: string, title: string) => Promise<void>;
+  deleteChat: (chatId: string) => Promise<void>;
   togglePin: (chatId: string) => void;
   archiveChat: (chatId: string) => void;
   clearChatMessages: (chatId: string) => void;
@@ -146,12 +192,72 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
         newChat.messages = [firstMessage];
         newChat.title = makeTitle(content);
 
+        const tempChatId = newChat.id; // Store original temp ID
+
         set((state) => ({
           chats: [newChat, ...state.chats],
           activeChatId: newChat.id,
           globalDraft: ''
         }));
-        return newChat.id;
+
+        // SYNC TO DATABASE IMMEDIATELY
+        const { currentUserId } = get();
+        if (currentUserId) {
+          (async () => {
+            try {
+              const response = await fetch('/api/chat/sessions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: currentUserId,
+                  title: newChat.title
+                })
+              });
+
+              if (response.ok) {
+                const { session } = await response.json();
+
+                // Get current chat state with any additional messages that may have been added
+                const currentState = get();
+                const currentChat = currentState.chats.find(c => c.id === tempChatId);
+                const allMessages = currentChat?.messages || [firstMessage];
+
+                // Update local chat with DB UUID
+                set((state) => ({
+                  chats: state.chats.map(chat =>
+                    chat.id === tempChatId ? { ...chat, id: session.id } : chat
+                  ),
+                  activeChatId: state.activeChatId === tempChatId ? session.id : state.activeChatId
+                }));
+
+                // Now sync ALL messages to the database (not just the first one)
+                // This handles the case where AI response was added while waiting for session creation
+                for (const msg of allMessages) {
+                  if (msg.content && msg.content.trim()) {
+                    try {
+                      await fetch('/api/chat/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          userId: currentUserId,
+                          session_id: session.id,
+                          content: msg.content,
+                          role: msg.role
+                        })
+                      });
+                    } catch (msgErr) {
+                      // Silent fail - localStorage has the data
+                    }
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('❌ Failed to create session in database:', err);
+            }
+          })();
+        }
+
+        return tempChatId;
       },
 
       setActiveChat: (chatId) => {
@@ -183,6 +289,30 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
 
           return { chats: sortChats(chats) };
         });
+
+        // Sync just this message to database in the background (non-blocking)
+        const { currentUserId } = get();
+        if (currentUserId) {
+          // Check if this chat is from DB (UUID format)
+          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId);
+
+          if (isUUID) {
+            // Chat exists in DB, just add the new message (silent)
+            fetch('/api/chat/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: currentUserId,
+                session_id: chatId,
+                role: message.role,
+                content: message.content
+              })
+            }).catch(() => {
+              // Silent fail - localStorage has the data
+            });
+          }
+          // For local temp IDs, messages sync when session is created in createChatWithFirstMessage
+        }
       },
 
       updateChatMessage: (chatId, messageId, updates) => {
@@ -200,6 +330,208 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
             return chat;
           })
         }));
+      },
+
+      editMessage: async (chatId, messageId, newContent) => {
+        const userId = get().currentUserId;
+        if (!userId) {
+          throw new Error('User not authenticated');
+        }
+
+        // 🚀 OPTIMISTIC UPDATE: Save old content for rollback
+        const currentChat = get().chats.find(c => c.id === chatId);
+        const currentMessage = currentChat?.messages.find(m => m.id === messageId);
+        const oldContent = currentMessage?.content;
+
+        if (!currentMessage) {
+          console.warn('⚠️ Message not found for editing:', messageId);
+          return;
+        }
+
+        console.log('💾 Optimistically updating message:', messageId);
+
+        // Update UI immediately
+        set((state) => ({
+          chats: state.chats.map(chat => {
+            if (chat.id === chatId) {
+              return {
+                ...chat,
+                messages: chat.messages.map(msg =>
+                  msg.id === messageId ? { ...msg, content: newContent } : msg
+                ),
+                updatedAt: new Date()
+              };
+            }
+            return chat;
+          })
+        }));
+
+        console.log('✅ Message updated optimistically');
+
+        // Sync to database (for DB-backed chats)
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId);
+        if (isUUID) {
+          try {
+            console.log('📤 Syncing message edit to database');
+            const response = await fetch(`/api/chat/sessions/${chatId}/messages`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId,
+                messageId,
+                content: newContent
+              })
+            });
+
+            if (!response.ok) {
+              console.error('❌ Failed to update message in database, rolling back');
+
+              // 🔄 ROLLBACK: Restore old content
+              set((state) => ({
+                chats: state.chats.map(chat => {
+                  if (chat.id === chatId) {
+                    return {
+                      ...chat,
+                      messages: chat.messages.map(msg =>
+                        msg.id === messageId ? { ...msg, content: oldContent || '' } : msg
+                      ),
+                      updatedAt: new Date()
+                    };
+                  }
+                  return chat;
+                })
+              }));
+              throw new Error('Failed to update message');
+            }
+
+            console.log('✅ Message edit synced to database');
+          } catch (error) {
+            console.error('💥 Error updating message:', error);
+            throw error;
+          }
+        }
+      },
+
+      deleteMessage: async (chatId, messageId) => {
+        const userId = get().currentUserId;
+        if (!userId) {
+          throw new Error('User not authenticated');
+        }
+
+        // 🚀 OPTIMISTIC UPDATE: Save message for rollback
+        const currentChat = get().chats.find(c => c.id === chatId);
+        const deletedMessage = currentChat?.messages.find(m => m.id === messageId);
+        const messageIndex = currentChat?.messages.findIndex(m => m.id === messageId) ?? -1;
+
+        if (!deletedMessage) {
+          console.warn('⚠️ Message not found for deletion:', messageId);
+          return;
+        }
+
+        console.log('💾 Optimistically deleting message:', messageId);
+
+        // Remove from UI immediately
+        set((state) => ({
+          chats: state.chats.map(chat => {
+            if (chat.id === chatId) {
+              return {
+                ...chat,
+                messages: chat.messages.filter(msg => msg.id !== messageId),
+                updatedAt: new Date()
+              };
+            }
+            return chat;
+          })
+        }));
+
+        console.log('✅ Message deleted optimistically');
+
+        // Sync to database (for DB-backed chats)
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId);
+        if (isUUID) {
+          try {
+            console.log('📤 Syncing message deletion to database');
+            const response = await fetch(`/api/chat/sessions/${chatId}/messages/${messageId}?userId=${userId}`, {
+              method: 'DELETE',
+            });
+
+            if (!response.ok) {
+              console.error('❌ Failed to delete message from database, rolling back');
+
+              // 🔄 ROLLBACK: Restore deleted message at original position
+              set((state) => ({
+                chats: state.chats.map(chat => {
+                  if (chat.id === chatId) {
+                    const messages = [...chat.messages];
+                    messages.splice(messageIndex, 0, deletedMessage);
+                    return {
+                      ...chat,
+                      messages,
+                      updatedAt: new Date()
+                    };
+                  }
+                  return chat;
+                })
+              }));
+              throw new Error('Failed to delete message');
+            }
+
+            console.log('✅ Message deletion synced to database');
+          } catch (error) {
+            console.error('💥 Error deleting message:', error);
+            throw error;
+          }
+        }
+      },
+
+      regenerateMessage: async (chatId, messageId) => {
+        const userId = get().currentUserId;
+        if (!userId) {
+          throw new Error('User not authenticated');
+        }
+
+        // Find the message to regenerate and the previous user message
+        const currentChat = get().chats.find(c => c.id === chatId);
+        const messageIndex = currentChat?.messages.findIndex(m => m.id === messageId) ?? -1;
+        const messageToRegenerate = currentChat?.messages[messageIndex];
+
+        if (!messageToRegenerate || messageToRegenerate.role !== 'assistant') {
+          console.warn('⚠️ Can only regenerate assistant messages');
+          return;
+        }
+
+        // Find the previous user message (the prompt for this AI response)
+        const userMessageIndex = messageIndex - 1;
+        const userMessage = currentChat?.messages[userMessageIndex];
+
+        if (!userMessage || userMessage.role !== 'user') {
+          console.warn('⚠️ No user message found before assistant message');
+          return;
+        }
+
+        console.log('🔄 Regenerating message:', messageId);
+
+        // 🚀 OPTIMISTIC UPDATE: Mark message as regenerating
+        set((state) => ({
+          chats: state.chats.map(chat => {
+            if (chat.id === chatId) {
+              return {
+                ...chat,
+                messages: chat.messages.map((msg, idx) =>
+                  idx === messageIndex ? { ...msg, content: '', isStreaming: true } : msg
+                ),
+                updatedAt: new Date()
+              };
+            }
+            return chat;
+          })
+        }));
+
+        // This function needs to be called from the UI component that has access to the sendMessage function
+        // For now, we'll just mark it as ready for regeneration
+        // The actual API call should be handled in the chat interface component
+
+        console.log('✅ Message marked for regeneration');
       },
 
       setChatDraft: (chatId, draft) => {
@@ -234,15 +566,80 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
         return activeChat?.draft || '';
       },
 
-      renameChat: (chatId, title) => {
+      renameChat: async (chatId, title) => {
+        const trimmedTitle = title.trim() || 'Untitled Chat';
+        const userId = get().currentUserId;
+        console.log('🔄 renameChat called:', { chatId, userId, oldTitle: get().chats.find(c => c.id === chatId)?.title, newTitle: trimmedTitle });
+
+        // 🚀 OPTIMISTIC UPDATE: Update UI immediately for instant feedback
+        const oldTitle = get().chats.find(c => c.id === chatId)?.title;
+        console.log('💾 Optimistically updating local state with new title:', trimmedTitle);
         set((state) => ({
           chats: state.chats.map(chat =>
-            chat.id === chatId ? { ...chat, title: title.trim() || 'Untitled Chat', updatedAt: new Date() } : chat
+            chat.id === chatId ? { ...chat, title: trimmedTitle, updatedAt: new Date() } : chat
           )
         }));
+        console.log('✅ Local state updated optimistically');
+
+        // Then sync to database in the background
+        if (userId) {
+          try {
+            console.log('📤 Syncing rename to database (background)');
+            const response = await fetch(`/api/chat/sessions/rename`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              cache: 'no-store',
+              body: JSON.stringify({ chatId, title: trimmedTitle, userId })
+            });
+
+            console.log('📡 POST response status:', response.status);
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('❌ Failed to rename chat in database, rolling back:', errorText);
+
+              // 🔄 ROLLBACK: Restore old title on failure
+              set((state) => ({
+                chats: state.chats.map(chat =>
+                  chat.id === chatId ? { ...chat, title: oldTitle || 'Untitled Chat', updatedAt: new Date() } : chat
+                )
+              }));
+              throw new Error('Failed to rename chat');
+            } else {
+              const result = await response.json();
+              console.log('✅ Successfully synced rename to database:', chatId, result);
+            }
+          } catch (error) {
+            console.error('💥 Error renaming chat in database:', error);
+            throw error;
+          }
+        } else {
+          console.warn('⚠️ No userId available, skipping database sync for rename');
+        }
       },
 
-      deleteChat: (chatId) => {
+      deleteChat: async (chatId) => {
+        const userId = get().currentUserId;
+
+        if (!userId) {
+          throw new Error('User not authenticated');
+        }
+
+        // 🚀 OPTIMISTIC UPDATE: Save current state for potential rollback
+        const currentState = get();
+        const deletedChat = currentState.chats.find(c => c.id === chatId);
+        const oldActiveChatId = currentState.activeChatId;
+
+        if (!deletedChat) {
+          console.warn('⚠️ Chat not found for deletion:', chatId);
+          return;
+        }
+
+        console.log('💾 Optimistically deleting chat from UI:', chatId);
+
+        // Remove from UI immediately
         set((state) => {
           const newChats = state.chats.filter(chat => chat.id !== chatId);
           const newActiveChatId = state.activeChatId === chatId
@@ -254,18 +651,59 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
             activeChatId: newActiveChatId
           };
         });
+
+        console.log('✅ Chat removed from UI optimistically');
+
+        // Then delete from database in the background
+        try {
+          console.log('📤 Syncing delete to database (background)');
+          const response = await fetch(`/api/chat/sessions/${chatId}?userId=${userId}`, {
+            method: 'DELETE',
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Failed to delete chat from database, rolling back:', errorText);
+
+            // 🔄 ROLLBACK: Restore deleted chat on failure
+            set((state) => ({
+              chats: sortChats([...state.chats, deletedChat]),
+              activeChatId: oldActiveChatId
+            }));
+            throw new Error('Failed to delete chat. Please try again.');
+          }
+
+          console.log('✅ Successfully synced delete to database:', chatId);
+        } catch (error) {
+          console.error('💥 Error deleting chat from database:', error);
+          throw error;
+        }
       },
 
       togglePin: (chatId) => {
+        // 🚀 OPTIMISTIC UPDATE: Update UI immediately
+        const currentChat = get().chats.find(c => c.id === chatId);
+        const newPinnedState = currentChat ? !currentChat.isPinned : false;
+
+        console.log('💾 Optimistically toggling pin for chat:', chatId, 'to', newPinnedState);
         set((state) => {
           const chats = state.chats.map(chat =>
-            chat.id === chatId ? { ...chat, isPinned: !chat.isPinned, updatedAt: new Date() } : chat
+            chat.id === chatId ? { ...chat, isPinned: newPinnedState, updatedAt: new Date() } : chat
           );
           return { chats: sortChats(chats) };
         });
+
+        // Sync to database in the background (if needed in future)
+        // For now, pin state is local-only, but this can be extended
+        console.log('✅ Pin toggled optimistically');
       },
 
       archiveChat: (chatId) => {
+        // 🚀 OPTIMISTIC UPDATE: Update UI immediately
+        console.log('💾 Optimistically archiving chat:', chatId);
+
+        const oldActiveChatId = get().activeChatId;
+
         set((state) => {
           const chats = state.chats.map(chat =>
             chat.id === chatId ? { ...chat, isArchived: true, updatedAt: new Date() } : chat
@@ -279,6 +717,11 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
             activeChatId: newActiveChatId
           };
         });
+
+        console.log('✅ Chat archived optimistically');
+
+        // Sync to database in the background (if needed in future)
+        // For now, archive state is local-only, but this can be extended
       },
 
       clearChatMessages: (chatId) => {
@@ -435,17 +878,71 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
         }
       },
 
-      // Database sync methods
+      // Database sync methods - NOW USING API ROUTES
       loadChatsFromDatabase: async (userId: string) => {
         try {
-          const dbChats = await chatPersistence.loadFromDatabase(userId);
-          if (dbChats.length > 0) {
+          console.log('📥 Loading chats from API for user:', userId);
+
+          const response = await fetch(`/api/chat/sessions?userId=${userId}`);
+
+          console.log('📡 Response status:', response.status);
+          console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+
+          if (!response.ok) {
+            if (response.status === 401) {
+              console.warn('⚠️ User not authenticated - keeping current state to avoid loop');
+              // DON'T clear currentUserId here - it creates an infinite loop
+              return false;
+            }
+            throw new Error(`Failed to fetch sessions: ${response.status}`);
+          }
+
+          const { sessions } = await response.json();
+
+          if (sessions && sessions.length > 0) {
+            // Also fetch messages for all sessions
+            console.log('📥 Loading messages from API...');
+            const messagesResponse = await fetch(`/api/chat/messages?userId=${userId}`);
+
+            let messagesBySession: Record<string, any[]> = {};
+            if (messagesResponse.ok) {
+              const { messages } = await messagesResponse.json();
+              // Group messages by session_id
+              messagesBySession = (messages || []).reduce((acc: Record<string, any[]>, msg: any) => {
+                if (!acc[msg.session_id]) acc[msg.session_id] = [];
+                acc[msg.session_id].push(msg);
+                return acc;
+              }, {});
+              console.log(`📨 Loaded ${messages?.length || 0} total messages`);
+            }
+
+            // Convert API format to store format with messages
+            const dbChats: Chat[] = sessions.map((session: any) => ({
+              id: session.id,
+              title: session.title,
+              messages: (messagesBySession[session.id] || []).map((msg: any) => ({
+                id: msg.id,
+                role: msg.role,
+                content: msg.content,
+                timestamp: msg.created_at ? new Date(msg.created_at) : new Date()
+              })),
+              roleContext: 'athlete' as RoleContext,
+              isPinned: false,
+              isArchived: false,
+              createdAt: new Date(session.created_at),
+              updatedAt: new Date(session.updated_at),
+              draft: ''
+            }));
+
             set({ chats: dbChats });
+            console.log(`✅ Loaded ${dbChats.length} chats with messages from API`);
             return true;
           }
-          return false;
+
+          console.log('ℹ️ No chats found in database');
+          return true;
         } catch (error) {
-          console.error('Failed to load chats from database:', error);
+          console.error('❌ Failed to load chats from API:', error);
           return false;
         }
       },
@@ -454,11 +951,60 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
         try {
           const { chats } = get();
           const chat = chats.find(c => c.id === chatId);
-          if (!chat) return false;
+          if (!chat) {
+            console.warn('⚠️ Chat not found for sync:', chatId);
+            return false;
+          }
 
-          return await chatPersistence.createSession(chat, userId);
+          // Check if this chat uses a UUID format (loaded from DB) vs our local format
+          // UUIDs are 36 chars with dashes, our local IDs are different
+          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chatId);
+
+          if (isUUID) {
+            console.log('⏭️ Skipping sync for chat loaded from DB:', chatId);
+            // This chat was loaded from the database, so it already exists there
+            // Just sync any NEW messages that aren't in the DB yet
+            // For now, skip entirely to avoid duplicates
+            return true;
+          }
+
+          console.log('📤 Syncing NEW chat to API:', chatId);
+
+          // Create new session in database
+          const response = await fetch('/api/chat/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId,
+              title: chat.title,
+              role_context: chat.roleContext
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to create session: ${response.status}`);
+          }
+
+          const { session } = await response.json();
+
+          // Sync all messages for this chat
+          for (const message of chat.messages) {
+            await fetch('/api/chat/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId,
+                session_id: session.id,
+                role: message.role,
+                content: message.content
+              })
+            });
+          }
+
+          console.log('✅ New chat synced to API:', chatId);
+          return true;
         } catch (error) {
-          console.error('Failed to sync chat to database:', error);
+          console.error('❌ Failed to sync chat to API:', error);
           return false;
         }
       },
@@ -466,9 +1012,18 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
       syncAllToDatabase: async (userId: string) => {
         try {
           const { chats } = get();
-          return await chatPersistence.syncToDatabase(chats, userId);
+          console.log(`📤 Syncing ${chats.length} chats to API`);
+
+          let successCount = 0;
+          for (const chat of chats) {
+            const synced = await get().syncChatToDatabase(chat.id, userId);
+            if (synced) successCount++;
+          }
+
+          console.log(`✅ Synced ${successCount}/${chats.length} chats to API`);
+          return successCount === chats.length;
         } catch (error) {
-          console.error('Failed to sync all chats to database:', error);
+          console.error('❌ Failed to sync all chats to API:', error);
           return false;
         }
       },
@@ -499,72 +1054,110 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
     {
       name: 'chatnil-chat-history-v3', // Stable storage key
       storage: {
-        getItem: (name: string) => {
-          console.log('📖 ChatStore: Reading from localStorage key:', name);
-
-          // Debug: Check all chat-related keys in localStorage
-          if (typeof window !== 'undefined') {
-            const allKeys = Object.keys(localStorage).filter(k => k.includes('chat') || k.includes('nil'));
-            console.log('🔍 All chat-related localStorage keys:', allKeys);
-            allKeys.forEach(key => {
-              const size = localStorage.getItem(key)?.length || 0;
-              console.log(`  - ${key}: ${(size / 1024).toFixed(2)}KB`);
-            });
-          }
-
+        getItem: (name: string): any => {
           const data = localStorage.getItem(name);
           if (!data) {
-            console.log('⚠️ ChatStore: No data found for key:', name);
+            return null;
+          }
+
+          // Validate that we have actual JSON string, not "[object Object]"
+          if (data === '[object Object]') {
+            console.error('❌ ChatStore: Found corrupted data "[object Object]", clearing...');
+            localStorage.removeItem(name);
             return null;
           }
 
           try {
             const parsed = JSON.parse(data);
-            const { currentUserId } = get();
 
-            console.log('📊 ChatStore: Loaded data:', {
-              currentUserId,
-              chatsCount: parsed.state?.chats?.length || 0,
-              activeChatId: parsed.state?.activeChatId,
-              hasState: !!parsed.state
-            });
+            // VALIDATE DATA STRUCTURE to prevent app crashes
+            if (!parsed || typeof parsed !== 'object') {
+              console.error('❌ ChatStore: Invalid data structure (not an object), clearing...');
+              localStorage.removeItem(name);
+              return null;
+            }
+
+            if (!parsed.state || typeof parsed.state !== 'object') {
+              console.error('❌ ChatStore: Invalid data structure (no state object), clearing...');
+              localStorage.removeItem(name);
+              return null;
+            }
+
+            if (!Array.isArray(parsed.state.chats)) {
+              console.error('❌ ChatStore: Invalid data structure (chats not an array), clearing...');
+              localStorage.removeItem(name);
+              return null;
+            }
+
+            // VALIDATE EACH CHAT to prevent corrupted chats from breaking the app
+            for (let i = 0; i < parsed.state.chats.length; i++) {
+              const chat = parsed.state.chats[i];
+
+              if (!chat || typeof chat !== 'object') {
+                console.error(`❌ ChatStore: Corrupted chat at index ${i}, clearing all data...`);
+                localStorage.removeItem(name);
+                return null;
+              }
+
+              if (!chat.id || typeof chat.id !== 'string') {
+                console.error(`❌ ChatStore: Chat at index ${i} missing valid id, clearing all data...`);
+                localStorage.removeItem(name);
+                return null;
+              }
+
+              if (!chat.title || typeof chat.title !== 'string') {
+                console.error(`❌ ChatStore: Chat ${chat.id} missing valid title, clearing all data...`);
+                localStorage.removeItem(name);
+                return null;
+              }
+
+              if (!Array.isArray(chat.messages)) {
+                console.error(`❌ ChatStore: Chat ${chat.id} has invalid messages array, clearing all data...`);
+                localStorage.removeItem(name);
+                return null;
+              }
+
+              // VALIDATE EACH MESSAGE within the chat
+              for (let j = 0; j < chat.messages.length; j++) {
+                const msg = chat.messages[j];
+
+                if (!msg || typeof msg !== 'object') {
+                  console.error(`❌ ChatStore: Chat ${chat.id} has corrupted message at index ${j}, clearing all data...`);
+                  localStorage.removeItem(name);
+                  return null;
+                }
+
+                if (!msg.id || !msg.content || !msg.role) {
+                  console.error(`❌ ChatStore: Chat ${chat.id} message ${j} missing required fields, clearing all data...`);
+                  localStorage.removeItem(name);
+                  return null;
+                }
+
+                if (msg.role !== 'user' && msg.role !== 'assistant') {
+                  console.error(`❌ ChatStore: Chat ${chat.id} message ${j} has invalid role "${msg.role}", clearing all data...`);
+                  localStorage.removeItem(name);
+                  return null;
+                }
+              }
+            }
 
             // Don't filter chats on read - let all chats load, we'll filter in getFilteredChats if needed
             // This prevents losing data when user ID changes
-            return JSON.stringify(parsed);
+            return data; // Return the raw string, don't re-stringify
           } catch (error) {
             console.error('❌ ChatStore: Error parsing stored data:', error);
-            return data;
+            console.error('❌ Corrupted data:', data?.substring(0, 100));
+            // Clear corrupted data
+            localStorage.removeItem(name);
+            return null;
           }
         },
-        setItem: (name: string, value: string) => {
-          try {
-            const parsed = JSON.parse(value);
-            const { currentUserId } = get();
-
-            console.log('💾 ChatStore: Saving to localStorage:', {
-              key: name,
-              currentUserId,
-              chatsCount: parsed.state?.chats?.length || 0,
-              activeChatId: parsed.state?.activeChatId
-            });
-
-            // Add user ID to chats if user is set (for future filtering)
-            if (currentUserId && parsed.state?.chats) {
-              parsed.state.chats = parsed.state.chats.map((chat: any) => ({
-                ...chat,
-                userId: chat.userId || currentUserId
-              }));
-            }
-
-            localStorage.setItem(name, JSON.stringify(parsed));
-            console.log('✅ ChatStore: Successfully saved to localStorage');
-          } catch (error) {
-            console.error('❌ ChatStore: Error storing data:', error);
-            localStorage.setItem(name, value);
-          }
+        setItem: (name: string, value: any) => {
+          // Use debounced save to prevent excessive writes during streaming
+          debouncedSave(name, value);
         },
         removeItem: (name: string) => {
+          console.log('🗑️ ChatStore: Removing localStorage key:', name);
           localStorage.removeItem(name);
         }
       },
@@ -594,16 +1187,7 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
         };
       },
       onRehydrateStorage: () => (state) => {
-        console.log('🔄 ChatStore: Rehydrating state from localStorage');
-
         if (state?.chats) {
-          console.log('📊 ChatStore: Rehydrated state:', {
-            chatsCount: state.chats.length,
-            activeChatId: state.activeChatId,
-            currentUserId: state.currentUserId,
-            chatTitles: state.chats.map(c => c.title).slice(0, 5)
-          });
-
           // Convert string dates back to Date objects
           state.chats = state.chats.map(chat => ({
             ...chat,
@@ -622,13 +1206,8 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
             if (!activeChat || activeChat.isArchived) {
               const firstActiveChat = state.chats.find(chat => !chat.isArchived);
               state.activeChatId = firstActiveChat?.id || null;
-              console.log('🔄 ChatStore: Active chat adjusted to:', state.activeChatId);
             }
           }
-
-          console.log('✅ ChatStore: Rehydration complete');
-        } else {
-          console.log('⚠️ ChatStore: No chats found in rehydrated state');
         }
       }
     }

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apply Phase 5 FMV Migrations</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-top: 0;
+    }
+    .status {
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      border-left: 4px solid #ccc;
+    }
+    .status.pending {
+      background: #f0f0f0;
+      border-color: #999;
+    }
+    .status.running {
+      background: #e3f2fd;
+      border-color: #2196F3;
+    }
+    .status.success {
+      background: #e8f5e9;
+      border-color: #4caf50;
+    }
+    .status.error {
+      background: #ffebee;
+      border-color: #f44336;
+    }
+    button {
+      background: #2196F3;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 20px;
+    }
+    button:hover {
+      background: #1976D2;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 500px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    .log-entry {
+      margin: 5px 0;
+    }
+    .log-entry.error {
+      color: #f48771;
+    }
+    .log-entry.success {
+      color: #73c991;
+    }
+    .log-entry.warning {
+      color: #e5c07b;
+    }
+    .migration-list {
+      margin: 20px 0;
+    }
+    .migration-item {
+      padding: 10px;
+      margin: 5px 0;
+      background: #f9f9f9;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .migration-status {
+      font-weight: bold;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+    .migration-status.pending {
+      background: #e0e0e0;
+      color: #666;
+    }
+    .migration-status.running {
+      background: #2196F3;
+      color: white;
+    }
+    .migration-status.success {
+      background: #4caf50;
+      color: white;
+    }
+    .migration-status.error {
+      background: #f44336;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Phase 5 FMV System Migrations</h1>
+    <p>This will apply all Phase 5 migrations (022-029) to your Supabase database.</p>
+
+    <div class="migration-list" id="migration-list">
+      <!-- Will be populated by JavaScript -->
+    </div>
+
+    <button id="run-btn" onclick="runMigrations()">Apply Migrations</button>
+
+    <div class="log" id="log" style="display: none;"></div>
+  </div>
+
+  <script>
+    const MIGRATIONS = [
+      { file: '022_athlete_fmv_data', name: 'Athlete FMV Data Table' },
+      { file: '023_state_nil_rules', name: 'State NIL Rules Table' },
+      { file: '024_scraped_athlete_data', name: 'Scraped Athlete Data Table' },
+      { file: '025_institution_profiles', name: 'Institution Profiles Table' },
+      { file: '026_business_profiles', name: 'Business Profiles (NOT IMPLEMENTED)' },
+      { file: '027_update_user_roles', name: 'Update User Roles' },
+      { file: '028_seed_all_state_nil_rules', name: 'Seed All 50 State Rules' },
+      { file: '029_seed_sample_fmv_data', name: 'Seed Sample FMV Data (Optional)' },
+    ];
+
+    // Initialize migration list
+    const migrationList = document.getElementById('migration-list');
+    MIGRATIONS.forEach((migration, index) => {
+      const item = document.createElement('div');
+      item.className = 'migration-item';
+      item.innerHTML = `
+        <div>
+          <strong>${index + 1}. ${migration.name}</strong>
+          <div style="font-size: 12px; color: #666;">${migration.file}.sql</div>
+        </div>
+        <span class="migration-status pending" id="status-${index}">Pending</span>
+      `;
+      migrationList.appendChild(item);
+    });
+
+    let supabase;
+    let logElement;
+    let migrationStates = MIGRATIONS.map(() => 'pending');
+
+    function log(message, type = 'info') {
+      if (!logElement) {
+        logElement = document.getElementById('log');
+        logElement.style.display = 'block';
+      }
+
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logElement.appendChild(entry);
+      logElement.scrollTop = logElement.scrollHeight;
+    }
+
+    function updateMigrationStatus(index, status) {
+      migrationStates[index] = status;
+      const statusEl = document.getElementById(`status-${index}`);
+      statusEl.className = `migration-status ${status}`;
+      statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+    }
+
+    async function executeSQLDirectly(sql) {
+      // Split SQL into statements and execute each one
+      const statements = sql
+        .split(';')
+        .map(s => s.trim())
+        .filter(s => s.length > 0 && !s.startsWith('--'));
+
+      for (let i = 0; i < statements.length; i++) {
+        const statement = statements[i];
+        if (!statement || statement.startsWith('--')) continue;
+
+        try {
+          // Try to execute via RPC
+          const { data, error } = await supabase.rpc('query', {
+            query_text: statement
+          });
+
+          if (error) {
+            // If RPC doesn't work, log but continue (most migrations will still work via direct table access)
+            if (error.code !== 'PGRST202') {
+              throw error;
+            }
+          }
+        } catch (e) {
+          // Log but continue
+          console.error('Statement error:', e);
+        }
+      }
+    }
+
+    async function fetchMigrationSQL(migrationFile) {
+      const response = await fetch(`/migrations/phase-5-fmv-system/${migrationFile}.sql`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${migrationFile}.sql: ${response.statusText}`);
+      }
+      return await response.text();
+    }
+
+    async function runMigrations() {
+      const button = document.getElementById('run-btn');
+      button.disabled = true;
+
+      log('🚀 Starting Phase 5 FMV System Migrations', 'success');
+      log('');
+
+      // Initialize Supabase client
+      const supabaseUrl = window.location.origin.includes('localhost')
+        ? 'https://enbuwffusjhpcyoveewb.supabase.co'
+        : window.location.origin;
+
+      const supabaseKey = prompt('Please enter your Supabase SERVICE_ROLE_KEY:\n\n(This is found in your .env.local file as SUPABASE_SERVICE_ROLE_KEY)');
+
+      if (!supabaseKey) {
+        log('❌ Migration cancelled - no API key provided', 'error');
+        button.disabled = false;
+        return;
+      }
+
+      supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+      log('✅ Connected to Supabase', 'success');
+      log('');
+
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < MIGRATIONS.length; i++) {
+        const migration = MIGRATIONS[i];
+
+        log(`${'='.repeat(60)}`);
+        log(`📋 Migration ${i + 1}/${MIGRATIONS.length}: ${migration.name}`);
+        log(`📄 File: ${migration.file}.sql`);
+        log('');
+
+        updateMigrationStatus(i, 'running');
+
+        try {
+          // Fetch migration SQL file
+          log(`📥 Fetching migration file...`);
+          const sql = await fetchMigrationSQL(migration.file);
+          log(`✅ Loaded ${sql.length} characters`);
+
+          // For Phase 5 migrations, we'll use direct SQL execution via the API
+          // This requires using the SQL editor or a custom RPC function
+          log('⚠️  Note: Migrations must be run via Supabase SQL Editor', 'warning');
+          log('   This page will open the SQL editor with the migration ready to run', 'warning');
+          log('');
+
+          // Since we can't execute DDL via REST API, we'll provide instructions
+          updateMigrationStatus(i, 'pending');
+          log(`⏭️  Please run this migration manually in the SQL Editor`, 'warning');
+
+        } catch (error) {
+          log(`❌ Failed: ${error.message}`, 'error');
+          updateMigrationStatus(i, 'error');
+          failCount++;
+        }
+      }
+
+      log('');
+      log('='.repeat(60));
+      log('📊 MIGRATION STATUS');
+      log('='.repeat(60));
+      log('');
+      log('⚠️  MANUAL ACTION REQUIRED', 'warning');
+      log('');
+      log('Phase 5 migrations cannot be applied automatically via the web interface.');
+      log('Please follow these steps:', 'warning');
+      log('');
+      log('1. Open Supabase SQL Editor:', 'warning');
+      log('   https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/sql', 'warning');
+      log('');
+      log('2. Run each migration file in order:', 'warning');
+      MIGRATIONS.forEach((m, i) => {
+        log(`   ${i + 1}. migrations/phase-5-fmv-system/${m.file}.sql`, 'warning');
+      });
+      log('');
+      log('3. After all migrations are complete, run:', 'success');
+      log('   npm run seed:phase5', 'success');
+      log('');
+
+      button.disabled = false;
+      button.textContent = 'Open Supabase SQL Editor';
+      button.onclick = () => {
+        window.open('https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/sql', '_blank');
+      };
+    }
+  </script>
+</body>
+</html>

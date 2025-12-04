@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Badge } from '@/lib/types';
+import { motion } from 'framer-motion';
+import { Badge } from '@/types';
 import { getBadgeRarityColor } from '@/lib/badges';
 import { Trophy, X, Sparkles, Award, Zap } from 'lucide-react';
 
@@ -129,12 +130,22 @@ export default function BadgeUnlockModal({
 
             {/* Badge Icon */}
             <div className="flex justify-center mb-4">
-              <div className={`
-                relative w-24 h-24 rounded-full flex items-center justify-center
-                ${rarityColors.bg} ${rarityColors.border} border-4
-                shadow-lg ${rarityColors.glow}
-                animate-bounce
-              `}>
+              <motion.div
+                className={`
+                  relative w-24 h-24 rounded-full flex items-center justify-center
+                  ${rarityColors.bg} ${rarityColors.border} border-4
+                  shadow-lg ${rarityColors.glow}
+                `}
+                animate={{
+                  boxShadow: [
+                    '0 0 25px rgba(251, 191, 36, 0.6)',
+                    '0 0 40px rgba(251, 191, 36, 0.9)',
+                    '0 0 25px rgba(251, 191, 36, 0.6)',
+                  ],
+                  scale: [1, 1.05, 1],
+                }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
                 <Trophy className={`w-12 h-12 ${rarityColors.text}`} />
 
                 {/* Points Badge */}
@@ -145,7 +156,7 @@ export default function BadgeUnlockModal({
                     </span>
                   </div>
                 )}
-              </div>
+              </motion.div>
             </div>
 
             {/* Badge Info */}

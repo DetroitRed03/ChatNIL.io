@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Apply Migration 100: Views and Functions Only</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: monospace;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+    }
+    button {
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    button:hover {
+      background: #005a9e;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    #output {
+      background: #0e0e0e;
+      padding: 15px;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+    .info { color: #60a5fa; }
+  </style>
+</head>
+<body>
+  <h1>🗄️ Migration 100: Views and Functions</h1>
+  <p>This will create the missing database views and functions for the agency dashboard.</p>
+
+  <button id="applyBtn">Apply Views and Functions</button>
+
+  <div id="output"></div>
+
+  <script type="module">
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2ODY3MDksImV4cCI6MjA3NDI2MjcwOX0.MhwKzQoea46gY4x5NnEz5pqZGzNzJB3r9lJr-DT1cps';
+
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const output = document.getElementById('output');
+
+    function log(message, type = 'info') {
+      const line = document.createElement('div');
+      line.className = type;
+      line.textContent = message;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    document.getElementById('applyBtn').addEventListener('click', async function() {
+      const btn = this;
+      btn.disabled = true;
+      output.innerHTML = '';
+
+      log('🔄 Applying Migration 100: Views and Functions\\n', 'info');
+      log('⚠️  IMPORTANT: This must be run via Supabase SQL Editor\\n', 'error');
+      log('📋 INSTRUCTIONS:', 'info');
+      log('1. Open Supabase Dashboard > SQL Editor', 'info');
+      log('2. Create a new query', 'info');
+      log('3. Copy the SQL below', 'info');
+      log('4. Paste and run it in SQL Editor\\n', 'info');
+      log('='.repeat(80) + '\\n', 'info');
+
+      const viewsSQL = `-- ============================================================================
+-- VIEW: agency_dashboard_stats
+-- ============================================================================
+CREATE OR REPLACE VIEW public.agency_dashboard_stats AS
+SELECT
+  c.agency_id,
+
+  -- Campaign counts
+  COUNT(DISTINCT c.id) as total_campaigns,
+  COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'active') as active_campaigns,
+  COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'pending') as pending_campaigns,
+
+  -- Athlete counts
+  COUNT(DISTINCT ca.athlete_id) as total_athletes,
+  COUNT(DISTINCT ca.athlete_id) FILTER (WHERE ca.status = 'active') as active_athletes,
+
+  -- Budget stats
+  COALESCE(SUM(c.total_budget), 0) as total_budget,
+  COALESCE(SUM(c.spent_budget), 0) as spent_budget,
+  COALESCE(SUM(c.total_budget) - SUM(c.spent_budget), 0) as remaining_budget,
+
+  -- Performance stats
+  COALESCE(SUM(c.total_impressions), 0) as total_impressions,
+  COALESCE(SUM(c.total_engagement), 0) as total_engagement,
+  CASE
+    WHEN SUM(c.total_impressions) > 0
+    THEN (SUM(c.total_engagement)::NUMERIC / SUM(c.total_impressions)::NUMERIC * 100)
+    ELSE 0
+  END as avg_engagement_rate,
+
+  -- ROI calculation
+  CASE
+    WHEN SUM(c.spent_budget) > 0
+    THEN ((SUM(c.total_engagement)::NUMERIC / SUM(c.spent_budget)::NUMERIC) * 100)
+    ELSE 0
+  END as roi_percentage
+
+FROM public.campaigns c
+LEFT JOIN public.campaign_athletes ca ON ca.campaign_id = c.id
+WHERE c.agency_id = auth.uid()
+GROUP BY c.agency_id;
+
+GRANT SELECT ON public.agency_dashboard_stats TO authenticated;
+
+-- ============================================================================
+-- VIEW: campaign_performance_detail
+-- ============================================================================
+CREATE OR REPLACE VIEW public.campaign_performance_detail AS
+SELECT
+  c.id,
+  c.agency_id,
+  c.name,
+  c.status,
+  c.total_budget,
+  c.spent_budget,
+  c.start_date,
+  c.end_date,
+
+  -- Athlete count
+  COUNT(DISTINCT ca.athlete_id) as athletes_count,
+
+  -- Performance metrics
+  COALESCE(SUM(ca.impressions), 0) as total_impressions,
+  COALESCE(SUM(ca.engagement), 0) as total_engagement,
+  CASE
+    WHEN SUM(ca.impressions) > 0
+    THEN (SUM(ca.engagement)::NUMERIC / SUM(ca.impressions)::NUMERIC * 100)
+    ELSE 0
+  END as engagement_rate,
+
+  -- Deliverables progress
+  COALESCE(SUM(ca.completed_deliverables), 0) as completed_deliverables,
+  COALESCE(SUM(ca.total_deliverables), 0) as total_deliverables,
+  CASE
+    WHEN SUM(ca.total_deliverables) > 0
+    THEN (SUM(ca.completed_deliverables)::NUMERIC / SUM(ca.total_deliverables)::NUMERIC * 100)
+    ELSE 0
+  END as deliverables_progress,
+
+  c.created_at,
+  c.updated_at
+
+FROM public.campaigns c
+LEFT JOIN public.campaign_athletes ca ON ca.campaign_id = c.id
+GROUP BY c.id, c.agency_id, c.name, c.status, c.total_budget, c.spent_budget,
+         c.start_date, c.end_date, c.created_at, c.updated_at;
+
+GRANT SELECT ON public.campaign_performance_detail TO authenticated;
+
+-- ============================================================================
+-- VIEW: agency_athlete_roster
+-- ============================================================================
+CREATE OR REPLACE VIEW public.agency_athlete_roster AS
+SELECT
+  c.agency_id,
+  ca.athlete_id,
+  u.email,
+
+  -- Campaign participation
+  COUNT(DISTINCT ca.campaign_id) as total_campaigns,
+  COUNT(DISTINCT ca.campaign_id) FILTER (WHERE ca.status = 'active') as active_campaigns,
+
+  -- Performance metrics
+  COALESCE(SUM(ca.impressions), 0) as total_impressions,
+  COALESCE(SUM(ca.engagement), 0) as total_engagement,
+  CASE
+    WHEN SUM(ca.impressions) > 0
+    THEN (SUM(ca.engagement)::NUMERIC / SUM(ca.impressions)::NUMERIC * 100)
+    ELSE 0
+  END as engagement_rate,
+
+  -- FMV data
+  MAX(fmv.fmv_score) as fmv_score,
+  MAX(fmv.fmv_tier) as fmv_tier,
+
+  -- Most recent activity
+  MAX(ca.updated_at) as last_activity
+
+FROM public.campaigns c
+JOIN public.campaign_athletes ca ON ca.campaign_id = c.id
+JOIN auth.users u ON u.id = ca.athlete_id
+LEFT JOIN public.athlete_fmv_data fmv ON fmv.athlete_id = ca.athlete_id
+
+GROUP BY c.agency_id, ca.athlete_id, u.email;
+
+GRANT SELECT ON public.agency_athlete_roster TO authenticated;
+
+-- ============================================================================
+-- FUNCTION: get_agency_dashboard_stats
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.get_agency_dashboard_stats(p_agency_id UUID)
+RETURNS TABLE (
+  total_campaigns BIGINT,
+  active_campaigns BIGINT,
+  pending_campaigns BIGINT,
+  total_athletes BIGINT,
+  active_athletes BIGINT,
+  total_budget NUMERIC,
+  spent_budget NUMERIC,
+  remaining_budget NUMERIC,
+  total_impressions BIGINT,
+  total_engagement BIGINT,
+  avg_engagement_rate NUMERIC,
+  roi_percentage NUMERIC
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    COUNT(DISTINCT c.id) as total_campaigns,
+    COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'active') as active_campaigns,
+    COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'pending') as pending_campaigns,
+    COUNT(DISTINCT ca.athlete_id) as total_athletes,
+    COUNT(DISTINCT ca.athlete_id) FILTER (WHERE ca.status = 'active') as active_athletes,
+    COALESCE(SUM(c.total_budget), 0) as total_budget,
+    COALESCE(SUM(c.spent_budget), 0) as spent_budget,
+    COALESCE(SUM(c.total_budget) - SUM(c.spent_budget), 0) as remaining_budget,
+    COALESCE(SUM(c.total_impressions), 0) as total_impressions,
+    COALESCE(SUM(c.total_engagement), 0) as total_engagement,
+    CASE
+      WHEN SUM(c.total_impressions) > 0
+      THEN (SUM(c.total_engagement)::NUMERIC / SUM(c.total_impressions)::NUMERIC * 100)
+      ELSE 0
+    END as avg_engagement_rate,
+    CASE
+      WHEN SUM(c.spent_budget) > 0
+      THEN ((SUM(c.total_engagement)::NUMERIC / SUM(c.spent_budget)::NUMERIC) * 100)
+      ELSE 0
+    END as roi_percentage
+  FROM public.campaigns c
+  LEFT JOIN public.campaign_athletes ca ON ca.campaign_id = c.id
+  WHERE c.agency_id = p_agency_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;`;
+
+      log(viewsSQL, 'info');
+      log('\\n' + '='.repeat(80) + '\\n', 'info');
+      log('✅ SQL ready to copy!', 'success');
+      log('⚠️  Remember to run this in Supabase SQL Editor', 'error');
+
+      // Try to copy to clipboard
+      try {
+        await navigator.clipboard.writeText(viewsSQL);
+        log('\\n📋 SQL copied to clipboard!', 'success');
+      } catch (e) {
+        log('\\n⚠️  Could not copy to clipboard, please copy manually', 'error');
+      }
+
+      btn.disabled = false;
+    });
+  </script>
+</body>
+</html>

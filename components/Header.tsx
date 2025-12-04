@@ -4,8 +4,10 @@ import { MessageSquare, User, ChevronDown, Settings, LogOut, LayoutDashboard, Ta
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserRole } from '@/lib/types';
+import { UserRole } from '@/types';
 import AuthModal from './AuthModal';
+import { Avatar } from '@/components/ui/Avatar';
+import { MatchNotificationsBell } from '@/components/notifications/MatchNotificationsBell';
 
 export default function Header() {
   const { user, login, signup, logout } = useAuth();
@@ -109,6 +111,8 @@ export default function Header() {
   const handleLogout = async () => {
     await logout();
     setShowUserMenu(false);
+    // Redirect to home page after logout
+    router.push('/');
   };
 
   return (
@@ -147,18 +151,19 @@ export default function Header() {
                   onClick={() => setAuthModal({ isOpen: true, mode: 'login' })}
                   className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-50"
                 >
-                  Log in
+                  Welcome Back
                 </button>
                 <button
                   onClick={() => setAuthModal({ isOpen: true, mode: 'signup' })}
-                  className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-orange-500 text-white rounded-lg sm:rounded-xl hover:bg-orange-600 transition-colors shadow-sm hover:shadow-md"
+                  className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-primary-500 text-white rounded-lg sm:rounded-xl hover:bg-primary-600 transition-colors shadow-sm hover:shadow-md"
                 >
-                  Sign up
+                  Get Started
                 </button>
               </>
             ) : (
               <>
-                {/* Logged in - Show user menu */}
+                {/* Logged in - Show notifications bell and user menu */}
+                <MatchNotificationsBell className="hidden sm:block" />
                 <div className="relative">
                   <button
                     onClick={() => {
@@ -166,21 +171,18 @@ export default function Header() {
                       setShowUserMenu(!showUserMenu);
                     }}
                     className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 rounded-lg sm:rounded-xl hover:bg-gray-50 transition-colors"
+                    aria-label="User menu"
+                    aria-expanded={showUserMenu}
+                    aria-haspopup="true"
                   >
-                    <div className="w-7 h-7 sm:w-9 sm:h-9 bg-orange-500 rounded-lg sm:rounded-xl flex items-center justify-center shadow-sm overflow-hidden">
-                      {(user.profile as any)?.profile_image_url ? (
-                        <img
-                          src={(user.profile as any).profile_image_url}
-                          alt="Profile"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-xs sm:text-sm font-medium text-white">
-                          {user.name.charAt(0).toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600" />
+                    <Avatar
+                      src={(user.profile as any)?.profile_photo_url}
+                      alt={`${user.name}'s profile`}
+                      fallback={user.name}
+                      size="sm"
+                      className="w-7 h-7 sm:w-9 sm:h-9"
+                    />
+                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600" aria-hidden="true" />
                   </button>
 
                   {/* Dropdown Menu */}

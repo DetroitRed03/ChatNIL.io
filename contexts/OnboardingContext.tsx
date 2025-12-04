@@ -1,10 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import { UserRole } from '@/lib/types';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, ReactNode } from 'react';
+import { UserRole } from '@/types';
 import { OnboardingState, OnboardingData, calculateProfileCompletionPercentage } from '@/lib/onboarding-types';
 import {
   getStepsForRole,
+  getOnboardingFlow,
   getNextStepIndex,
   getPreviousStepIndex,
   validateStepData,
@@ -37,7 +38,10 @@ type OnboardingAction =
   | { type: 'START_ONBOARDING' }
   | { type: 'COMPLETE_ONBOARDING' }
   | { type: 'RESET_ONBOARDING' }
-  | { type: 'RESTORE_STATE'; payload: Partial<OnboardingState> };
+  | { type: 'RESTORE_STATE'; payload: Partial<OnboardingState> }
+  | { type: 'SET_MODE'; payload: 'standard' | 'completion' }
+  | { type: 'SET_SKIP_STEPS'; payload: string[] }
+  | { type: 'SET_PREFILL_DATA'; payload: Record<string, any> };
 
 // Initial state
 const initialState: OnboardingState = {
@@ -48,6 +52,10 @@ const initialState: OnboardingState = {
   isLoading: false,
   hasStarted: false,
   profileCompletionPercentage: 0,
+  // Phase 6B: Two-tier onboarding
+  mode: 'standard',
+  skipSteps: [],
+  prefilledData: {},
 };
 
 // Reducer
@@ -65,7 +73,7 @@ function onboardingReducer(state: OnboardingState, action: OnboardingAction): On
     case 'NEXT_STEP':
       if (!state.role) return state;
 
-      const steps = getStepsForRole(state.role);
+      const steps = getOnboardingFlow(state.role, state.mode || 'standard');
       const nextIndex = getNextStepIndex(state.role, state.currentStepIndex);
       const currentStepId = steps[state.currentStepIndex]?.id;
 
@@ -101,7 +109,7 @@ function onboardingReducer(state: OnboardingState, action: OnboardingAction): On
     case 'SKIP_STEP':
       if (!state.role) return state;
 
-      const skipSteps = getStepsForRole(state.role);
+      const skipSteps = getOnboardingFlow(state.role, state.mode || 'standard');
       const skipNextIndex = getNextStepIndex(state.role, state.currentStepIndex);
       const skipFinalStepIndex = skipNextIndex !== null ? skipNextIndex : state.currentStepIndex + 1;
 
@@ -127,7 +135,7 @@ function onboardingReducer(state: OnboardingState, action: OnboardingAction): On
 
     case 'GOTO_STEP':
       if (!state.role) return state;
-      const roleSteps = getStepsForRole(state.role);
+      const roleSteps = getOnboardingFlow(state.role, state.mode || 'standard');
       if (action.payload < 0 || action.payload >= roleSteps.length) return state;
 
       return {
@@ -175,6 +183,25 @@ function onboardingReducer(state: OnboardingState, action: OnboardingAction): On
         ...action.payload,
       };
 
+    case 'SET_MODE':
+      return {
+        ...state,
+        mode: action.payload,
+      };
+
+    case 'SET_SKIP_STEPS':
+      return {
+        ...state,
+        skipSteps: action.payload,
+      };
+
+    case 'SET_PREFILL_DATA':
+      return {
+        ...state,
+        prefilledData: action.payload,
+        formData: { ...state.formData, ...action.payload }, // Merge prefilled data into form data
+      };
+
     default:
       return state;
   }
@@ -197,6 +224,10 @@ interface OnboardingContextType {
   validateCurrentStep: (data: any) => { success: boolean; errors?: any };
   saveProgress: () => void;
   restoreProgress: () => void;
+  // Phase 6B: Two-tier onboarding methods
+  setMode: (mode: 'standard' | 'completion') => void;
+  setSkipSteps: (steps: string[]) => void;
+  setPrefillData: (data: Record<string, any>) => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
@@ -283,24 +314,32 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
     // Validate current step data if provided
     if (data) {
-      const steps = getStepsForRole(state.role);
+      const steps = getOnboardingFlow(state.role, state.mode || 'standard');
       const currentStep = steps[state.currentStepIndex];
 
       console.log('✅ Validating step data for step:', currentStep?.id);
       console.log('📝 Data to validate:', data);
+      console.log('🔍 Current step has validation?', !!currentStep?.validation);
 
       if (currentStep) {
-        const validation = validateStepData(state.role, currentStep.id, data);
-        if (!validation.success) {
-          console.log('❌ Step validation failed:', validation.errors);
+        try {
+          const validation = validateStepData(state.role, currentStep.id, data);
+          console.log('📊 Validation result:', validation);
+
+          if (!validation.success) {
+            console.error('❌ Step validation failed:', validation.errors);
+            return false;
+          }
+          console.log('✅ Step validation passed');
+        } catch (error) {
+          console.error('💥 Validation threw error:', error);
           return false;
         }
-        console.log('✅ Step validation passed');
       }
     }
 
     // Check if we're on the final step
-    const steps = getStepsForRole(state.role);
+    const steps = getOnboardingFlow(state.role, state.mode || 'standard');
     const isOnFinalStep = state.currentStepIndex === steps.length - 1;
 
     console.log('🎯 Step analysis:', {
@@ -320,11 +359,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       trackEvent('onboarding_step_completed', {
         user_id: user.id,
         role: state.role,
-        step_id: currentStep?.id || 'unknown',
         step_index: state.currentStepIndex,
-        total_steps: steps.length,
-        profile_completion_percentage: state.profileCompletionPercentage,
-      });
+        step_name: currentStep?.id || 'unknown',
+      } as any);
     }
 
     dispatch({ type: 'NEXT_STEP', payload: data });
@@ -404,8 +441,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       trackEvent('onboarding_started', {
         user_id: user.id,
         role: state.role,
-        timestamp: new Date().toISOString(),
-      });
+      } as any);
     }
   };
 
@@ -507,7 +543,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
             profile_completion_percentage: state.profileCompletionPercentage,
             total_steps_completed: state.completedSteps.length,
             timestamp: new Date().toISOString(),
-          });
+          } as any);
         }
 
         // Refresh user profile to sync latest onboarding data
@@ -636,7 +672,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const validateCurrentStep = (data: any) => {
     if (!state.role) return { success: false, errors: 'No role selected' };
 
-    const steps = getStepsForRole(state.role);
+    const steps = getOnboardingFlow(state.role, state.mode || 'standard');
     const currentStep = steps[state.currentStepIndex];
 
     if (!currentStep) return { success: false, errors: 'Invalid step' };
@@ -674,6 +710,19 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Phase 6B: Two-tier onboarding methods (memoized to prevent infinite loops)
+  const setMode = useCallback((mode: 'standard' | 'completion') => {
+    dispatch({ type: 'SET_MODE', payload: mode });
+  }, []);
+
+  const setSkipSteps = useCallback((steps: string[]) => {
+    dispatch({ type: 'SET_SKIP_STEPS', payload: steps });
+  }, []);
+
+  const setPrefillData = useCallback((data: Record<string, any>) => {
+    dispatch({ type: 'SET_PREFILL_DATA', payload: data });
+  }, []);
+
   const value: OnboardingContextType = {
     state,
     setRole,
@@ -690,6 +739,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     validateCurrentStep,
     saveProgress,
     restoreProgress,
+    // Phase 6B methods
+    setMode,
+    setSkipSteps,
+    setPrefillData,
   };
 
   return (

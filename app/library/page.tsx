@@ -1,10 +1,10 @@
+import { AthleteOnlyGuard } from '@/components/guards/AthleteOnlyGuard';
 import Library from '@/components/Library';
-import AppShell from '@/components/Chat/AppShell';
 
 export default function LibraryPage() {
   return (
-    <AppShell>
+    <AthleteOnlyGuard>
       <Library />
-    </AppShell>
+    </AthleteOnlyGuard>
   );
 }

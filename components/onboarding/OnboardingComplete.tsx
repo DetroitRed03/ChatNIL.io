@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { CheckCircle, Trophy, Users, UserCheck, ArrowRight, Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
-import { UserRole, Badge } from '@/lib/types';
+import { UserRole, Badge } from '@/types';
 import OnboardingHeader from './OnboardingHeader';
 import BadgeUnlockModal from '@/components/badges/BadgeUnlockModal';
 import { supabase } from '@/lib/supabase';
@@ -67,7 +67,8 @@ export default function OnboardingComplete({
   const [earnedBadge, setEarnedBadge] = useState<Badge | null>(null);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
 
-  const config = roleConfig[role];
+  const roleKey = role as keyof typeof roleConfig;
+  const config = roleConfig[roleKey] || roleConfig.athlete;
   const IconComponent = config.icon;
 
   // Fetch the onboarding completion badge when component mounts
@@ -184,11 +185,6 @@ export default function OnboardingComplete({
         const athleteChild = formData.athleteFirstName || 'your athlete';
         return `${parentName}, you're equipped to support ${athleteChild}'s NIL journey!`;
 
-      case 'coach':
-        const coachName = formData.firstName || 'Coach';
-        const institution = formData.institutionName || 'your institution';
-        return `${coachName}, you're prepared to guide athletes at ${institution}!`;
-
       default:
         return 'You\'re all set!';
     }
@@ -304,26 +300,6 @@ export default function OnboardingComplete({
                 <div>
                   <span className="text-gray-500">Sport:</span>
                   <div className="font-medium">{formData.primarySport}</div>
-                </div>
-              </>
-            )}
-            {role === 'coach' && (
-              <>
-                <div>
-                  <span className="text-gray-500">Name:</span>
-                  <div className="font-medium">{formData.firstName} {formData.lastName}</div>
-                </div>
-                <div>
-                  <span className="text-gray-500">Title:</span>
-                  <div className="font-medium">{formData.title}</div>
-                </div>
-                <div>
-                  <span className="text-gray-500">Institution:</span>
-                  <div className="font-medium">{formData.institutionName}</div>
-                </div>
-                <div>
-                  <span className="text-gray-500">Sport:</span>
-                  <div className="font-medium">{formData.sport}</div>
                 </div>
               </>
             )}

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Apply Reconsider Migration</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+    .status { padding: 15px; margin: 10px 0; border-radius: 8px; }
+    .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    button { background: #ff6b35; color: white; padding: 15px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+    button:hover { background: #e55a2b; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    pre { background: #f4f4f4; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 12px; }
+    h1 { color: #333; }
+    .sql-box { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 8px; margin: 20px 0; }
+    .sql-box code { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Apply Reconsider Feature Migration</h1>
+
+  <p>This migration adds the <code>response_history</code> and <code>responded_at</code> columns needed for the reconsider feature.</p>
+
+  <div class="sql-box">
+    <code>-- Migration SQL to be applied:
+
+-- Add response_history column to agency_athlete_matches
+ALTER TABLE agency_athlete_matches
+ADD COLUMN IF NOT EXISTS response_history JSONB DEFAULT '[]'::jsonb;
+
+-- Add responded_at column to track when athlete last responded
+ALTER TABLE agency_athlete_matches
+ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ;
+
+-- Add response_history column to campaign_athletes (invites)
+ALTER TABLE campaign_athletes
+ADD COLUMN IF NOT EXISTS response_history JSONB DEFAULT '[]'::jsonb;
+
+-- Add responded_at column to campaign_athletes
+ALTER TABLE campaign_athletes
+ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ;</code>
+  </div>
+
+  <button id="applyBtn" onclick="applyMigration()">Apply Migration</button>
+
+  <div id="output"></div>
+
+  <script>
+    const SUPABASE_URL = 'https://lqskiijspudfocddhkqs.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTU5MzM1NCwiZXhwIjoyMDc3MTY5MzU0fQ.LpapT51choXCwTfpbE81AIc4JC9QOO0FpOtqUxZ405I';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      output.innerHTML += `<div class="status ${type}">${message}</div>`;
+    }
+
+    async function applyMigration() {
+      const btn = document.getElementById('applyBtn');
+      btn.disabled = true;
+      btn.textContent = 'Applying...';
+
+      document.getElementById('output').innerHTML = '';
+
+      log('Starting migration...', 'info');
+
+      try {
+        // Check current schema first
+        log('Checking current schema...', 'info');
+
+        const { data: matchData, error: matchErr } = await supabase
+          .from('agency_athlete_matches')
+          .select('*')
+          .limit(1);
+
+        if (matchErr) {
+          log(`Error accessing agency_athlete_matches: ${matchErr.message}`, 'error');
+        } else {
+          const columns = matchData && matchData[0] ? Object.keys(matchData[0]) : [];
+          log(`Current agency_athlete_matches columns: ${columns.join(', ')}`, 'info');
+
+          if (columns.includes('response_history')) {
+            log('response_history column already exists in agency_athlete_matches!', 'success');
+          }
+          if (columns.includes('responded_at')) {
+            log('responded_at column already exists in agency_athlete_matches!', 'success');
+          }
+        }
+
+        const { data: inviteData, error: inviteErr } = await supabase
+          .from('campaign_athletes')
+          .select('*')
+          .limit(1);
+
+        if (inviteErr) {
+          log(`Error accessing campaign_athletes: ${inviteErr.message}`, 'error');
+        } else {
+          const columns = inviteData && inviteData[0] ? Object.keys(inviteData[0]) : [];
+          log(`Current campaign_athletes columns: ${columns.join(', ')}`, 'info');
+
+          if (columns.includes('response_history')) {
+            log('response_history column already exists in campaign_athletes!', 'success');
+          }
+          if (columns.includes('responded_at')) {
+            log('responded_at column already exists in campaign_athletes!', 'success');
+          }
+        }
+
+        // Try to update with new columns to test if they exist
+        log('Testing column access...', 'info');
+
+        // Test writing to agency_athlete_matches
+        const testMatchUpdate = await supabase
+          .from('agency_athlete_matches')
+          .update({ response_history: [] })
+          .eq('id', '00000000-0000-0000-0000-000000000000'); // Non-existent ID
+
+        if (testMatchUpdate.error && testMatchUpdate.error.message.includes('does not exist')) {
+          log('response_history column needs to be added to agency_athlete_matches', 'warning');
+          log('Please run the SQL in Supabase Dashboard -> SQL Editor', 'warning');
+        } else {
+          log('response_history column exists in agency_athlete_matches', 'success');
+        }
+
+        // Test writing to campaign_athletes
+        const testInviteUpdate = await supabase
+          .from('campaign_athletes')
+          .update({ response_history: [] })
+          .eq('id', '00000000-0000-0000-0000-000000000000'); // Non-existent ID
+
+        if (testInviteUpdate.error && testInviteUpdate.error.message.includes('does not exist')) {
+          log('response_history column needs to be added to campaign_athletes', 'warning');
+          log('Please run the SQL in Supabase Dashboard -> SQL Editor', 'warning');
+        } else {
+          log('response_history column exists in campaign_athletes', 'success');
+        }
+
+        log('<br><strong>Migration check complete!</strong>', 'info');
+        log('If columns need to be added, please copy the SQL above and run it in the <a href="https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/sql/new" target="_blank">Supabase SQL Editor</a>', 'info');
+
+      } catch (err) {
+        log(`Unexpected error: ${err.message}`, 'error');
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Check Again';
+    }
+  </script>
+</body>
+</html>

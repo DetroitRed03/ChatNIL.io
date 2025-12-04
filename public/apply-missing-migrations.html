@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Apply Missing Migrations - ChatNIL</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #00ff00;
+    }
+    h1 {
+      color: #00ff00;
+      border-bottom: 2px solid #00ff00;
+      padding-bottom: 10px;
+    }
+    .status {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #333;
+      background: #0a0a0a;
+    }
+    button {
+      background: #00ff00;
+      color: #000;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #00cc00;
+    }
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+    .success { color: #00ff00; }
+    .error { color: #ff0000; }
+    .warning { color: #ffaa00; }
+    .info { color: #00aaff; }
+    pre {
+      background: #000;
+      padding: 10px;
+      overflow-x: auto;
+      border-left: 3px solid #00ff00;
+    }
+    .migration-section {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #333;
+      background: #111;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔧 Apply Missing Migrations</h1>
+
+  <div class="status">
+    <p><strong>This tool will create the missing database tables:</strong></p>
+    <ul>
+      <li>✓ <code>nil_deals</code> - Track athlete-agency NIL deals</li>
+      <li>✓ <code>state_nil_rules</code> - 50-state compliance rules</li>
+    </ul>
+    <p class="warning">⚠️ Make sure you have your Supabase credentials ready!</p>
+  </div>
+
+  <div class="migration-section">
+    <h3>Step 1: Configure Supabase</h3>
+    <label>Supabase URL:</label><br>
+    <input type="text" id="supabaseUrl" placeholder="https://xxx.supabase.co" style="width: 100%; padding: 8px; margin: 5px 0;">
+    <br>
+    <label>Service Role Key:</label><br>
+    <input type="password" id="serviceKey" placeholder="eyJ..." style="width: 100%; padding: 8px; margin: 5px 0;">
+    <br><br>
+    <button onclick="testConnection()">Test Connection</button>
+  </div>
+
+  <div id="connectionStatus" class="status" style="display:none;"></div>
+
+  <div class="migration-section">
+    <h3>Step 2: Apply Migrations</h3>
+    <button onclick="applyNilDeals()" id="btnNilDeals" disabled>Create NIL Deals Table</button>
+    <button onclick="applyStateRules()" id="btnStateRules" disabled>Create State NIL Rules Table</button>
+    <button onclick="applyAll()" id="btnAll" disabled>Apply All Migrations</button>
+  </div>
+
+  <div id="output" class="status"></div>
+
+  <script>
+    let supabase = null;
+
+    async function testConnection() {
+      const url = document.getElementById('supabaseUrl').value;
+      const key = document.getElementById('serviceKey').value;
+
+      if (!url || !key) {
+        alert('Please enter both Supabase URL and Service Role Key');
+        return;
+      }
+
+      const statusDiv = document.getElementById('connectionStatus');
+      statusDiv.innerHTML = '<p class="info">⏳ Testing connection...</p>';
+      statusDiv.style.display = 'block';
+
+      try {
+        supabase = window.supabase.createClient(url, key);
+
+        // Test with a simple query
+        const { data, error } = await supabase
+          .from('users')
+          .select('count')
+          .limit(1);
+
+        if (error) throw error;
+
+        statusDiv.innerHTML = '<p class="success">✅ Connection successful!</p>';
+
+        // Enable migration buttons
+        document.getElementById('btnNilDeals').disabled = false;
+        document.getElementById('btnStateRules').disabled = false;
+        document.getElementById('btnAll').disabled = false;
+      } catch (err) {
+        statusDiv.innerHTML = `<p class="error">❌ Connection failed: ${err.message}</p>`;
+      }
+    }
+
+    async function executeSql(sql, description) {
+      const outputDiv = document.getElementById('output');
+      outputDiv.innerHTML += `<p class="info">⏳ ${description}...</p>`;
+
+      try {
+        // Try RPC first
+        const { error } = await supabase.rpc('exec_sql', { sql_query: sql });
+
+        if (error) {
+          if (error.code === 'PGRST202') {
+            outputDiv.innerHTML += `<p class="warning">⚠️  RPC function not available. Please apply via Supabase SQL Editor instead.</p>`;
+            outputDiv.innerHTML += `<pre>${sql.substring(0, 500)}...</pre>`;
+            return false;
+          }
+          throw error;
+        }
+
+        outputDiv.innerHTML += `<p class="success">✅ ${description} completed</p>`;
+        return true;
+      } catch (err) {
+        if (err.message.includes('already exists')) {
+          outputDiv.innerHTML += `<p class="warning">⚠️  ${description} - Already exists (skipped)</p>`;
+          return true;
+        }
+        outputDiv.innerHTML += `<p class="error">❌ ${description} failed: ${err.message}</p>`;
+        return false;
+      }
+    }
+
+    async function applyNilDeals() {
+      const sql = `
+-- Create ENUM types
+DO $$ BEGIN
+    CREATE TYPE deal_type AS ENUM (
+      'sponsorship', 'endorsement', 'appearance', 'content_creation',
+      'social_media', 'merchandise', 'licensing', 'event', 'other'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE deal_status AS ENUM (
+      'draft', 'pending', 'active', 'completed', 'cancelled', 'expired', 'on_hold'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE payment_status AS ENUM (
+      'pending', 'partial', 'paid', 'overdue', 'disputed'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Create nil_deals table
+CREATE TABLE IF NOT EXISTS nil_deals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  athlete_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  agency_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  brand_name TEXT,
+  deal_title TEXT,
+  description TEXT,
+  deal_type TEXT NOT NULL,
+  status TEXT DEFAULT 'draft',
+  compensation_amount DECIMAL(12, 2),
+  currency TEXT DEFAULT 'USD',
+  start_date DATE,
+  end_date DATE,
+  deal_date DATE,
+  deliverables JSONB DEFAULT '[]'::jsonb,
+  is_public BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_nil_deals_athlete ON nil_deals(athlete_id);
+CREATE INDEX IF NOT EXISTS idx_nil_deals_agency ON nil_deals(agency_id);
+CREATE INDEX IF NOT EXISTS idx_nil_deals_status ON nil_deals(status);
+
+-- Enable RLS
+ALTER TABLE nil_deals ENABLE ROW LEVEL SECURITY;
+
+-- Create policies
+DROP POLICY IF EXISTS "Athletes can view own deals" ON nil_deals;
+CREATE POLICY "Athletes can view own deals" ON nil_deals
+  FOR SELECT USING (auth.uid() = athlete_id);
+
+DROP POLICY IF EXISTS "Public can view public deals" ON nil_deals;
+CREATE POLICY "Public can view public deals" ON nil_deals
+  FOR SELECT USING (is_public = true);
+
+DROP POLICY IF EXISTS "Service role can manage all deals" ON nil_deals;
+CREATE POLICY "Service role can manage all deals" ON nil_deals
+  FOR ALL USING (
+    current_setting('request.jwt.claims', true)::json->>'role' = 'service_role'
+  );
+`;
+
+      await executeSql(sql, 'Creating NIL Deals table');
+    }
+
+    async function applyStateRules() {
+      // This is too large for one execution, show instructions instead
+      const outputDiv = document.getElementById('output');
+      outputDiv.innerHTML += `
+        <div class="warning">
+          <h4>⚠️  State NIL Rules Migration</h4>
+          <p>This migration is too large for automatic execution.</p>
+          <p><strong>Please apply manually via Supabase SQL Editor:</strong></p>
+          <ol>
+            <li>Open: <a href="https://supabase.com/dashboard" target="_blank" style="color: #00aaff;">Supabase Dashboard</a></li>
+            <li>Go to: SQL Editor</li>
+            <li>Copy/paste the contents of: <code>migrations/phase-5-fmv-system/023_state_nil_rules.sql</code></li>
+            <li>Click "Run"</li>
+          </ol>
+          <p>After applying manually, you can proceed with the next steps.</p>
+        </div>
+      `;
+    }
+
+    async function applyAll() {
+      document.getElementById('output').innerHTML = '<h3>Applying All Migrations...</h3>';
+      await applyNilDeals();
+      await applyStateRules();
+      document.getElementById('output').innerHTML += `
+        <div class="success">
+          <h3>✅ Migration Process Complete!</h3>
+          <p><strong>Next steps:</strong></p>
+          <ol>
+            <li>Verify tables exist in Supabase Dashboard > Table Editor</li>
+            <li>Run: <code>npx tsx scripts/complete-matchmaking-data.ts</code></li>
+            <li>This will seed campaigns, NIL deals, and matches</li>
+          </ol>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

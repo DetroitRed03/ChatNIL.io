@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fix Signup Errors - ChatNIL</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .error-box {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+    .error-box h3 {
+      margin-top: 0;
+      color: #856404;
+    }
+    .error-box code {
+      background: #f8f9fa;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #dc3545;
+      font-weight: 600;
+    }
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover:not(:disabled) {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    button.secondary {
+      background: #6c757d;
+    }
+    button.secondary:hover:not(:disabled) {
+      background: #5a6268;
+    }
+    #output {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+      white-space: pre-wrap;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 500px;
+      overflow-y: auto;
+      display: none;
+    }
+    #output.show {
+      display: block;
+    }
+    .success {
+      color: #28a745;
+      font-weight: bold;
+    }
+    .error {
+      color: #dc3545;
+      font-weight: bold;
+    }
+    .info {
+      color: #17a2b8;
+    }
+    .warning {
+      color: #ffc107;
+    }
+    .explanation {
+      background: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .explanation h4 {
+      margin-top: 0;
+      color: #1976D2;
+    }
+    .explanation ul {
+      margin-bottom: 0;
+    }
+    .fix-item {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    .fix-item h4 {
+      margin-top: 0;
+      color: #495057;
+    }
+    .progress {
+      background: #e9ecef;
+      border-radius: 4px;
+      height: 8px;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    .progress-bar {
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Fix Signup Errors</h1>
+    <p class="subtitle">Apply database fixes for type mismatch errors</p>
+
+    <div class="error-box">
+      <h3>⚠️ Error Being Fixed:</h3>
+      <p><strong>Signup fails with:</strong></p>
+      <p><code>function jsonb_array_length(text[]) does not exist</code></p>
+      <p style="margin-top: 15px;"><strong>Root Cause:</strong> Database functions are calling <code>jsonb_array_length()</code> on text array fields (<code>achievements</code>, <code>created_user_ids</code>) instead of using <code>array_length()</code></p>
+    </div>
+
+    <div class="explanation">
+      <h4>🔍 What These Fixes Do:</h4>
+      <div class="fix-item">
+        <h4>Fix #1: Migration 016 - Profile Completion Score</h4>
+        <ul>
+          <li>Replaces <code>calculate_profile_completion_score()</code> function</li>
+          <li>Changes <code>achievements</code> field handling from <code>jsonb_array_length()</code> to <code>array_length()</code></li>
+          <li>This function is called on every profile INSERT/UPDATE via trigger</li>
+        </ul>
+      </div>
+      <div class="fix-item">
+        <h4>Fix #2: Migration 020 - School Batch Counts</h4>
+        <ul>
+          <li>Replaces <code>update_batch_counts()</code> function</li>
+          <li>Uses <code>array_length()</code> for <code>created_user_ids</code> (UUID[] array)</li>
+          <li>Uses <code>jsonb_array_length()</code> only for <code>error_log</code> (JSONB)</li>
+          <li>Adds NULL checking to prevent errors</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="progress">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <button id="runBtn" onclick="runAllFixes()">🚀 Apply All Fixes</button>
+    <button class="secondary" onclick="location.reload()">🔄 Reload Page</button>
+
+    <div id="output"></div>
+  </div>
+
+  <script type="module">
+    const SUPABASE_URL = 'https://amiywkgwxqzrmjbjbtkz.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtaXl3a2d3eHF6cm1qYmpidGt6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA4MDQ0NDcsImV4cCI6MjA0NjM4MDQ0N30.CnqSa-F8KkFm6gG-UaMUCFQOZZGPuOmNEHH_wXLh0qk';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.supabase = supabase;
+
+    // Load SQL files
+    window.fix1SQL = '';
+    window.fix2SQL = '';
+
+    Promise.all([
+      fetch('/migrations/016_athlete_enhancements_type_fix.sql').then(res => res.text()),
+      fetch('/migrations/020_school_compliance_fix.sql').then(res => res.text())
+    ]).then(([fix1, fix2]) => {
+      window.fix1SQL = fix1;
+      window.fix2SQL = fix2;
+      console.log('✅ SQL fixes loaded');
+    }).catch(err => {
+      console.error('❌ Error loading SQL:', err);
+    });
+
+    function updateProgress(percent) {
+      document.getElementById('progressBar').style.width = percent + '%';
+    }
+
+    function showOutput(show = true) {
+      const output = document.getElementById('output');
+      if (show) {
+        output.classList.add('show');
+      } else {
+        output.classList.remove('show');
+      }
+    }
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const span = document.createElement('span');
+      span.className = type;
+      span.textContent = message;
+      output.appendChild(span);
+      output.appendChild(document.createTextNode('\n'));
+      output.scrollTop = output.scrollHeight;
+    }
+
+    window.runAllFixes = async function() {
+      const btn = document.getElementById('runBtn');
+      const output = document.getElementById('output');
+
+      btn.disabled = true;
+      output.innerHTML = '';
+      showOutput(true);
+      updateProgress(0);
+
+      log('🚀 Starting database fixes...', 'info');
+      log('');
+
+      try {
+        // Fix #1: Migration 016 Type Fix
+        log('📝 Fix #1: Updating calculate_profile_completion_score()...', 'info');
+        updateProgress(25);
+
+        const { data: data1, error: error1 } = await supabase.rpc('execute_sql', {
+          sql_query: window.fix1SQL
+        });
+
+        if (error1) {
+          throw new Error(`Fix #1 failed: ${error1.message}`);
+        }
+
+        log('✅ Fix #1 applied successfully!', 'success');
+        log('   - Fixed achievements field type handling (text[] → array_length)', 'info');
+        log('');
+        updateProgress(50);
+
+        // Fix #2: Migration 020 Fix
+        log('📝 Fix #2: Updating update_batch_counts()...', 'info');
+        updateProgress(75);
+
+        const { data: data2, error: error2 } = await supabase.rpc('execute_sql', {
+          sql_query: window.fix2SQL
+        });
+
+        if (error2) {
+          throw new Error(`Fix #2 failed: ${error2.message}`);
+        }
+
+        log('✅ Fix #2 applied successfully!', 'success');
+        log('   - Fixed created_user_ids field type handling (UUID[] → array_length)', 'info');
+        log('   - Fixed error_log field NULL handling (JSONB → jsonb_array_length)', 'info');
+        log('');
+        updateProgress(100);
+
+        // Success summary
+        log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'success');
+        log('🎉 ALL FIXES APPLIED SUCCESSFULLY!', 'success');
+        log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'success');
+        log('');
+        log('✨ You can now try signing up again!', 'success');
+        log('');
+        log('What was fixed:', 'info');
+        log('  1. Profile completion score calculation (Migration 016)', 'info');
+        log('  2. School batch count calculation (Migration 020)', 'info');
+        log('  3. Type mismatch errors between text[] and JSONB', 'info');
+
+      } catch (error) {
+        console.error('Migration error:', error);
+        log('');
+        log('❌ ERROR: ' + error.message, 'error');
+        log('');
+        log('Troubleshooting:', 'warning');
+        log('1. Make sure execute_sql function exists (Migration 001)', 'info');
+        log('2. Check Supabase connection is working', 'info');
+        log('3. Verify you have proper database permissions', 'info');
+        log('');
+        log('Alternative: Run SQL directly in Supabase Dashboard', 'info');
+        log('Dashboard → SQL Editor → New Query → Paste SQL → Run', 'info');
+        btn.disabled = false;
+        updateProgress(0);
+      }
+    };
+  </script>
+</body>
+</html>

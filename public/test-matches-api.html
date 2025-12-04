@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Matches API</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; }
+    pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>Test Matches API</h1>
+
+  <button onclick="testGetMatches()">Test GET /api/matches</button>
+  <button onclick="testGenerateMatches()">Test POST /api/matches/generate</button>
+
+  <div id="result"></div>
+
+  <script>
+    async function testGetMatches() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<p>Loading...</p>';
+
+      try {
+        const response = await fetch('/api/matches?limit=10');
+        const data = await response.json();
+
+        resultDiv.innerHTML = `
+          <h2 class="${response.ok ? 'success' : 'error'}">
+            Response Status: ${response.status} ${response.statusText}
+          </h2>
+          <h3>Response Data:</h3>
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+        `;
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <h2 class="error">Error</h2>
+          <pre>${error.message}</pre>
+        `;
+      }
+    }
+
+    async function testGenerateMatches() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<p>Generating matches... (this may take a few seconds)</p>';
+
+      try {
+        const response = await fetch('/api/matches/generate?min_score=30', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            userId: 'fb8493f6-6b0e-4c15-8c79-9ecfa9e551c9' // Nike Agency ID
+          })
+        });
+        const data = await response.json();
+
+        resultDiv.innerHTML = `
+          <h2 class="${response.ok ? 'success' : 'error'}">
+            Response Status: ${response.status} ${response.statusText}
+          </h2>
+          <h3>Response Data:</h3>
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+        `;
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <h2 class="error">Error</h2>
+          <pre>${error.message}</pre>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>

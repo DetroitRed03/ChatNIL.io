@@ -1,39 +1,52 @@
 'use client';
 
-import { useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useState, useRef, useEffect } from 'react';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, Trophy, Target, Users, Clock, Award, Plus, X, Star } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Trophy, Target, Users, Award, Plus, X, Star, Hash, SkipForward, Save } from 'lucide-react';
 import { athleteSportsInfoSchema, AthleteSportsInfo, OnboardingStepProps } from '@/lib/onboarding-types';
 import { useOnboarding } from '@/contexts/OnboardingContext';
-import { SPORTS_DATA, POPULAR_SPORTS, searchSports, getPositionsForSport } from '@/lib/sports-data';
+import { searchSports, getPositionsForSport } from '@/lib/sports-data';
+import {
+  OnboardingInput,
+  OnboardingTextarea,
+  OnboardingButton,
+} from '@/components/ui/OnboardingInput';
 
 export default function AthleteSportsInfoStep({
   data,
   onNext,
   onBack,
+  onSkip,
+  onSaveAndExit,
   isFirst,
   isLast,
-  isLoading
+  isLoading,
+  allowSkip = true
 }: OnboardingStepProps) {
-  const { nextStep, updateFormData } = useOnboarding();
+  const { nextStep, previousStep, skipStep, saveAndExit, updateFormData } = useOnboarding();
   const [sportSuggestions, setSportSuggestions] = useState<string[]>([]);
   const [showSportSuggestions, setShowSportSuggestions] = useState(false);
   const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
   const [isCustomPosition, setIsCustomPosition] = useState(false);
+
+  // Ref for outside click detection
+  const sportInputRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
+    getValues,
     control,
     formState: { errors, isValid }
   } = useForm<AthleteSportsInfo>({
-    resolver: zodResolver(athleteSportsInfoSchema),
+    resolver: zodResolver(athleteSportsInfoSchema) as any,
     defaultValues: {
       primarySport: data.primarySport || '',
       position: data.position || '',
+      jerseyNumber: data.jerseyNumber || undefined,
       secondarySports: data.secondarySports || [],
       achievements: data.achievements || '',
       stats: data.stats || {},
@@ -44,11 +57,33 @@ export default function AthleteSportsInfoStep({
   });
 
   const { fields: secondarySports, append: addSecondarySport, remove: removeSecondarySport } = useFieldArray({
-    control,
+    control: control as any,
     name: 'secondarySports'
   });
 
   const watchedPrimarySport = watch('primarySport');
+  const watchedPosition = watch('position');
+  const watchedAchievements = watch('achievements');
+
+  // Outside click detection
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sportInputRef.current && !sportInputRef.current.contains(event.target as Node)) {
+        setShowSportSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Initialize positions if primary sport is already set
+  useEffect(() => {
+    if (watchedPrimarySport) {
+      const positions = getPositionsForSport(watchedPrimarySport);
+      setSelectedPositions(positions);
+    }
+  }, []);
 
   // Handle sport suggestions
   const handleSportChange = (value: string) => {
@@ -91,28 +126,33 @@ export default function AthleteSportsInfoStep({
       if (success) {
         onNext(formData);
       } else {
-        console.warn('⚠️ Step progression failed, but data was saved locally');
+        console.warn('Step progression failed, but data was saved locally');
       }
     } catch (error) {
-      console.error('❌ Error during step submission:', error);
-      // Still update form data locally as fallback
+      console.error('Error during step submission:', error);
       updateFormData(formData);
     }
   };
 
+  const handleBack = () => {
+    updateFormData(getValues());
+    previousStep();
+    if (onBack) onBack();
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      {/* Introduction */}
-      <div className="mb-6 p-5 bg-orange-50 rounded-xl border border-orange-200">
-        <div className="flex items-start">
-          <div className="p-2 bg-orange-100 rounded-lg mr-4">
-            <Trophy className="h-6 w-6 text-orange-600" />
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* Introduction Card */}
+      <div className="p-5 bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200/50">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
+            <Trophy className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-orange-900 mb-2">
+            <h3 className="font-bold text-orange-900 mb-1">
               Share your athletic achievements
             </h3>
-            <p className="text-orange-700 leading-relaxed">
+            <p className="text-sm text-orange-700 leading-relaxed">
               Your sports information helps us match you with relevant brand partnerships,
               equipment deals, and sport-specific NIL opportunities.
             </p>
@@ -120,42 +160,43 @@ export default function AthleteSportsInfoStep({
         </div>
       </div>
 
-      {/* Primary Sport */}
-      <div className="relative">
-        <label className="block text-sm font-medium text-gray-900 mb-2">
-          Primary Sport *
-        </label>
-        <div className="relative">
-          <Trophy className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-          <input
-            {...register('primarySport', {
-              onChange: (e) => handleSportChange(e.target.value)
-            })}
-            type="text"
-            className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all ${
-              errors.primarySport
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                : 'border-gray-300 focus:ring-orange-500 focus:border-orange-500'
-            }`}
-            placeholder="e.g., Basketball, Football, Tennis"
-          />
-        </div>
-        {errors.primarySport && (
-          <p className="mt-1 text-sm text-red-600">{errors.primarySport.message}</p>
-        )}
+      {/* Primary Sport with autocomplete */}
+      <div className="relative" ref={sportInputRef}>
+        <Controller
+          name="primarySport"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="Primary Sport"
+              required
+              error={errors.primarySport?.message}
+              placeholder="e.g., Basketball, Football, Tennis"
+              onChange={(e) => {
+                field.onChange(e);
+                handleSportChange(e.target.value);
+              }}
+              onFocus={() => {
+                if (field.value && field.value.length > 1) {
+                  handleSportChange(field.value);
+                }
+              }}
+            />
+          )}
+        />
 
-        {/* Sport suggestions */}
+        {/* Sport suggestions dropdown */}
         {showSportSuggestions && sportSuggestions.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+          <div className="absolute z-20 w-full mt-1 bg-white border-2 border-orange-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
             {sportSuggestions.map((sport, index) => (
               <button
                 key={index}
                 type="button"
                 onClick={() => selectSport(sport)}
-                className="w-full px-4 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center"
+                className="w-full px-4 py-3 text-left hover:bg-orange-50 focus:bg-orange-50 focus:outline-none transition-colors first:rounded-t-xl last:rounded-b-xl flex items-center gap-3"
               >
-                <Trophy className="h-4 w-4 text-gray-400 mr-2" />
-                {sport}
+                <Trophy className="h-4 w-4 text-orange-500" />
+                <span className="text-gray-700 font-medium">{sport}</span>
               </button>
             ))}
           </div>
@@ -165,166 +206,176 @@ export default function AthleteSportsInfoStep({
       {/* Position (if sport has positions) */}
       {selectedPositions.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
+          <label className="block text-sm font-bold text-gray-700 mb-3">
             Position / Role
           </label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {selectedPositions.map((position) => (
-              <div key={position}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('position', position);
-                    setIsCustomPosition(false);
-                  }}
-                  className={`w-full cursor-pointer rounded-lg border p-3 text-center text-sm transition-all ${
-                    watch('position') === position && !isCustomPosition
-                      ? 'border-orange-500 bg-orange-50 text-orange-900 ring-2 ring-orange-200'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700'
-                  }`}
-                >
-                  {position}
-                </button>
-              </div>
+              <button
+                key={position}
+                type="button"
+                onClick={() => {
+                  setValue('position', position);
+                  setIsCustomPosition(false);
+                }}
+                className={`rounded-xl border-2 p-3 text-center text-sm font-medium transition-all ${
+                  watchedPosition === position && !isCustomPosition
+                    ? 'border-orange-500 bg-orange-50 text-orange-900 shadow-md'
+                    : 'border-orange-200/50 hover:border-orange-300 hover:bg-orange-50/50 text-gray-700'
+                }`}
+              >
+                {position}
+              </button>
             ))}
           </div>
+
           {/* Custom position input */}
           <div className="mt-3">
-            <input
-              {...register('position', {
-                onChange: (e) => {
-                  if (e.target.value) {
-                    setIsCustomPosition(true);
-                  } else {
-                    setIsCustomPosition(false);
-                  }
-                }
-              })}
-              type="text"
-              className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 transition-all ${
-                isCustomPosition
-                  ? 'border-orange-500 ring-2 ring-orange-200 bg-orange-50'
-                  : 'border-gray-300 focus:ring-orange-500'
-              }`}
-              placeholder="Or enter a custom position (overrides selection above)"
+            <Controller
+              name="position"
+              control={control}
+              render={({ field }) => (
+                <OnboardingInput
+                  {...field}
+                  label=""
+                  placeholder="Or enter a custom position"
+                  helperText={isCustomPosition && field.value ? `Using custom position: "${field.value}"` : undefined}
+                  onChange={(e) => {
+                    field.onChange(e);
+                    setIsCustomPosition(!!e.target.value);
+                  }}
+                  className={isCustomPosition ? 'border-orange-500 ring-2 ring-orange-100' : ''}
+                />
+              )}
             />
-            {isCustomPosition && watch('position') && (
-              <p className="mt-1 text-xs text-orange-600 flex items-center">
-                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                Using custom position: "{watch('position')}"
-              </p>
-            )}
           </div>
         </div>
       )}
 
+      {/* Jersey Number */}
+      <div className="max-w-xs">
+        <Controller
+          name="jerseyNumber"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="Jersey Number"
+              type="number"
+              min={0}
+              max={99}
+              placeholder="e.g., 23"
+              helperText="Your team jersey number (optional)"
+              onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+            />
+          )}
+        />
+      </div>
+
       {/* Secondary Sports */}
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-medium text-gray-900">
-            Secondary Sports (Optional)
+        <div className="flex items-center justify-between mb-3">
+          <label className="block text-sm font-bold text-gray-700">
+            Secondary Sports
           </label>
           {secondarySports.length < 3 && (
             <button
               type="button"
               onClick={addSecondarySportField}
-              className="inline-flex items-center text-sm text-orange-600 hover:text-orange-700"
+              className="inline-flex items-center text-sm font-semibold text-orange-600 hover:text-orange-700 transition-colors"
             >
               <Plus className="h-4 w-4 mr-1" />
               Add Sport
             </button>
           )}
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {secondarySports.map((field, index) => (
-            <div key={field.id} className="flex items-center space-x-2">
-              <div className="flex-1 relative">
-                <Target className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <input
-                  {...register(`secondarySports.${index}` as const)}
-                  type="text"
-                  className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="Secondary sport"
-                />
+            <div key={field.id} className="flex items-center gap-3">
+              <div className="flex-1">
+                <div className="relative">
+                  <Target className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    {...register(`secondarySports.${index}` as const)}
+                    type="text"
+                    className="w-full pl-10 pr-4 py-3 border-2 border-orange-200/50 rounded-xl focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 bg-white text-gray-900 font-medium placeholder:text-gray-400 transition-colors"
+                    placeholder="Secondary sport"
+                  />
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => removeSecondarySportField(index)}
-                className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
           ))}
         </div>
-        <p className="mt-1 text-xs text-gray-500">Add sports you also play competitively</p>
+        <p className="mt-2 text-xs text-gray-500">Add sports you also play competitively (optional)</p>
       </div>
 
       {/* Achievements */}
-      <div>
-        <label className="block text-sm font-medium text-gray-900 mb-2">
-          Achievements & Honors (Optional)
-        </label>
-        <div className="relative">
-          <Award className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-          <textarea
-            {...register('achievements')}
-            rows={4}
-            maxLength={500}
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-            placeholder="List your awards, championships, records, or notable achievements..."
-          />
-        </div>
-        <div className="flex justify-between mt-1">
-          <p className="text-xs text-gray-500">Help brands understand your athletic accomplishments</p>
-          <p className="text-xs text-gray-400">{watch('achievements')?.length || 0}/500</p>
-        </div>
-      </div>
+      <Controller
+        name="achievements"
+        control={control}
+        render={({ field }) => (
+          <div className="space-y-2">
+            <OnboardingTextarea
+              {...field}
+              label="Achievements & Honors"
+              placeholder="List your awards, championships, records, or notable achievements..."
+              helperText="Help brands understand your athletic accomplishments (optional)"
+              rows={4}
+              maxLength={500}
+            />
+            <div className="flex justify-end">
+              <span className="text-xs text-gray-400">{watchedAchievements?.length || 0}/500</span>
+            </div>
+          </div>
+        )}
+      />
 
       {/* Coach Information */}
-      <div className="grid sm:grid-cols-2 gap-5">
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Coach Name (Optional)
-          </label>
-          <div className="relative">
-            <Users className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              {...register('coachName')}
-              type="text"
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+      <div className="grid sm:grid-cols-2 gap-6">
+        <Controller
+          name="coachName"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="Coach Name"
               placeholder="Coach's full name"
+              helperText="Optional - for verification purposes"
             />
-          </div>
-        </div>
+          )}
+        />
 
-        <div>
-          <label className="block text-sm font-medium text-gray-900 mb-2">
-            Coach Email (Optional)
-          </label>
-          <div className="relative">
-            <Users className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-            <input
-              {...register('coachEmail')}
+        <Controller
+          name="coachEmail"
+          control={control}
+          render={({ field }) => (
+            <OnboardingInput
+              {...field}
+              label="Coach Email"
               type="email"
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
               placeholder="coach@school.edu"
+              error={errors.coachEmail?.message}
             />
-          </div>
-        </div>
+          )}
+        />
       </div>
 
       {/* Athletic NIL Note */}
-      <div className="p-4 bg-green-50 rounded-xl">
-        <div className="flex items-start">
-          <div className="p-1 bg-green-100 rounded-lg mr-3">
-            <Star className="h-4 w-4 text-green-600" />
+      <div className="p-5 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-green-200/50">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Star className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h4 className="text-sm font-medium text-green-900 mb-1">Athletic NIL Opportunities</h4>
-            <p className="text-xs text-green-700 leading-relaxed">
+            <h4 className="font-bold text-green-900 mb-1">Athletic NIL Opportunities</h4>
+            <p className="text-sm text-green-700 leading-relaxed">
               Your athletic achievements and sport can unlock equipment deals, training partnerships,
               sports camps, performance-based bonuses, and sport-specific brand endorsements.
             </p>
@@ -332,29 +383,71 @@ export default function AthleteSportsInfoStep({
         </div>
       </div>
 
-      {/* Continue Button */}
-      <div className="flex justify-end pt-6">
-        <button
-          type="submit"
-          disabled={!isValid || isLoading}
-          className={`inline-flex items-center px-6 py-3 rounded-xl font-medium transition-all ${
-            isValid && !isLoading
-              ? 'bg-orange-500 text-white hover:bg-orange-600 shadow-lg hover:shadow-xl'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          {isLoading ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-              Saving...
-            </>
-          ) : (
-            <>
-              Continue
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </>
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row justify-between items-center pt-4 gap-4">
+        {/* Left side - Back, Skip and Save buttons */}
+        <div className="flex gap-3">
+          {!isFirst && (
+            <OnboardingButton
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={handleBack}
+              disabled={isLoading}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </OnboardingButton>
           )}
-        </button>
+
+          {allowSkip && (
+            <OnboardingButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                updateFormData(getValues());
+                onSkip ? onSkip() : skipStep();
+              }}
+              disabled={isLoading}
+            >
+              <SkipForward className="h-4 w-4" />
+              Skip
+            </OnboardingButton>
+          )}
+
+          <OnboardingButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              updateFormData(getValues());
+              onSaveAndExit ? await onSaveAndExit() : await saveAndExit();
+            }}
+            disabled={isLoading}
+          >
+            <Save className="h-4 w-4" />
+            Save & Exit
+          </OnboardingButton>
+        </div>
+
+        {/* Right side - Continue button */}
+        <OnboardingButton
+          type="submit"
+          variant="primary"
+          size="lg"
+          isLoading={isLoading}
+        >
+          Continue
+          <ArrowRight className="h-5 w-5" />
+        </OnboardingButton>
+      </div>
+
+      {/* Optional field indicator */}
+      <div className="text-center">
+        <p className="text-xs text-gray-500">
+          Fields marked with <span className="text-red-500">*</span> are required
+        </p>
       </div>
     </form>
   );

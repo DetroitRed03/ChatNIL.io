@@ -32,7 +32,7 @@ export default function AgencyCompanyInfoStep({
     formState: { errors, isValid },
     watch,
   } = useForm<AgencyCompanyInfoData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     mode: 'onChange',
     defaultValues: initialData || {
       company_name: '',

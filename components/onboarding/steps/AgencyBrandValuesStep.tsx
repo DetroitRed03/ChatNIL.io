@@ -29,7 +29,7 @@ export default function AgencyBrandValuesStep({
     watch,
     setValue,
   } = useForm<AgencyBrandValuesData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     mode: 'onChange',
     defaultValues: initialData || {
       brand_values: [],

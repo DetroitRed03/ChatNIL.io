@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grant Chat Permissions - ChatNIL</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .status {
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .info { background: #e3f2fd; color: #1976d2; border-left: 4px solid #1976d2; }
+    .success { background: #e8f5e9; color: #388e3c; border-left: 4px solid #388e3c; }
+    .error { background: #ffebee; color: #d32f2f; border-left: 4px solid #d32f2f; }
+    .warning { background: #fff3e0; color: #f57c00; border-left: 4px solid #f57c00; }
+    pre {
+      background: #263238;
+      color: #aed581;
+      padding: 20px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    button {
+      background: #1976d2;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 500;
+      margin: 10px 5px;
+    }
+    button:hover { background: #1565c0; }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .step {
+      margin: 30px 0;
+      padding: 20px;
+      background: #fafafa;
+      border-radius: 4px;
+      border: 1px solid #e0e0e0;
+    }
+    .step h3 {
+      margin-top: 0;
+      color: #1976d2;
+    }
+    .copy-btn {
+      background: #388e3c;
+      font-size: 14px;
+      padding: 8px 16px;
+    }
+    .copy-btn:hover { background: #2e7d32; }
+    #result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 4px;
+      display: none;
+    }
+    .code-block {
+      position: relative;
+    }
+    .copy-indicator {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #4caf50;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      display: none;
+    }
+    ol {
+      line-height: 1.8;
+    }
+    ol li {
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Grant Service Role Permissions</h1>
+    <p>This page will help you grant the necessary permissions for the chat persistence feature.</p>
+
+    <div class="status info">
+      <strong>Problem:</strong> The API routes are getting "permission denied for table chat_sessions" errors because the service_role doesn't have GRANT permissions on the chat tables.
+    </div>
+
+    <div class="step">
+      <h3>Option 1: Copy SQL and Run in Supabase Dashboard (Recommended)</h3>
+      <p>Copy the SQL below and paste it into your Supabase SQL Editor:</p>
+
+      <div class="code-block">
+        <div class="copy-indicator" id="copyIndicator">Copied! ✓</div>
+        <pre id="sqlCode">-- Grant ALL permissions on chat tables to service_role
+GRANT ALL ON chat_sessions TO service_role;
+GRANT ALL ON chat_messages TO service_role;
+
+-- Grant sequence permissions
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
+
+-- Verify the grants worked
+SELECT grantee, table_name, privilege_type
+FROM information_schema.role_table_grants
+WHERE table_name IN ('chat_sessions', 'chat_messages')
+AND grantee = 'service_role';</pre>
+      </div>
+
+      <button class="copy-btn" onclick="copySQLToClipboard()">📋 Copy SQL to Clipboard</button>
+
+      <ol>
+        <li>Click "Copy SQL to Clipboard" button above</li>
+        <li>Go to <a href="https://supabase.com/dashboard/project/enbuwffusjhpcyoveewb/sql/new" target="_blank">Supabase SQL Editor</a></li>
+        <li>Paste the SQL and click "Run"</li>
+        <li>You should see a table showing the granted permissions</li>
+        <li>Return here and click "Test API" below</li>
+      </ol>
+    </div>
+
+    <div class="step">
+      <h3>Option 2: Run via Supabase API (Experimental)</h3>
+      <p>This will attempt to execute the SQL using the Supabase API with your service role key.</p>
+
+      <div class="status warning">
+        <strong>Note:</strong> This requires your service role key to be in .env.local file.
+      </div>
+
+      <button onclick="runGrantSQL()" id="grantBtn">🚀 Run GRANT SQL via API</button>
+
+      <div id="result"></div>
+    </div>
+
+    <div class="step">
+      <h3>Step 2: Test the API</h3>
+      <p>After running the SQL, test if the permissions are working:</p>
+
+      <button onclick="testAPI()" id="testBtn">🧪 Test Chat Sessions API</button>
+
+      <div id="testResult"></div>
+    </div>
+  </div>
+
+  <script>
+    function copySQLToClipboard() {
+      const sqlCode = document.getElementById('sqlCode').textContent;
+      navigator.clipboard.writeText(sqlCode).then(() => {
+        const indicator = document.getElementById('copyIndicator');
+        indicator.style.display = 'block';
+        setTimeout(() => {
+          indicator.style.display = 'none';
+        }, 2000);
+      });
+    }
+
+    async function runGrantSQL() {
+      const resultDiv = document.getElementById('result');
+      const btn = document.getElementById('grantBtn');
+
+      btn.disabled = true;
+      resultDiv.style.display = 'block';
+      resultDiv.className = 'status info';
+      resultDiv.innerHTML = '⏳ Executing SQL via Supabase API...';
+
+      try {
+        // This won't work directly from the browser because we can't access .env.local
+        // But we'll show the user what needs to happen
+        resultDiv.className = 'status warning';
+        resultDiv.innerHTML = `
+          <strong>Browser Limitation:</strong> Cannot execute SQL directly from browser.<br><br>
+          <strong>Please use Option 1 instead:</strong> Copy the SQL above and run it in the Supabase SQL Editor.
+        `;
+      } catch (error) {
+        resultDiv.className = 'status error';
+        resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function testAPI() {
+      const resultDiv = document.getElementById('testResult');
+      const btn = document.getElementById('testBtn');
+
+      btn.disabled = true;
+      resultDiv.style.display = 'block';
+      resultDiv.className = 'status info';
+      resultDiv.innerHTML = '⏳ Testing chat sessions API...';
+
+      try {
+        // Use a test UUID
+        const testUserId = '69ccbc5b-165b-4ae9-8789-b8ef9ae40ce1';
+        const response = await fetch(`/api/chat/sessions?userId=${testUserId}`);
+
+        const data = await response.json();
+
+        if (response.ok) {
+          resultDiv.className = 'status success';
+          resultDiv.innerHTML = `
+            <strong>✅ Success!</strong> API is working correctly.<br><br>
+            <strong>Response:</strong><br>
+            <pre style="background: #e8f5e9; color: #1b5e20; padding: 10px; border-radius: 4px; margin-top: 10px;">${JSON.stringify(data, null, 2)}</pre>
+            <br>
+            <strong>Next steps:</strong>
+            <ol style="margin-top: 10px;">
+              <li>Refresh your application</li>
+              <li>Send a test message in the chat</li>
+              <li>Refresh the page again</li>
+              <li>Verify the message persists</li>
+            </ol>
+          `;
+        } else {
+          resultDiv.className = 'status error';
+          resultDiv.innerHTML = `
+            <strong>❌ API Error:</strong> ${response.status} ${response.statusText}<br><br>
+            <strong>Response:</strong><br>
+            <pre style="background: #ffebee; color: #b71c1c; padding: 10px; border-radius: 4px; margin-top: 10px;">${JSON.stringify(data, null, 2)}</pre>
+            <br>
+            <strong>This means:</strong> The SQL hasn't been run yet, or there was an error. Please use Option 1 to run the SQL in Supabase SQL Editor.
+          `;
+        }
+      } catch (error) {
+        resultDiv.className = 'status error';
+        resultDiv.innerHTML = `<strong>❌ Network Error:</strong> ${error.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

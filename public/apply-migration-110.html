@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apply Migration 110 - Demo Seed Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #output {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .success { color: #38a169; }
+        .error { color: #e53e3e; }
+        .info { color: #3182ce; }
+        .warning { color: #d69e2e; }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #edf2f7;
+            border-radius: 8px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #2d3748;
+        }
+        .section ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .section li {
+            margin: 5px 0;
+            color: #4a5568;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Migration 110: Complete Demo Seed Data</h1>
+        <p class="subtitle">Populate the database with comprehensive demo data for end-to-end testing</p>
+
+        <div class="section">
+            <h3>📦 What This Migration Creates:</h3>
+            <ul>
+                <li><strong>5 Complete Athlete Profiles</strong> with realistic bios, stats, and achievements</li>
+                <li><strong>Social Media Stats</strong> for all athletes (153K-207K total followers)</li>
+                <li><strong>2 Active Campaigns</strong> ($150K total budget, $35K spent)</li>
+                <li><strong>2 Campaign Assignments</strong> ($35K in active deals)</li>
+                <li><strong>5 Agency-Athlete Matches</strong> (scores 78-95)</li>
+                <li><strong>1 Saved Athletes List</strong> with top prospects</li>
+                <li><strong>2 Message Threads</strong> (1 active, 1 unread)</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h3>👥 Athletes Being Created:</h3>
+            <ul>
+                <li><strong>Sarah Johnson</strong> - Basketball Guard, UCLA, $35K FMV (153K followers)</li>
+                <li><strong>Marcus Williams</strong> - Football WR, Ohio State, $45K FMV (207K followers)</li>
+                <li><strong>Emma Davis</strong> - Soccer Forward, Stanford, $25K FMV (95K followers)</li>
+                <li><strong>Tyler Brown</strong> - Baseball Pitcher, Florida, $20K FMV (90K followers)</li>
+                <li><strong>Olivia Martinez</strong> - Volleyball OH, Texas, $15K FMV (100K followers)</li>
+            </ul>
+        </div>
+
+        <button id="applyBtn" onclick="applyMigration()">Apply Migration 110</button>
+
+        <div id="output"></div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://lqskiijspudfocddhkqs.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1OTMzNTQsImV4cCI6MjA3NzE2OTM1NH0.z8mqmrIOMHHvTxFEjUIqcLOUlQk-__UXjQYypCVfIFQ';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.innerHTML += `<span class="${type}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function applyMigration() {
+            const btn = document.getElementById('applyBtn');
+            const output = document.getElementById('output');
+
+            btn.disabled = true;
+            output.innerHTML = '';
+
+            log('🚀 Starting Migration 110: Complete Demo Seed Data', 'info');
+            log('━'.repeat(80), 'info');
+
+            try {
+                // Read the migration file
+                log('📖 Reading migration file...', 'info');
+                const response = await fetch('/migrations/110_demo_complete_seed.sql');
+                const migrationSQL = await response.text();
+
+                log('✅ Migration file loaded successfully', 'success');
+                log(`📊 Migration size: ${(migrationSQL.length / 1024).toFixed(2)} KB`, 'info');
+                log('', 'info');
+
+                // Execute the migration
+                log('⚙️  Executing migration (this may take a moment)...', 'info');
+
+                const { data, error } = await supabase.rpc('exec_sql', {
+                    query: migrationSQL
+                });
+
+                if (error) {
+                    throw error;
+                }
+
+                log('✅ Migration executed successfully!', 'success');
+                log('', 'info');
+                log('━'.repeat(80), 'info');
+                log('📊 VERIFICATION RESULTS:', 'info');
+                log('━'.repeat(80), 'info');
+
+                if (data && Array.isArray(data)) {
+                    data.forEach((row, index) => {
+                        if (row.check_type || row.summary) {
+                            const type = row.check_type || row.summary;
+                            log(`\n${type}:`, 'info');
+
+                            Object.entries(row).forEach(([key, value]) => {
+                                if (key !== 'check_type' && key !== 'summary' && value !== null) {
+                                    log(`  ${key}: ${value}`, 'success');
+                                }
+                            });
+                        }
+                    });
+                }
+
+                log('', 'info');
+                log('━'.repeat(80), 'success');
+                log('🎉 MIGRATION 110 COMPLETE!', 'success');
+                log('━'.repeat(80), 'success');
+                log('', 'info');
+                log('✅ Next Steps:', 'info');
+                log('  1. Go to http://localhost:3000/agencies/dashboard', 'info');
+                log('  2. Dashboard should now show real data with 2 campaigns', 'info');
+                log('  3. Go to http://localhost:3000/agencies/discover', 'info');
+                log('  4. Click "Generate Match" to discover athletes', 'info');
+                log('  5. Test the end-to-end flow!', 'info');
+
+            } catch (error) {
+                log('', 'info');
+                log('❌ ERROR:', 'error');
+                log(error.message, 'error');
+                if (error.details) {
+                    log('Details: ' + error.details, 'error');
+                }
+                if (error.hint) {
+                    log('Hint: ' + error.hint, 'warning');
+                }
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

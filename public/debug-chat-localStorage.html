@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Debug Chat localStorage</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    button {
+      background: #4a90e2;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin: 10px 10px 10px 0;
+    }
+    button:hover {
+      background: #357abd;
+    }
+    button.danger {
+      background: #ff6b35;
+    }
+    button.danger:hover {
+      background: #ff5520;
+    }
+    .output {
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 20px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .success { color: #10b981; }
+    .error { color: #ef4444; }
+    .warning { color: #f59e0b; }
+    .info { color: #3b82f6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Debug Chat localStorage</h1>
+    <p>This tool helps diagnose issues with chat persistence in localStorage.</p>
+
+    <button onclick="inspectFull()">🔍 Full Inspection</button>
+    <button onclick="testCreateChat()">✨ Test Create Chat</button>
+    <button onclick="testPersistMiddleware()">⚙️ Test Persist Middleware</button>
+    <button onclick="clearAll()" class="danger">🗑️ Clear All Chat Data</button>
+
+    <div id="output" class="output"></div>
+  </div>
+
+  <script>
+    const output = document.getElementById('output');
+
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      output.innerHTML += `<span class="${type}">[${timestamp}] ${message}</span>\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function inspectFull() {
+      output.innerHTML = '';
+      log('=== FULL LOCALSTORAGE INSPECTION ===', 'info');
+
+      const key = 'chatnil-chat-history-v3';
+      const data = localStorage.getItem(key);
+
+      if (!data) {
+        log('❌ No data found for key: ' + key, 'error');
+        log('\nAll localStorage keys:', 'info');
+        Object.keys(localStorage).forEach(k => {
+          log(`  - ${k}`, 'info');
+        });
+        return;
+      }
+
+      log('✅ Data found in localStorage', 'success');
+      log(`Size: ${(data.length / 1024).toFixed(2)}KB`, 'info');
+      log('\nRaw data (first 500 chars):', 'info');
+      log(data.substring(0, 500), 'warning');
+
+      try {
+        const parsed = JSON.parse(data);
+        log('\n✅ Successfully parsed JSON', 'success');
+        log('\nTop-level keys:', 'info');
+        Object.keys(parsed).forEach(k => {
+          log(`  - ${k}: ${typeof parsed[k]}`, 'info');
+        });
+
+        if (parsed.state) {
+          log('\n📦 State object found', 'success');
+          log('State keys:', 'info');
+          Object.keys(parsed.state).forEach(k => {
+            const value = parsed.state[k];
+            if (Array.isArray(value)) {
+              log(`  - ${k}: Array(${value.length})`, 'info');
+            } else {
+              log(`  - ${k}: ${typeof value} = ${JSON.stringify(value)}`, 'info');
+            }
+          });
+
+          if (parsed.state.chats) {
+            log(`\n💬 Chats array found with ${parsed.state.chats.length} items`, parsed.state.chats.length > 0 ? 'success' : 'warning');
+            if (parsed.state.chats.length > 0) {
+              log('\nFirst chat:', 'info');
+              log(JSON.stringify(parsed.state.chats[0], null, 2), 'info');
+            }
+          } else {
+            log('\n❌ No chats array in state!', 'error');
+          }
+        } else {
+          log('\n❌ No state object in parsed data!', 'error');
+        }
+      } catch (error) {
+        log(`\n❌ Failed to parse JSON: ${error.message}`, 'error');
+      }
+    }
+
+    function testCreateChat() {
+      output.innerHTML = '';
+      log('=== TESTING CHAT CREATION ===', 'info');
+
+      const testChat = {
+        id: `chat_test_${Date.now()}`,
+        title: 'Test Chat',
+        messages: [{
+          id: `msg_test_${Date.now()}`,
+          content: 'Test message',
+          role: 'user',
+          timestamp: new Date().toISOString()
+        }],
+        roleContext: 'athlete',
+        isPinned: false,
+        isArchived: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        draft: ''
+      };
+
+      const stateToSave = {
+        state: {
+          chats: [testChat],
+          activeChatId: testChat.id,
+          sidebarCollapsed: false,
+          globalDraft: '',
+          currentUserId: 'test-user-id'
+        },
+        version: 0
+      };
+
+      const stringified = JSON.stringify(stateToSave);
+      log('✅ Created test state', 'success');
+      log(`Size: ${(stringified.length / 1024).toFixed(2)}KB`, 'info');
+
+      try {
+        localStorage.setItem('chatnil-chat-history-v3', stringified);
+        log('\n✅ Saved to localStorage', 'success');
+
+        // Verify it was saved
+        const retrieved = localStorage.getItem('chatnil-chat-history-v3');
+        if (retrieved) {
+          const parsed = JSON.parse(retrieved);
+          log('✅ Retrieved and parsed successfully', 'success');
+          log(`Chats count: ${parsed.state.chats.length}`, 'success');
+          log('\n⚠️ Now refresh the page to see if it persists', 'warning');
+        }
+      } catch (error) {
+        log(`\n❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    function testPersistMiddleware() {
+      output.innerHTML = '';
+      log('=== TESTING ZUSTAND PERSIST FORMAT ===', 'info');
+
+      // This is how Zustand persist middleware stores data
+      const testState = {
+        chats: [{
+          id: `chat_middleware_test_${Date.now()}`,
+          title: 'Middleware Test',
+          messages: [{
+            id: `msg_${Date.now()}`,
+            content: 'Testing Zustand persist middleware format',
+            role: 'user',
+            timestamp: new Date().toISOString()
+          }],
+          roleContext: 'athlete',
+          isPinned: false,
+          isArchived: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }],
+        activeChatId: null,
+        sidebarCollapsed: false,
+        globalDraft: '',
+        currentUserId: 'test-user'
+      };
+
+      // Zustand wraps it in { state, version }
+      const persistFormat = {
+        state: testState,
+        version: 0
+      };
+
+      try {
+        const stringified = JSON.stringify(persistFormat);
+        log('✅ Created Zustand persist format', 'success');
+        log('Format:', 'info');
+        log(JSON.stringify(persistFormat, null, 2).substring(0, 500), 'info');
+
+        localStorage.setItem('chatnil-chat-history-v3', stringified);
+        log('\n✅ Saved in Zustand persist format', 'success');
+
+        // Test retrieval
+        const retrieved = localStorage.getItem('chatnil-chat-history-v3');
+        const parsed = JSON.parse(retrieved);
+        log('\n✅ Retrieved successfully', 'success');
+        log(`Has state: ${!!parsed.state}`, parsed.state ? 'success' : 'error');
+        log(`Has chats: ${!!parsed.state?.chats}`, parsed.state?.chats ? 'success' : 'error');
+        log(`Chats count: ${parsed.state?.chats?.length || 0}`, 'info');
+
+        log('\n⚠️ Refresh the page to test if Zustand can read it', 'warning');
+      } catch (error) {
+        log(`\n❌ Error: ${error.message}`, 'error');
+        log(error.stack, 'error');
+      }
+    }
+
+    function clearAll() {
+      if (!confirm('This will delete all chat data. Are you sure?')) {
+        return;
+      }
+
+      output.innerHTML = '';
+      log('=== CLEARING ALL CHAT DATA ===', 'warning');
+
+      const keys = Object.keys(localStorage).filter(k => k.includes('chat') || k.includes('nil'));
+      keys.forEach(key => {
+        localStorage.removeItem(key);
+        log(`Removed: ${key}`, 'warning');
+      });
+
+      log(`\n✅ Cleared ${keys.length} keys`, 'success');
+    }
+
+    // Auto-run inspection on load
+    window.onload = () => {
+      inspectFull();
+    };
+  </script>
+</body>
+</html>

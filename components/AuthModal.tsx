@@ -1,8 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Mail, Lock, User, MessageSquare, Users, Trophy, UserCheck, Loader2, Briefcase } from 'lucide-react';
-import { UserRole } from '@/lib/types';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { X, Mail, Lock, User, MessageSquare, Loader2 } from 'lucide-react';
+import { UserRole } from '@/types';
+import { NeumorphicButton, ToggleGroup } from '@/components/ui';
+import type { ToggleOption } from '@/components/ui';
+
+// Form validation schemas
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+const signupSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Please enter a valid email'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  role: z.enum(['athlete', 'parent', 'agency'] as const),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+type SignupFormData = z.infer<typeof signupSchema>;
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -22,16 +43,31 @@ export default function AuthModal({
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'athlete' as UserRole
+  // Login form
+  const loginForm = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    mode: 'onChange',
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  // Signup form
+  const signupForm = useForm<SignupFormData>({
+    resolver: zodResolver(signupSchema),
+    mode: 'onChange',
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      role: 'athlete',
+    },
   });
 
   if (!isOpen) return null;
 
-  // Prevent closing modal during signup
+  // Prevent closing modal during submission
   const handleClose = () => {
     if (isSubmitting) {
       console.log('Cannot close modal while submitting');
@@ -40,46 +76,42 @@ export default function AuthModal({
     onClose();
   };
 
-  const resetFormState = () => {
-    console.log('🔄 Resetting AuthModal form state');
-    setFormData({
-      name: '',
-      email: '',
-      password: '',
-      role: 'athlete' as UserRole
-    });
-    setIsSubmitting(false);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleLoginSubmit = async (data: LoginFormData) => {
     if (isSubmitting) {
       console.log('🚫 Form already submitting, ignoring duplicate submission');
       return;
     }
 
     setIsSubmitting(true);
-    console.log('🎯 AuthModal handleSubmit called, mode:', mode);
-    console.log('📝 Form data:', formData);
+    console.log('🔐 Calling onLogin with:', data.email);
 
     try {
-      if (mode === 'login') {
-        console.log('🔐 Calling onLogin with:', formData.email);
-        await onLogin(formData.email, formData.password);
-      } else {
-        console.log('📝 Calling onSignup with:', {
-          name: formData.name,
-          email: formData.email,
-          role: formData.role
-        });
-        await onSignup(formData.name, formData.email, formData.password, formData.role);
-      }
+      await onLogin(data.email, data.password);
     } catch (error) {
-      console.error('❌ AuthModal form submission error:', error);
-      // Reset form state on error to ensure clean retry
-      resetFormState();
-      // Re-throw to let parent components handle the error display
+      console.error('❌ Login error:', error);
+      throw error;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSignupSubmit = async (data: SignupFormData) => {
+    if (isSubmitting) {
+      console.log('🚫 Form already submitting, ignoring duplicate submission');
+      return;
+    }
+
+    setIsSubmitting(true);
+    console.log('📝 Calling onSignup with:', {
+      name: data.name,
+      email: data.email,
+      role: data.role
+    });
+
+    try {
+      await onSignup(data.name, data.email, data.password, data.role);
+    } catch (error) {
+      console.error('❌ Signup error:', error);
       throw error;
     } finally {
       setIsSubmitting(false);
@@ -87,45 +119,38 @@ export default function AuthModal({
   };
 
   const switchMode = () => {
-    setMode(mode === 'login' ? 'signup' : 'login');
-    setFormData({ name: '', email: '', password: '', role: 'athlete' as UserRole });
+    const newMode = mode === 'login' ? 'signup' : 'login';
+    setMode(newMode);
+    loginForm.reset();
+    signupForm.reset();
   };
 
-  const roleOptions = [
+  const roleOptions: ToggleOption[] = [
     {
-      value: 'athlete' as UserRole,
-      label: 'Student-Athlete',
-      description: 'High school or college athlete seeking NIL guidance',
-      icon: Trophy
+      value: 'athlete',
+      label: 'Athlete',
+      icon: '🏆',
     },
     {
-      value: 'parent' as UserRole,
-      label: 'Parent/Guardian',
-      description: 'Parent or guardian of a student-athlete',
-      icon: Users
+      value: 'parent',
+      label: 'Parent',
+      icon: '👥',
     },
     {
-      value: 'coach' as UserRole,
-      label: 'Coach/Educator',
-      description: 'Coach, advisor, or athletic department staff',
-      icon: UserCheck
+      value: 'agency',
+      label: 'Agency',
+      icon: '💼',
     },
-    {
-      value: 'agency' as UserRole,
-      label: 'Agency/Brand',
-      description: 'Brand or company seeking athlete partnerships',
-      icon: Briefcase
-    }
   ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-md max-h-[100vh] flex flex-col p-4 sm:p-6 relative shadow-2xl border border-gray-100">
+      <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-md max-h-[90vh] sm:max-h-[85vh] flex flex-col p-4 sm:p-5 relative shadow-2xl border border-gray-100">
         {/* Close Button */}
         <button
           onClick={handleClose}
           disabled={isSubmitting}
-          className={`absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-xl transition-colors ${
+          className={`absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-xl transition-colors z-10 ${
             isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'
           }`}
         >
@@ -133,14 +158,14 @@ export default function AuthModal({
         </button>
 
         {/* Header */}
-        <div className="text-center mb-4 sm:mb-6">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-500 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3 shadow-lg">
-            <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+        <div className="text-center mb-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-lg">
+            <MessageSquare className="h-6 w-6 text-white" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1 sm:mb-2">
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">
             {mode === 'login' ? 'Welcome back' : 'Create your account'}
           </h2>
-          <p className="text-sm sm:text-base text-gray-600">
+          <p className="text-sm text-gray-600">
             {mode === 'login'
               ? 'Sign in to continue to ChatNIL'
               : 'Join ChatNIL to get started'
@@ -150,118 +175,220 @@ export default function AuthModal({
 
         {/* Form */}
         <div className="flex-1 flex flex-col">
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 flex-1">
-          {mode === 'signup' && (
-            <>
-              <div className="relative">
-                <User className="absolute left-3 sm:left-4 top-3 sm:top-4 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Full name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 border border-gray-200 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-gray-50 focus:bg-white transition-all text-sm sm:text-base"
-                  required
-                />
-              </div>
-
-              {/* Role Selection */}
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-gray-900 mb-1">I am a:</label>
-                <div className="space-y-1">
-                  {roleOptions.map((option) => {
-                    const IconComponent = option.icon;
-                    return (
-                      <label
-                        key={option.value}
-                        className={`relative flex items-start p-2 sm:p-2.5 cursor-pointer rounded-xl border-2 transition-all ${
-                          formData.role === option.value
-                            ? 'border-orange-500 bg-orange-50'
-                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="role"
-                          value={option.value}
-                          checked={formData.role === option.value}
-                          onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-                          className="sr-only"
-                        />
-                        <IconComponent className={`h-4 w-4 sm:h-5 sm:w-5 mr-2.5 mt-0.5 ${
-                          formData.role === option.value ? 'text-orange-600' : 'text-gray-400'
-                        }`} />
-                        <div className="flex-1 min-w-0">
-                          <div className={`text-sm font-medium leading-tight ${
-                            formData.role === option.value ? 'text-orange-900' : 'text-gray-900'
-                          }`}>
-                            {option.label}
-                          </div>
-                          <div className={`text-xs mt-0.5 leading-tight ${
-                            formData.role === option.value ? 'text-orange-700' : 'text-gray-500'
-                          }`}>
-                            {option.description}
-                          </div>
-                        </div>
-                      </label>
-                    );
-                  })}
+          {mode === 'login' ? (
+            <form onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="space-y-4 flex-1">
+              {/* Email Field */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-400 via-accent-500 to-primary-600 rounded-2xl opacity-0 group-hover:opacity-50 transition-opacity duration-300" />
+                  <div className="relative bg-white rounded-2xl">
+                    <div className="flex items-center">
+                      <div className="absolute left-4 pointer-events-none text-gray-400">
+                        <Mail className="h-5 w-5" />
+                      </div>
+                      <input
+                        type="email"
+                        autoComplete="username"
+                        {...loginForm.register('email')}
+                        placeholder="your.email@example.com"
+                        className="w-full pl-12 pr-4 py-3 bg-transparent rounded-2xl text-gray-900 placeholder-gray-400 outline-none border-2 border-gray-200 focus:border-primary-500 transition-colors"
+                      />
+                    </div>
+                  </div>
                 </div>
+                {loginForm.formState.errors.email && (
+                  <p className="mt-1 text-sm text-red-600 px-4">
+                    {loginForm.formState.errors.email.message}
+                  </p>
+                )}
               </div>
-            </>
+
+              {/* Password Field */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                  Password
+                </label>
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-400 via-accent-500 to-primary-600 rounded-2xl opacity-0 group-hover:opacity-50 transition-opacity duration-300" />
+                  <div className="relative bg-white rounded-2xl">
+                    <div className="flex items-center">
+                      <div className="absolute left-4 pointer-events-none text-gray-400">
+                        <Lock className="h-5 w-5" />
+                      </div>
+                      <input
+                        type="password"
+                        autoComplete="current-password"
+                        {...loginForm.register('password')}
+                        placeholder="Enter your password"
+                        className="w-full pl-12 pr-4 py-3 bg-transparent rounded-2xl text-gray-900 placeholder-gray-400 outline-none border-2 border-gray-200 focus:border-primary-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {loginForm.formState.errors.password && (
+                  <p className="mt-1 text-sm text-red-600 px-4">
+                    {loginForm.formState.errors.password.message}
+                  </p>
+                )}
+              </div>
+
+              <NeumorphicButton
+                type="submit"
+                disabled={isSubmitting}
+                variant="flat"
+                size="lg"
+                className="w-full"
+                isLoading={isSubmitting}
+                leftIcon={isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : undefined}
+              >
+                {isSubmitting ? 'Signing In...' : 'Sign In'}
+              </NeumorphicButton>
+            </form>
+          ) : (
+            <form onSubmit={signupForm.handleSubmit(handleSignupSubmit)} className="space-y-4 flex-1">
+              {/* Use simple working input styled with gradient border */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                  Full Name
+                </label>
+                <div className="relative group">
+                  {/* Gradient border effect */}
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-400 via-accent-500 to-primary-600 rounded-2xl opacity-0 group-hover:opacity-50 transition-opacity duration-300" />
+
+                  {/* Input container */}
+                  <div className="relative bg-white rounded-2xl">
+                    <div className="flex items-center">
+                      {/* Icon */}
+                      <div className="absolute left-4 pointer-events-none text-gray-400">
+                        <User className="h-5 w-5" />
+                      </div>
+
+                      {/* Input */}
+                      <input
+                        type="text"
+                        autoComplete="name"
+                        {...signupForm.register('name')}
+                        placeholder="Enter your full name"
+                        className="w-full pl-12 pr-4 py-3 bg-transparent rounded-2xl text-gray-900 placeholder-gray-400 outline-none border-2 border-gray-200 focus:border-primary-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {signupForm.formState.errors.name && (
+                  <p className="mt-1 text-sm text-red-600 px-4">
+                    {signupForm.formState.errors.name.message}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">I am a:</label>
+                <Controller
+                  name="role"
+                  control={signupForm.control}
+                  render={({ field }) => (
+                    <ToggleGroup
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={roleOptions}
+                      variant="pills"
+                      size="sm"
+                    />
+                  )}
+                />
+                {signupForm.formState.errors.role && (
+                  <p className="mt-1 text-sm text-red-600 px-4">
+                    {signupForm.formState.errors.role.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Email Field */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-400 via-accent-500 to-primary-600 rounded-2xl opacity-0 group-hover:opacity-50 transition-opacity duration-300" />
+                  <div className="relative bg-white rounded-2xl">
+                    <div className="flex items-center">
+                      <div className="absolute left-4 pointer-events-none text-gray-400">
+                        <Mail className="h-5 w-5" />
+                      </div>
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        {...signupForm.register('email')}
+                        placeholder="your.email@example.com"
+                        className="w-full pl-12 pr-4 py-3 bg-transparent rounded-2xl text-gray-900 placeholder-gray-400 outline-none border-2 border-gray-200 focus:border-primary-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {signupForm.formState.errors.email && (
+                  <p className="mt-1 text-sm text-red-600 px-4">
+                    {signupForm.formState.errors.email.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Password Field */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                  Password
+                </label>
+                <div className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-400 via-accent-500 to-primary-600 rounded-2xl opacity-0 group-hover:opacity-50 transition-opacity duration-300" />
+                  <div className="relative bg-white rounded-2xl">
+                    <div className="flex items-center">
+                      <div className="absolute left-4 pointer-events-none text-gray-400">
+                        <Lock className="h-5 w-5" />
+                      </div>
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        {...signupForm.register('password')}
+                        placeholder="Min. 6 characters"
+                        className="w-full pl-12 pr-4 py-3 bg-transparent rounded-2xl text-gray-900 placeholder-gray-400 outline-none border-2 border-gray-200 focus:border-primary-500 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {signupForm.formState.errors.password && (
+                  <p className="mt-1 text-sm text-red-600 px-4">
+                    {signupForm.formState.errors.password.message}
+                  </p>
+                )}
+              </div>
+
+              <NeumorphicButton
+                type="submit"
+                disabled={isSubmitting}
+                variant="flat"
+                size="lg"
+                className="w-full"
+                isLoading={isSubmitting}
+                leftIcon={isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : undefined}
+              >
+                {isSubmitting ? 'Creating Account...' : 'Create Account'}
+              </NeumorphicButton>
+            </form>
           )}
-
-          <div className="relative">
-            <Mail className="absolute left-3 sm:left-4 top-3 sm:top-4 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-            <input
-              type="email"
-              placeholder="Email address"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 border border-gray-200 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-gray-50 focus:bg-white transition-all text-sm sm:text-base"
-              required
-            />
-          </div>
-
-          <div className="relative">
-            <Lock className="absolute left-3 sm:left-4 top-3 sm:top-4 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-            <input
-              type="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 border border-gray-200 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-gray-50 focus:bg-white transition-all text-sm sm:text-base"
-              required
-              minLength={6}
-            />
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`w-full py-3 sm:py-4 px-4 rounded-xl sm:rounded-2xl font-medium transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] text-sm sm:text-base ${
-              isSubmitting
-                ? 'bg-gray-400 text-white cursor-not-allowed'
-                : 'bg-orange-500 text-white hover:bg-orange-600'
-            }`}
-          >
-            {isSubmitting
-              ? (mode === 'login' ? 'Signing In...' : 'Creating Account...')
-              : (mode === 'login' ? 'Sign In' : 'Create Account')
-            }
-          </button>
-        </form>
+        </div>
 
         {/* Footer */}
-        <div className="mt-auto pt-3 sm:pt-4">
+        <div className="mt-4 pt-3 border-t border-gray-200">
           {/* Switch Mode */}
-          <div className="text-center mb-3 sm:mb-4">
-            <p className="text-sm sm:text-base text-gray-600">
+          <div className="text-center">
+            <p className="text-sm text-gray-600">
               {mode === 'login' ? "Don't have an account?" : "Already have an account?"}
               <button
                 onClick={switchMode}
-                className="ml-2 text-orange-600 hover:text-orange-700 font-medium transition-colors"
+                disabled={isSubmitting}
+                className="ml-2 text-primary-600 hover:text-primary-700 font-semibold transition-colors disabled:opacity-50"
               >
                 {mode === 'login' ? 'Sign up' : 'Sign in'}
               </button>
@@ -269,15 +396,18 @@ export default function AuthModal({
           </div>
 
           {/* Divider */}
-          <div className="flex items-center mb-3 sm:mb-4">
+          <div className="flex items-center my-3">
             <div className="flex-1 border-t border-gray-200"></div>
-            <div className="px-3 sm:px-4 text-xs sm:text-sm text-gray-500 font-medium">or</div>
+            <div className="px-4 text-xs text-gray-500 font-medium">or</div>
             <div className="flex-1 border-t border-gray-200"></div>
           </div>
 
           {/* Social Login */}
-          <button className="w-full bg-white border border-gray-200 text-gray-700 py-3 sm:py-4 px-4 rounded-xl sm:rounded-2xl font-medium hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center space-x-2 sm:space-x-3 shadow-sm hover:shadow-md text-sm sm:text-base">
-            <svg className="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24">
+          <button
+            disabled={isSubmitting}
+            className="w-full bg-white border-2 border-gray-200 text-gray-700 py-3 px-4 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center space-x-3 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
               <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
               <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -286,13 +416,12 @@ export default function AuthModal({
             <span>Continue with Google</span>
           </button>
         </div>
-        </div>
 
         {/* Loading Overlay during signup */}
         {isSubmitting && mode === 'signup' && (
-          <div className="absolute inset-0 bg-white bg-opacity-95 rounded-2xl sm:rounded-3xl flex items-center justify-center z-10">
+          <div className="absolute inset-0 bg-white bg-opacity-95 rounded-2xl sm:rounded-3xl flex items-center justify-center z-20">
             <div className="text-center">
-              <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+              <Loader2 className="w-12 h-12 text-primary-500 animate-spin mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Creating your account...</h3>
               <p className="text-sm text-gray-600">Setting up your profile</p>
             </div>

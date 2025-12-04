@@ -28,7 +28,7 @@ export default function ParentPreferencesStep({
     getValues,
     formState: { errors, isValid }
   } = useForm<ParentPreferences>({
-    resolver: zodResolver(parentPreferencesSchema),
+    resolver: zodResolver(parentPreferencesSchema) as any,
     defaultValues: {
       dashboardAccess: data.dashboardAccess || 'limited',
       involvementLevel: data.involvementLevel || 'occasional_updates',
@@ -80,8 +80,8 @@ export default function ParentPreferencesStep({
     if (onSaveAndExit) onSaveAndExit();
   };
 
-  const toggleApproval = (key: keyof typeof approvalSettings) => {
-    setValue(`approvalSettings.${key}`, !approvalSettings?.[key]);
+  const toggleApproval = (key: string) => {
+    (setValue as any)(`approvalSettings.${key}`, !(approvalSettings as any)?.[key]);
   };
 
   const dashboardOptions = [

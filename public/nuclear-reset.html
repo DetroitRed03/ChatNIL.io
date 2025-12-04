@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NUCLEAR RESET</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            text-align: center;
+        }
+        h1 { color: #f44336; font-size: 48px; }
+        button {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 30px 60px;
+            font-size: 24px;
+            cursor: pointer;
+            margin: 20px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+        button:hover { background: #d32f2f; }
+        .warning {
+            background: #2d2d2d;
+            padding: 30px;
+            margin: 30px 0;
+            border: 3px solid #f44336;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>☢️ NUCLEAR RESET ☢️</h1>
+
+    <div class="warning">
+        <strong>This will:</strong><br><br>
+        1. Clear ALL storage<br>
+        2. Clear ALL caches<br>
+        3. Unregister service workers<br>
+        4. Force reload from server<br>
+        5. Bypass ALL browser caching<br><br>
+        <strong style="color: #f44336;">YOU WILL NEED TO LOGIN AGAIN</strong>
+    </div>
+
+    <button onclick="nuclearReset()">☢️ DO IT NOW ☢️</button>
+
+    <div id="status" style="margin-top: 30px; font-size: 20px;"></div>
+
+    <script>
+        async function nuclearReset() {
+            const status = document.getElementById('status');
+            status.innerHTML = '🔥 RESETTING EVERYTHING...';
+
+            try {
+                // 1. Clear ALL localStorage
+                localStorage.clear();
+
+                // 2. Clear ALL sessionStorage
+                sessionStorage.clear();
+
+                // 3. Clear ALL cookies
+                document.cookie.split(";").forEach(c => {
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+                });
+
+                // 4. Clear IndexedDB
+                const dbs = await indexedDB.databases();
+                dbs.forEach(db => indexedDB.deleteDatabase(db.name));
+
+                // 5. Clear cache storage
+                if ('caches' in window) {
+                    const names = await caches.keys();
+                    await Promise.all(names.map(name => caches.delete(name)));
+                }
+
+                // 6. Unregister service workers
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(registrations.map(r => r.unregister()));
+                }
+
+                status.innerHTML = '✅ RESET COMPLETE<br><br>🔄 Reloading with cache bypass...';
+
+                // 7. Force reload with cache bypass
+                setTimeout(() => {
+                    window.location.href = '/?nocache=' + Date.now();
+                    location.reload(true);
+                }, 1000);
+
+            } catch (error) {
+                status.innerHTML = '❌ Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

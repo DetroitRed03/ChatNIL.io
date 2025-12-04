@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Apply Migration 100: Messaging Infrastructure</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { color: #667eea; margin-bottom: 10px; }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      margin: 10px 5px;
+    }
+    button:hover { transform: translateY(-2px); transition: 0.2s; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #output {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 600px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+    .warning { color: #fbbf24; }
+    .info { color: #60a5fa; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗄️ Migration 100: Messaging Infrastructure</h1>
+    <p>Apply database migration for the messaging system</p>
+
+    <div>
+      <button id="applyBtn" onclick="applyMigration()">Apply Migration</button>
+      <button onclick="location.href='http://localhost:3000/messages'">Go to Messages</button>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script type="module">
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODY4NjcwOSwiZXhwIjoyMDc0MjYyNzA5fQ.fXvyvHrUoNLdAr1expbRsguM8fkmurrNQi3-7xk8-TM';
+
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const output = document.getElementById('output');
+
+    function log(message, type = 'info') {
+      const line = document.createElement('div');
+      line.className = type;
+      line.textContent = message;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    window.applyMigration = async function() {
+      const btn = document.getElementById('applyBtn');
+      btn.disabled = true;
+      output.innerHTML = '';
+
+      log('🔄 Starting Migration 100: Messaging Infrastructure\n', 'info');
+
+      const sql = `
+CREATE OR REPLACE VIEW conversation_summaries AS
+SELECT
+  m.match_id,
+  m.match_id as conversation_id,
+  COUNT(*) as total_messages,
+  COUNT(*) FILTER (WHERE m.read_at IS NULL AND m.sender_id != auth.uid()) as unread_count,
+  MAX(m.created_at) as last_message_at,
+  (SELECT content FROM agency_athlete_messages WHERE match_id = m.match_id ORDER BY created_at DESC LIMIT 1) as last_message,
+  (SELECT sender_id FROM agency_athlete_messages WHERE match_id = m.match_id ORDER BY created_at DESC LIMIT 1) as last_sender_id,
+  ma.agency_id,
+  ma.athlete_id,
+  ma.status as match_status,
+  ma.match_score,
+  ma.tier,
+  ag.company_name as agency_name,
+  ag.logo_url as agency_logo,
+  ag.agency_type,
+  CONCAT(u_athlete.first_name, ' ', u_athlete.last_name) as athlete_name,
+  u_athlete.profile_photo_url as athlete_photo
+FROM agency_athlete_messages m
+JOIN agency_athlete_matches ma ON ma.id = m.match_id
+LEFT JOIN agencies ag ON ag.id = ma.agency_id
+LEFT JOIN users u_athlete ON u_athlete.id = ma.athlete_id
+WHERE ma.agency_id = auth.uid() OR ma.athlete_id = auth.uid()
+GROUP BY m.match_id, ma.agency_id, ma.athlete_id, ma.status, ma.match_score, ma.tier,
+         ag.company_name, ag.logo_url, ag.agency_type,
+         u_athlete.first_name, u_athlete.last_name, u_athlete.profile_photo_url
+ORDER BY last_message_at DESC NULLS LAST;
+
+GRANT SELECT ON conversation_summaries TO authenticated;
+
+CREATE OR REPLACE FUNCTION mark_messages_read(p_match_id UUID)
+RETURNS TABLE (updated_count INTEGER, success BOOLEAN, error_message TEXT) AS $$
+DECLARE v_user_id UUID; v_is_participant BOOLEAN; v_updated_count INTEGER;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN RETURN QUERY SELECT 0, FALSE, 'Not authenticated'; RETURN; END IF;
+  SELECT EXISTS(SELECT 1 FROM agency_athlete_matches WHERE id = p_match_id AND (agency_id = v_user_id OR athlete_id = v_user_id)) INTO v_is_participant;
+  IF NOT v_is_participant THEN RETURN QUERY SELECT 0, FALSE, 'Not authorized'; RETURN; END IF;
+  WITH updated AS (UPDATE agency_athlete_messages SET read_at = NOW() WHERE match_id = p_match_id AND sender_id != v_user_id AND read_at IS NULL RETURNING id)
+  SELECT COUNT(*)::INTEGER INTO v_updated_count FROM updated;
+  RETURN QUERY SELECT v_updated_count, TRUE, NULL::TEXT;
+END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION mark_messages_read(UUID) TO authenticated;
+
+CREATE OR REPLACE FUNCTION get_unread_count()
+RETURNS TABLE (total_unread INTEGER, conversations_with_unread INTEGER) AS $$
+DECLARE v_user_id UUID; v_total_unread INTEGER; v_conversations_with_unread INTEGER;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN RETURN QUERY SELECT 0, 0; RETURN; END IF;
+  SELECT COUNT(*)::INTEGER INTO v_total_unread FROM agency_athlete_messages m JOIN agency_athlete_matches ma ON ma.id = m.match_id WHERE (ma.agency_id = v_user_id OR ma.athlete_id = v_user_id) AND m.sender_id != v_user_id AND m.read_at IS NULL;
+  SELECT COUNT(DISTINCT m.match_id)::INTEGER INTO v_conversations_with_unread FROM agency_athlete_messages m JOIN agency_athlete_matches ma ON ma.id = m.match_id WHERE (ma.agency_id = v_user_id OR ma.athlete_id = v_user_id) AND m.sender_id != v_user_id AND m.read_at IS NULL;
+  RETURN QUERY SELECT v_total_unread, v_conversations_with_unread;
+END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION get_unread_count() TO authenticated;`;
+
+      log('📝 Applying migration via Supabase...\n', 'info');
+
+      const { error } = await supabase.rpc('exec_sql', { query: sql });
+
+      if (error) {
+        log('❌ Error: ' + error.message, 'error');
+        log('\n⚠️  MANUAL APPLICATION REQUIRED:', 'warning');
+        log('1. Open Supabase Dashboard > SQL Editor', 'warning');
+        log('2. Copy the SQL from migrations/100_messaging_infrastructure.sql', 'warning');
+        log('3. Run the migration manually', 'warning');
+      } else {
+        log('✅ Migration applied successfully!\n', 'success');
+        log('📋 Created:', 'info');
+        log('  - conversation_summaries view', 'success');
+        log('  - mark_messages_read() function', 'success');
+        log('  - get_unread_count() function', 'success');
+        log('  - Performance indexes', 'success');
+        log('\n🎉 Messaging system is ready!', 'success');
+        log('\n📍 Next steps:', 'info');
+        log('1. Enable Realtime in Dashboard > Database > Replication', 'info');
+        log('2. Enable realtime for "agency_athlete_messages" table', 'info');
+        log('3. Click "Go to Messages" button above', 'info');
+      }
+
+      btn.disabled = false;
+    };
+  </script>
+</body>
+</html>

@@ -46,13 +46,15 @@ export async function POST(request: NextRequest) {
     console.log(`✅ Badge awarded successfully to user ${userId}`);
 
     // Track badge earned
-    if (userRole) {
+    if (userRole && userBadge.badge) {
       trackEventServer('badge_earned', {
         user_id: userId,
         role: userRole as any,
         badge_id: userBadge.badge.id,
         badge_name: userBadge.badge.name,
-        timestamp: new Date().toISOString(),
+        rarity: userBadge.badge.rarity || 'common',
+        points: userBadge.badge.points || 0,
+        trigger_action: 'api_award',
       });
     }
 

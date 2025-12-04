@@ -61,8 +61,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch social media stats separately to avoid PostgREST relationship cache issues
+    console.log('🔍 Fetching social media stats...');
+    const { data: socialStats } = await supabaseAdmin
+      .from('social_media_stats')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    // Attach social stats to profile if available
+    if (socialStats) {
+      profile.social_media_stats = [socialStats];
+    }
+
     console.log('✅ Profile fetched successfully:', userId);
     console.log('🎯 onboarding_completed status:', profile.onboarding_completed);
+    console.log('🏫 Phase 6B school fields:', {
+      school_created: profile.school_created,
+      profile_completion_tier: profile.profile_completion_tier,
+      home_completion_required: profile.home_completion_required,
+      school_id: profile.school_id,
+      school_name: profile.school_name
+    });
     console.log('📊 Profile data:', {
       id: profile.id,
       email: profile.email,

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup NEW Database - Complete</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .warning h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #output {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .success { color: #38a169; }
+        .error { color: #e53e3e; }
+        .info { color: #3182ce; }
+        .warning-text { color: #d69e2e; }
+        .step {
+            margin: 20px 0;
+            padding: 20px;
+            background: #edf2f7;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #2d3748;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Complete NEW Database Setup</h1>
+        <p class="subtitle">Apply schema AND seed data to the NEW database (lqskiijspudfocddhkqs)</p>
+
+        <div class="warning">
+            <h3>⚠️ IMPORTANT - Database Confirmation</h3>
+            <p><strong>Target Database:</strong> https://lqskiijspudfocddhkqs.supabase.co</p>
+            <p><strong>This is the NEW database</strong> - No data will be touched in the old database.</p>
+            <p>This will:</p>
+            <ul>
+                <li><strong>Step 1:</strong> Create all tables (athlete_profiles, agency_campaigns, etc.)</li>
+                <li><strong>Step 2:</strong> Seed demo data (5 athletes, 2 campaigns, messages)</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <h3>📋 What Will Be Created:</h3>
+            <p><strong>Tables:</strong></p>
+            <ul>
+                <li>athlete_profiles - Complete athlete information</li>
+                <li>social_media_stats - Instagram, TikTok, Twitter stats</li>
+                <li>agency_campaigns - Campaign management</li>
+                <li>campaign_athletes - Campaign-athlete relationships</li>
+                <li>agency_athlete_lists - Saved athletes</li>
+                <li>agency_message_threads - Messaging system</li>
+                <li>agency_athlete_matches - Match scoring</li>
+            </ul>
+            <p><strong>Demo Data:</strong></p>
+            <ul>
+                <li>5 Athletes (Sarah Johnson, Marcus Williams, Emma Davis, Tyler Brown, Olivia Martinez)</li>
+                <li>2 Campaigns ($150K total budget)</li>
+                <li>Social media stats (90K-207K followers per athlete)</li>
+                <li>Saved lists, message threads, matches</li>
+            </ul>
+        </div>
+
+        <button id="setupBtn" onclick="setupDatabase()">🚀 Setup Complete Database</button>
+
+        <div id="output"></div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://lqskiijspudfocddhkqs.supabase.co';
+        const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTU5MzM1NCwiZXhwIjoyMDc3MTY5MzU0fQ.LpapT51choXCwTfpbE81AIc4JC9QOO0FpOtqUxZ405I';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.innerHTML += `<span class="${type}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function setupDatabase() {
+            const btn = document.getElementById('setupBtn');
+            const output = document.getElementById('output');
+
+            btn.disabled = true;
+            output.innerHTML = '';
+
+            log('🚀 Starting Complete Database Setup', 'info');
+            log(`📊 Target: ${SUPABASE_URL}`, 'info');
+            log('━'.repeat(80), 'info');
+
+            try {
+                // STEP 1: Create Schema
+                log('', 'info');
+                log('📋 STEP 1: Creating Database Schema...', 'info');
+                log('━'.repeat(80), 'info');
+
+                const schemaResponse = await fetch('/migrations/CONSOLIDATED_NEW_DB_SETUP.sql');
+                const schemaSQL = await schemaResponse.text();
+
+                log(`📊 Schema size: ${(schemaSQL.length / 1024).toFixed(2)} KB`, 'info');
+                log('⚙️  Executing schema migration...', 'info');
+
+                const { data: schemaData, error: schemaError } = await supabase.rpc('exec_sql', {
+                    query: schemaSQL
+                });
+
+                if (schemaError) {
+                    throw new Error(`Schema Error: ${schemaError.message}`);
+                }
+
+                log('✅ Schema created successfully!', 'success');
+                log('   Tables: athlete_profiles, agency_campaigns, social_media_stats, etc.', 'success');
+
+                // STEP 2: Seed Data
+                log('', 'info');
+                log('📋 STEP 2: Seeding Demo Data...', 'info');
+                log('━'.repeat(80), 'info');
+
+                const seedResponse = await fetch('/migrations/110_demo_complete_seed.sql');
+                const seedSQL = await seedResponse.text();
+
+                log(`📊 Seed data size: ${(seedSQL.length / 1024).toFixed(2)} KB`, 'info');
+                log('⚙️  Executing seed migration...', 'info');
+
+                const { data: seedData, error: seedError } = await supabase.rpc('exec_sql', {
+                    query: seedSQL
+                });
+
+                if (seedError) {
+                    throw new Error(`Seed Error: ${seedError.message}`);
+                }
+
+                log('✅ Demo data seeded successfully!', 'success');
+                log('   5 athletes, 2 campaigns, social stats, messages created', 'success');
+
+                // STEP 3: Verification
+                log('', 'info');
+                log('📋 STEP 3: Verifying Setup...', 'info');
+                log('━'.repeat(80), 'info');
+
+                if (seedData && Array.isArray(seedData)) {
+                    seedData.forEach((row) => {
+                        if (row.check_type || row.summary) {
+                            const type = row.check_type || row.summary;
+                            log(`\n${type}:`, 'info');
+
+                            Object.entries(row).forEach(([key, value]) => {
+                                if (key !== 'check_type' && key !== 'summary' && value !== null) {
+                                    log(`  ${key}: ${value}`, 'success');
+                                }
+                            });
+                        }
+                    });
+                }
+
+                log('', 'info');
+                log('━'.repeat(80), 'success');
+                log('🎉 DATABASE SETUP COMPLETE!', 'success');
+                log('━'.repeat(80), 'success');
+                log('', 'info');
+                log('✅ Next Steps:', 'info');
+                log('  1. Go to http://localhost:3000/agencies/dashboard', 'info');
+                log('  2. Dashboard should show real data (2 campaigns, 2 saved athletes)', 'info');
+                log('  3. Go to http://localhost:3000/agencies/discover', 'info');
+                log('  4. Click "Generate Match" to see real athletes', 'info');
+                log('  5. Test Save and Message buttons', 'info');
+                log('', 'info');
+                log('🎯 Database is now ready for end-to-end testing!', 'success');
+
+            } catch (error) {
+                log('', 'info');
+                log('❌ ERROR:', 'error');
+                log(error.message, 'error');
+                if (error.details) {
+                    log('Details: ' + error.details, 'error');
+                }
+                if (error.hint) {
+                    log('Hint: ' + error.hint, 'warning-text');
+                }
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Chat LocalStorage</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #ff6b35;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #ff6b35;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background: #e55a2b;
+        }
+        .success {
+            background: #10b981;
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 20px;
+            display: none;
+        }
+        .info {
+            background: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 20px;
+            color: #1e40af;
+        }
+        code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Clear Chat LocalStorage</h1>
+        <p>This tool will clear the chat history from your browser's localStorage, forcing the app to reload fresh data from the database.</p>
+
+        <div class="info">
+            <strong>What this does:</strong>
+            <ul>
+                <li>Clears <code>chatnil-chat-history-v3</code> from localStorage</li>
+                <li>Forces chat data to reload from Supabase database</li>
+                <li>Fixes timestamp conversion issues</li>
+                <li>Does NOT delete your chats from the database</li>
+            </ul>
+        </div>
+
+        <button onclick="clearChatStorage()">Clear Chat Storage</button>
+
+        <div id="success" class="success">
+            ✅ Chat localStorage cleared successfully! Refresh the app to see the updated chat history.
+        </div>
+    </div>
+
+    <script>
+        function clearChatStorage() {
+            try {
+                // Clear the chat history localStorage key
+                localStorage.removeItem('chatnil-chat-history-v3');
+
+                // Show success message
+                document.getElementById('success').style.display = 'block';
+
+                console.log('✅ Chat localStorage cleared successfully');
+
+                // Auto-redirect to main app after 2 seconds
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+            } catch (error) {
+                alert('Error clearing localStorage: ' + error.message);
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

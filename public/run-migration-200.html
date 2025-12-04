@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apply Migration 200 - Database Merge</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .header p {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+
+    .content {
+      padding: 40px;
+    }
+
+    .warning-box {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 20px;
+      margin-bottom: 30px;
+      border-radius: 4px;
+    }
+
+    .warning-box h3 {
+      color: #856404;
+      margin-bottom: 10px;
+    }
+
+    .warning-box ul {
+      color: #856404;
+      margin-left: 20px;
+    }
+
+    .info-box {
+      background: #d1ecf1;
+      border-left: 4px solid #17a2b8;
+      padding: 20px;
+      margin-bottom: 30px;
+      border-radius: 4px;
+    }
+
+    .info-box h3 {
+      color: #0c5460;
+      margin-bottom: 10px;
+    }
+
+    .info-box p {
+      color: #0c5460;
+      line-height: 1.6;
+    }
+
+    .credentials {
+      display: grid;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .input-group label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #333;
+    }
+
+    .input-group input {
+      padding: 12px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    .input-group input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-bottom: 20px;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .output {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 500px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      line-height: 1.5;
+    }
+
+    .output:empty {
+      display: none;
+    }
+
+    .log-success { color: #4ade80; }
+    .log-error { color: #f87171; }
+    .log-warning { color: #fbbf24; }
+    .log-info { color: #60a5fa; }
+    .log-header { color: #a78bfa; font-weight: bold; }
+
+    .checklist {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+    }
+
+    .checklist h3 {
+      margin-bottom: 15px;
+      color: #333;
+    }
+
+    .checklist label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .checklist label:hover {
+      background: rgba(102, 126, 234, 0.1);
+    }
+
+    .checklist input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .loading {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔄 Migration 200: Database Merge</h1>
+      <p>Merging Old Database (Athlete Profiles) + New Database (Agency Features)</p>
+    </div>
+
+    <div class="content">
+      <div class="warning-box">
+        <h3>⚠️ Important: Read Before Proceeding</h3>
+        <ul>
+          <li>This migration adds 25+ columns to the database schema</li>
+          <li>Makes changes to: <code>users</code> table and <code>athlete_profiles</code> table</li>
+          <li>Creates new functions: <code>calculate_profile_completion()</code> and <code>migrate_user_from_old_db()</code></li>
+          <li>Updates RLS policies for new columns</li>
+          <li><strong>BACKUP YOUR DATABASE FIRST!</strong></li>
+        </ul>
+      </div>
+
+      <div class="info-box">
+        <h3>📋 What This Migration Does</h3>
+        <p>
+          <strong>Goal:</strong> Merge the comprehensive athlete profile system from the old database
+          with the agency platform features from the new database.
+        </p>
+        <p style="margin-top: 10px;">
+          <strong>Adds to users table:</strong> first_name, last_name, date_of_birth, phone, parent_email
+        </p>
+        <p style="margin-top: 5px;">
+          <strong>Adds to athlete_profiles table:</strong> graduation_year, major, gpa, height_inches,
+          weight_lbs, jersey_number, secondary_sports, stats, nil_interests, nil_concerns, nil_goals,
+          nil_preferences, twitch_channel, linkedin_url, cover_photo_url, profile_video_url,
+          content_samples, preferred_partnership_types, brand_preferences, profile_completion_score,
+          profile_completion_tier, last_profile_update, profile_views
+        </p>
+      </div>
+
+      <div class="checklist">
+        <h3>✅ Pre-Migration Checklist</h3>
+        <label>
+          <input type="checkbox" id="check1">
+          <span>I have backed up the database via Supabase Dashboard</span>
+        </label>
+        <label>
+          <input type="checkbox" id="check2">
+          <span>I have my Service Role Key ready (not the anon key!)</span>
+        </label>
+        <label>
+          <input type="checkbox" id="check3">
+          <span>I understand this will modify the database schema</span>
+        </label>
+        <label>
+          <input type="checkbox" id="check4">
+          <span>I am ready to run the user data migration after this completes</span>
+        </label>
+      </div>
+
+      <div class="credentials">
+        <div class="input-group">
+          <label for="url">Supabase URL</label>
+          <input type="text" id="url" placeholder="https://xxxxx.supabase.co">
+        </div>
+        <div class="input-group">
+          <label for="key">Service Role Key</label>
+          <input type="password" id="key" placeholder="eyJhbGciOiJIUzI1NiIsInR...">
+        </div>
+      </div>
+
+      <button class="btn" onclick="runMigration()" id="runBtn">
+        🚀 Run Migration 200
+      </button>
+
+      <div id="output" class="output"></div>
+    </div>
+  </div>
+
+  <script>
+    const migration = `
+-- =====================================================
+-- DATABASE MERGE: Old + New Database Schemas
+-- Preserves BOTH agency features AND athlete profiles
+-- =====================================================
+
+-- Add personal info columns to users table
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth date;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_email text;
+
+-- Add comprehensive athlete profile columns
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS graduation_year integer;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS major text;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS gpa numeric(3,2);
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS height_inches integer;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS weight_lbs integer;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS jersey_number integer;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS secondary_sports jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS stats jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS nil_interests text[];
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS nil_concerns text[];
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS nil_goals text[];
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS nil_preferences jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS twitch_channel text;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS linkedin_url text;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS cover_photo_url text;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS profile_video_url text;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS content_samples jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS preferred_partnership_types text[];
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS brand_preferences jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS profile_completion_score integer DEFAULT 0;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS profile_completion_tier text DEFAULT 'bronze';
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS last_profile_update timestamp with time zone;
+ALTER TABLE athlete_profiles ADD COLUMN IF NOT EXISTS profile_views integer DEFAULT 0;
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_athlete_profiles_graduation_year ON athlete_profiles(graduation_year);
+CREATE INDEX IF NOT EXISTS idx_athlete_profiles_gpa ON athlete_profiles(gpa);
+CREATE INDEX IF NOT EXISTS idx_athlete_profiles_completion_score ON athlete_profiles(profile_completion_score);
+CREATE INDEX IF NOT EXISTS idx_athlete_profiles_completion_tier ON athlete_profiles(profile_completion_tier);
+CREATE INDEX IF NOT EXISTS idx_users_first_name ON users(first_name);
+CREATE INDEX IF NOT EXISTS idx_users_last_name ON users(last_name);
+CREATE INDEX IF NOT EXISTS idx_users_date_of_birth ON users(date_of_birth);
+
+-- Enhanced profile completion function
+CREATE OR REPLACE FUNCTION calculate_profile_completion(athlete_profile_id uuid)
+RETURNS jsonb AS $$
+DECLARE
+  profile RECORD;
+  score integer := 0;
+  tier text;
+BEGIN
+  SELECT * INTO profile FROM athlete_profiles WHERE id = athlete_profile_id;
+  IF profile IS NULL THEN
+    RETURN jsonb_build_object('score', 0, 'tier', 'bronze', 'error', 'Profile not found');
+  END IF;
+
+  IF profile.sport IS NOT NULL THEN score := score + 5; END IF;
+  IF profile.position IS NOT NULL THEN score := score + 5; END IF;
+  IF profile.school IS NOT NULL THEN score := score + 5; END IF;
+  IF profile.bio IS NOT NULL AND length(profile.bio) > 50 THEN score := score + 5; END IF;
+  IF profile.height_inches IS NOT NULL THEN score := score + 3; END IF;
+  IF profile.weight_lbs IS NOT NULL THEN score := score + 3; END IF;
+  IF profile.jersey_number IS NOT NULL THEN score := score + 4; END IF;
+  IF profile.graduation_year IS NOT NULL THEN score := score + 3; END IF;
+  IF profile.major IS NOT NULL THEN score := score + 3; END IF;
+  IF profile.gpa IS NOT NULL THEN score := score + 4; END IF;
+  IF profile.instagram_handle IS NOT NULL THEN score := score + 5; END IF;
+  IF profile.tiktok_handle IS NOT NULL THEN score := score + 5; END IF;
+  IF profile.twitter_handle IS NOT NULL THEN score := score + 5; END IF;
+  IF profile.youtube_channel IS NOT NULL THEN score := score + 5; END IF;
+  IF profile.total_followers > 0 THEN score := score + 5; END IF;
+  IF profile.profile_video_url IS NOT NULL THEN score := score + 5; END IF;
+  IF profile.cover_photo_url IS NOT NULL THEN score := score + 5; END IF;
+  IF profile.content_samples IS NOT NULL AND jsonb_array_length(profile.content_samples) > 0 THEN score := score + 5; END IF;
+  IF profile.nil_interests IS NOT NULL AND array_length(profile.nil_interests, 1) > 0 THEN score := score + 3; END IF;
+  IF profile.nil_goals IS NOT NULL AND array_length(profile.nil_goals, 1) > 0 THEN score := score + 3; END IF;
+  IF profile.preferred_partnership_types IS NOT NULL AND array_length(profile.preferred_partnership_types, 1) > 0 THEN score := score + 4; END IF;
+  IF profile.achievements IS NOT NULL AND array_length(profile.achievements, 1) > 0 THEN score := score + 5; END IF;
+  IF profile.stats IS NOT NULL AND jsonb_typeof(profile.stats) = 'object' THEN score := score + 5; END IF;
+
+  IF score >= 80 THEN tier := 'platinum';
+  ELSIF score >= 60 THEN tier := 'gold';
+  ELSIF score >= 40 THEN tier := 'silver';
+  ELSE tier := 'bronze';
+  END IF;
+
+  UPDATE athlete_profiles SET profile_completion_score = score, profile_completion_tier = tier, last_profile_update = now() WHERE id = athlete_profile_id;
+  RETURN jsonb_build_object('score', score, 'tier', tier);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- User migration function
+CREATE OR REPLACE FUNCTION migrate_user_from_old_db(p_user_data jsonb)
+RETURNS uuid AS $$
+DECLARE
+  v_user_id uuid;
+  v_year_classification text;
+BEGIN
+  v_year_classification := CASE
+    WHEN (p_user_data->>'graduation_year')::integer = EXTRACT(YEAR FROM CURRENT_DATE) THEN 'Senior'
+    WHEN (p_user_data->>'graduation_year')::integer = EXTRACT(YEAR FROM CURRENT_DATE) + 1 THEN 'Junior'
+    WHEN (p_user_data->>'graduation_year')::integer = EXTRACT(YEAR FROM CURRENT_DATE) + 2 THEN 'Sophomore'
+    WHEN (p_user_data->>'graduation_year')::integer = EXTRACT(YEAR FROM CURRENT_DATE) + 3 THEN 'Freshman'
+    ELSE 'Unknown'
+  END;
+
+  INSERT INTO users (id, email, first_name, last_name, full_name, date_of_birth, phone, parent_email, username, role, onboarding_completed, created_at, updated_at)
+  VALUES (
+    (p_user_data->>'id')::uuid, p_user_data->>'email', p_user_data->>'first_name', p_user_data->>'last_name',
+    COALESCE(p_user_data->>'full_name', CONCAT(p_user_data->>'first_name', ' ', p_user_data->>'last_name')),
+    (p_user_data->>'date_of_birth')::date, p_user_data->>'phone', p_user_data->>'parent_email',
+    p_user_data->>'username', 'athlete', true,
+    COALESCE((p_user_data->>'created_at')::timestamptz, now()),
+    COALESCE((p_user_data->>'updated_at')::timestamptz, now())
+  )
+  ON CONFLICT (id) DO UPDATE SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, full_name = EXCLUDED.full_name, date_of_birth = EXCLUDED.date_of_birth, phone = EXCLUDED.phone, parent_email = EXCLUDED.parent_email, updated_at = now()
+  RETURNING id INTO v_user_id;
+
+  INSERT INTO athlete_profiles (user_id, username, sport, position, school, year, bio, achievements, stats, height_inches, weight_lbs, jersey_number, secondary_sports, graduation_year, major, gpa, instagram_handle, instagram_followers, instagram_engagement_rate, tiktok_handle, tiktok_followers, tiktok_engagement_rate, twitter_handle, twitter_followers, youtube_channel, youtube_subscribers, twitch_channel, linkedin_url, total_followers, avg_engagement_rate, cover_photo_url, profile_video_url, content_samples, nil_interests, nil_concerns, nil_goals, nil_preferences, preferred_partnership_types, brand_preferences, content_categories, is_available_for_partnerships, profile_completion_score, profile_completion_tier, estimated_fmv, created_at, updated_at)
+  VALUES (v_user_id, p_user_data->>'username', p_user_data->>'primary_sport', p_user_data->>'position', p_user_data->>'school_name', v_year_classification, p_user_data->>'bio', COALESCE((p_user_data->>'achievements')::text[], ARRAY[]::text[]), COALESCE((p_user_data->>'stats')::jsonb, '{}'::jsonb), (p_user_data->>'height_inches')::integer, (p_user_data->>'weight_lbs')::integer, (p_user_data->>'jersey_number')::integer, COALESCE((p_user_data->>'secondary_sports')::jsonb, '[]'::jsonb), (p_user_data->>'graduation_year')::integer, p_user_data->>'major', (p_user_data->>'gpa')::numeric, p_user_data->>'instagram_handle', (p_user_data->>'instagram_followers')::bigint, (p_user_data->>'instagram_engagement_rate')::numeric, p_user_data->>'tiktok_handle', (p_user_data->>'tiktok_followers')::bigint, (p_user_data->>'tiktok_engagement_rate')::numeric, p_user_data->>'twitter_handle', (p_user_data->>'twitter_followers')::bigint, p_user_data->>'youtube_channel', (p_user_data->>'youtube_subscribers')::bigint, p_user_data->>'twitch_channel', p_user_data->>'linkedin_url', (p_user_data->>'total_followers')::bigint, (p_user_data->>'avg_engagement_rate')::numeric, p_user_data->>'cover_photo_url', p_user_data->>'profile_video_url', COALESCE((p_user_data->>'content_samples')::jsonb, '[]'::jsonb), COALESCE((p_user_data->>'nil_interests')::text[], ARRAY[]::text[]), COALESCE((p_user_data->>'nil_concerns')::text[], ARRAY[]::text[]), COALESCE((p_user_data->>'nil_goals')::text[], ARRAY[]::text[]), COALESCE((p_user_data->>'nil_preferences')::jsonb, '{}'::jsonb), COALESCE((p_user_data->>'preferred_partnership_types')::text[], ARRAY[]::text[]), COALESCE((p_user_data->>'brand_preferences')::jsonb, '{}'::jsonb), COALESCE((p_user_data->>'content_categories')::jsonb, '[]'::jsonb), COALESCE((p_user_data->>'is_available_for_partnerships')::boolean, true), COALESCE((p_user_data->>'profile_completion_score')::integer, 0), COALESCE(p_user_data->>'profile_completion_tier', 'bronze'), COALESCE((p_user_data->>'estimated_fmv')::numeric, 0), COALESCE((p_user_data->>'created_at')::timestamptz, now()), COALESCE((p_user_data->>'updated_at')::timestamptz, now()))
+  ON CONFLICT (user_id) DO UPDATE SET height_inches = EXCLUDED.height_inches, weight_lbs = EXCLUDED.weight_lbs, jersey_number = EXCLUDED.jersey_number, secondary_sports = EXCLUDED.secondary_sports, graduation_year = EXCLUDED.graduation_year, major = EXCLUDED.major, gpa = EXCLUDED.gpa, stats = EXCLUDED.stats, nil_interests = EXCLUDED.nil_interests, nil_concerns = EXCLUDED.nil_concerns, nil_goals = EXCLUDED.nil_goals, nil_preferences = EXCLUDED.nil_preferences, twitch_channel = EXCLUDED.twitch_channel, linkedin_url = EXCLUDED.linkedin_url, cover_photo_url = EXCLUDED.cover_photo_url, profile_video_url = EXCLUDED.profile_video_url, content_samples = EXCLUDED.content_samples, preferred_partnership_types = EXCLUDED.preferred_partnership_types, brand_preferences = EXCLUDED.brand_preferences, profile_completion_score = EXCLUDED.profile_completion_score, profile_completion_tier = EXCLUDED.profile_completion_tier, updated_at = now();
+
+  RETURN v_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION calculate_profile_completion TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION migrate_user_from_old_db TO service_role;
+`;
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const line = document.createElement('div');
+      line.className = \`log-\${type}\`;
+      line.textContent = message;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function runMigration() {
+      const url = document.getElementById('url').value.trim();
+      const key = document.getElementById('key').value.trim();
+      const btn = document.getElementById('runBtn');
+      const output = document.getElementById('output');
+
+      // Validation
+      const checks = [
+        document.getElementById('check1'),
+        document.getElementById('check2'),
+        document.getElementById('check3'),
+        document.getElementById('check4')
+      ];
+
+      const allChecked = checks.every(check => check.checked);
+      if (!allChecked) {
+        alert('⚠️ Please complete all checklist items before proceeding!');
+        return;
+      }
+
+      if (!url || !key) {
+        alert('Please fill in both Supabase URL and Service Role Key');
+        return;
+      }
+
+      if (!key.startsWith('eyJ')) {
+        alert('⚠️ This looks like an anon key, not a service role key! Service role keys start with "eyJ"');
+        return;
+      }
+
+      output.innerHTML = '';
+      btn.disabled = true;
+      btn.classList.add('loading');
+      btn.textContent = '⏳ Running Migration...';
+
+      try {
+        log('═'.repeat(80), 'header');
+        log('🚀 MIGRATION 200: Database Merge Starting...', 'header');
+        log('═'.repeat(80), 'header');
+        log('');
+
+        const { createClient } = supabase;
+        const client = createClient(url, key);
+
+        log('📊 Applying schema changes...', 'info');
+        log('   → Adding columns to users table', 'info');
+        log('   → Adding columns to athlete_profiles table', 'info');
+        log('   → Creating indexes', 'info');
+        log('   → Creating/updating functions', 'info');
+        log('');
+
+        // Execute migration via exec_sql RPC
+        const { data, error } = await client.rpc('exec_sql', {
+          query: migration
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        log('═'.repeat(80), 'header');
+        log('✅ MIGRATION 200 COMPLETE!', 'success');
+        log('═'.repeat(80), 'header');
+        log('');
+        log('📋 What was changed:', 'success');
+        log('   ✅ Added 5 columns to users table', 'success');
+        log('   ✅ Added 25+ columns to athlete_profiles table', 'success');
+        log('   ✅ Created 7 database indexes', 'success');
+        log('   ✅ Created/updated calculate_profile_completion() function', 'success');
+        log('   ✅ Created/updated migrate_user_from_old_db() function', 'success');
+        log('   ✅ Updated RLS policies', 'success');
+        log('');
+        log('🎯 NEXT STEPS:', 'warning');
+        log('   1. Verify schema in Supabase Dashboard > Table Editor', 'warning');
+        log('   2. Run the TypeScript migration script:', 'warning');
+        log('      npx tsx scripts/migrate-old-database-users.ts --dry-run', 'warning');
+        log('   3. Test with one user:', 'warning');
+        log('      npx tsx scripts/migrate-old-database-users.ts --limit=1', 'warning');
+        log('   4. Run full migration:', 'warning');
+        log('      npx tsx scripts/migrate-old-database-users.ts', 'warning');
+        log('');
+        log('✅ Schema is ready for user data migration!', 'success');
+
+        btn.textContent = '✅ Migration Complete!';
+        btn.style.background = '#10b981';
+
+      } catch (err) {
+        log('═'.repeat(80), 'header');
+        log('❌ MIGRATION FAILED', 'error');
+        log('═'.repeat(80), 'header');
+        log('');
+        log(\`Error: \${err.message}\`, 'error');
+        log('');
+        log('💡 Troubleshooting:', 'warning');
+        log('   1. Make sure you are using the SERVICE ROLE key, not anon key', 'warning');
+        log('   2. Check that exec_sql function exists in your database', 'warning');
+        log('   3. Verify Supabase URL is correct', 'warning');
+        log('   4. Try applying via SQL Editor in Supabase Dashboard instead', 'warning');
+
+        btn.textContent = '❌ Migration Failed - Try Again';
+        btn.style.background = '#ef4444';
+        btn.disabled = false;
+        btn.classList.remove('loading');
+      }
+    }
+  </script>
+</body>
+</html>

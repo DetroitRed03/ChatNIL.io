@@ -1,7 +1,7 @@
 'use client';
 
 import { MessageSquare } from 'lucide-react';
-import { useChatStore, Message } from '@/lib/chat-store';
+import { useChatStore } from '@/lib/stores/chat';
 import { useChatHistoryStore } from '@/lib/chat-history-store';
 import { streamCompletion } from '@/lib/streaming';
 import MessageList from './Chat/MessageList';
@@ -62,12 +62,21 @@ export default function ChatArea() {
       chatId = createChatWithFirstMessage(draft);
     } else {
       // Add message to existing chat
-      const newMessage: Message = {
+      // Transform attachedFiles from UploadedFile to the format expected by chat-history-store
+      const transformedAttachments = attachedFiles.length > 0
+        ? attachedFiles.map(file => ({
+            type: file.type.startsWith('image/') ? 'image' as const : 'file' as const,
+            url: file.preview || '',
+            name: file.name,
+            mimeType: file.type,
+          }))
+        : undefined;
+      const newMessage = {
         id: Date.now().toString(),
         content: draft,
-        role: 'user',
+        role: 'user' as const,
         timestamp: new Date(),
-        attachments: attachedFiles.length > 0 ? [...attachedFiles] : undefined,
+        attachments: transformedAttachments,
       };
       addMessageToChat(activeChatId, newMessage);
     }
@@ -77,10 +86,10 @@ export default function ChatArea() {
     setStreamingState('submitting');
 
     // Create assistant message for streaming
-    const aiResponse: Message = {
+    const aiResponse = {
       id: (Date.now() + 1).toString(),
       content: '',
-      role: 'assistant',
+      role: 'assistant' as const,
       timestamp: new Date(),
       isStreaming: true,
     };

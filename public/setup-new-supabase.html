@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Setup NEW Supabase Database</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1000px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { color: #667eea; margin-bottom: 10px; }
+    .step { margin: 30px 0; padding: 20px; background: #f8f9fa; border-radius: 8px; }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      margin: 10px 5px;
+    }
+    button:hover { transform: translateY(-2px); transition: 0.2s; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #output {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 600px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+    .warning { color: #fbbf24; }
+    .info { color: #60a5fa; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Setup NEW Supabase Database</h1>
+    <p>This will set up your new Supabase instance with all required tables and data</p>
+
+    <div class="step">
+      <h3>Step 1: Create Helper Function</h3>
+      <p>First, we need to create the exec_sql function manually in the Supabase dashboard</p>
+      <button onclick="showExecSQLInstructions()">Show Instructions</button>
+    </div>
+
+    <div class="step">
+      <h3>Step 2: Apply Core Migrations</h3>
+      <button id="migrateBtn" onclick="applyMigrations()">Apply All Migrations</button>
+    </div>
+
+    <div class="step">
+      <h3>Step 3: Seed Test Data</h3>
+      <button id="seedBtn" onclick="seedData()">Seed Test Data</button>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script type="module">
+    // NEW SUPABASE CREDENTIALS
+    const SUPABASE_URL = 'https://lqskiijspudfocddkhqs.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTU5MzM1NCwiZXhwIjoyMDc3MTY5MzU0fQ.LpapT51choXCwTfpbE81AIc4JC9QOO0FpOtqUxZ405I';
+
+    window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const output = document.getElementById('output');
+
+    function log(message, type = 'info') {
+      const line = document.createElement('div');
+      line.className = type;
+      line.textContent = message;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    window.showExecSQLInstructions = function() {
+      output.innerHTML = '';
+      log('📋 MANUAL SETUP REQUIRED', 'warning');
+      log('', 'info');
+      log('1. Open your Supabase SQL Editor:', 'info');
+      log('   https://supabase.com/dashboard/project/lqskiijspudfocddkhqs/sql/new', 'info');
+      log('', 'info');
+      log('2. Copy and paste this SQL:', 'info');
+      log('━'.repeat(70), 'info');
+      log('', 'info');
+      log('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";', 'info');
+      log('', 'info');
+      log('CREATE OR REPLACE FUNCTION exec_sql(query text)', 'info');
+      log('RETURNS void AS $$', 'info');
+      log('BEGIN', 'info');
+      log('  EXECUTE query;', 'info');
+      log('END;', 'info');
+      log('$$ LANGUAGE plpgsql SECURITY DEFINER;', 'info');
+      log('', 'info');
+      log('GRANT EXECUTE ON FUNCTION exec_sql(text) TO service_role;', 'info');
+      log('', 'info');
+      log('━'.repeat(70), 'info');
+      log('', 'info');
+      log('3. Click "RUN" in the SQL editor', 'info');
+      log('4. Come back here and click "Apply All Migrations"', 'info');
+    };
+
+    window.applyMigrations = async function() {
+      const btn = document.getElementById('migrateBtn');
+      btn.disabled = true;
+      output.innerHTML = '';
+
+      log('🔄 Starting migration to NEW Supabase...\\n', 'info');
+      log(`Target: ${SUPABASE_URL}\\n`, 'info');
+
+      // We'll apply migrations via direct SQL since exec_sql might not work
+      // Let's create the essential tables directly
+
+      const migrations = [
+        {
+          name: 'Create users extensions',
+          sql: `
+            -- Add username column if not exists
+            ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
+          `
+        },
+        {
+          name: 'Create agencies table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS public.agencies (
+              id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+              company_name TEXT NOT NULL,
+              agency_type TEXT,
+              industry TEXT,
+              company_size TEXT,
+              website TEXT,
+              logo_url TEXT,
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+
+            ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
+          `
+        },
+        {
+          name: 'Create athlete_fmv_data table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS public.athlete_fmv_data (
+              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              athlete_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+              fmv_score INTEGER,
+              fmv_tier TEXT,
+              percentile_rank INTEGER,
+              deal_value_min NUMERIC,
+              deal_value_max NUMERIC,
+              is_public_score BOOLEAN DEFAULT true,
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW(),
+              UNIQUE(athlete_id)
+            );
+
+            ALTER TABLE public.athlete_fmv_data ENABLE ROW LEVEL SECURITY;
+          `
+        },
+        {
+          name: 'Create agency_athlete_matches table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS public.agency_athlete_matches (
+              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              agency_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+              athlete_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+              match_score INTEGER NOT NULL,
+              tier TEXT,
+              status TEXT DEFAULT 'active',
+              match_reasons TEXT[],
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW(),
+              UNIQUE(agency_id, athlete_id)
+            );
+
+            ALTER TABLE public.agency_athlete_matches ENABLE ROW LEVEL SECURITY;
+          `
+        },
+        {
+          name: 'Create agency_athlete_messages table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS public.agency_athlete_messages (
+              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              match_id UUID NOT NULL REFERENCES public.agency_athlete_matches(id) ON DELETE CASCADE,
+              sender_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+              content TEXT NOT NULL,
+              read_at TIMESTAMPTZ,
+              metadata JSONB DEFAULT '{}',
+              created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+
+            ALTER TABLE public.agency_athlete_messages ENABLE ROW LEVEL SECURITY;
+
+            CREATE INDEX IF NOT EXISTS idx_messages_match_id ON public.agency_athlete_messages(match_id);
+            CREATE INDEX IF NOT EXISTS idx_messages_created_at ON public.agency_athlete_messages(created_at DESC);
+          `
+        },
+        {
+          name: 'Create quiz_questions table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS public.quiz_questions (
+              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              category TEXT NOT NULL,
+              question TEXT NOT NULL,
+              options TEXT[] NOT NULL,
+              correct_answer INTEGER NOT NULL,
+              difficulty TEXT NOT NULL,
+              points INTEGER NOT NULL DEFAULT 10,
+              created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+
+            ALTER TABLE public.quiz_questions ENABLE ROW LEVEL SECURITY;
+          `
+        }
+      ];
+
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const migration of migrations) {
+        log(`\\nApplying: ${migration.name}...`, 'info');
+
+        try {
+          const { error } = await window.supabase.rpc('exec_sql', { query: migration.sql });
+
+          if (error) {
+            log(`  ❌ Error: ${error.message}`, 'error');
+            failCount++;
+          } else {
+            log(`  ✅ Success`, 'success');
+            successCount++;
+          }
+        } catch (err) {
+          log(`  ❌ Unexpected error: ${err.message}`, 'error');
+          failCount++;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      log(`\\n📊 Migration Summary:`, 'info');
+      log(`  ✅ Successful: ${successCount}`, 'success');
+      log(`  ❌ Failed: ${failCount}`, failCount > 0 ? 'error' : 'info');
+
+      if (failCount === 0) {
+        log(`\\n🎉 All migrations applied successfully!`, 'success');
+        log(`\\nNext: Click "Seed Test Data" button`, 'info');
+      } else {
+        log(`\\n⚠️  Some migrations failed. Check the errors above.`, 'warning');
+      }
+
+      btn.disabled = false;
+    };
+
+    window.seedData = async function() {
+      const btn = document.getElementById('seedBtn');
+      btn.disabled = true;
+      output.innerHTML = '';
+
+      log('🌱 Seeding test data...\\n', 'info');
+
+      // Create test athlete
+      const athleteEmail = `sarah.johnson.${Date.now()}@test.com`;
+      log(`Creating athlete: ${athleteEmail}`, 'info');
+
+      const { data: athlete, error: athleteError } = await window.supabase.auth.admin.createUser({
+        email: athleteEmail,
+        password: 'testpassword123',
+        email_confirm: true,
+        user_metadata: {
+          first_name: 'Sarah',
+          last_name: 'Johnson',
+          role: 'athlete',
+        },
+      });
+
+      if (athleteError) {
+        log(`❌ Error creating athlete: ${athleteError.message}`, 'error');
+      } else {
+        log(`✅ Created athlete: ${athlete.user.id}`, 'success');
+      }
+
+      // Create test agency
+      const agencyEmail = `nike.${Date.now()}@test.com`;
+      log(`\\nCreating agency: ${agencyEmail}`, 'info');
+
+      const { data: agency, error: agencyError } = await window.supabase.auth.admin.createUser({
+        email: agencyEmail,
+        password: 'testpassword123',
+        email_confirm: true,
+        user_metadata: {
+          first_name: 'Nike',
+          last_name: 'Marketing',
+          role: 'agency',
+        },
+      });
+
+      if (agencyError) {
+        log(`❌ Error creating agency: ${agencyError.message}`, 'error');
+      } else {
+        log(`✅ Created agency: ${agency.user.id}`, 'success');
+
+        // Create agency profile
+        await window.supabase.from('agencies').insert({
+          id: agency.user.id,
+          company_name: 'Nike',
+          agency_type: 'brand',
+          industry: 'Sports & Apparel',
+          company_size: '10000+',
+          website: 'https://nike.com',
+          logo_url: 'https://logo.clearbit.com/nike.com',
+        });
+      }
+
+      log('\\n🎉 Seeding complete!', 'success');
+      log('\\n📊 Test Accounts:', 'info');
+      log(`  Athlete: ${athleteEmail} / testpassword123`, 'success');
+      log(`  Agency: ${agencyEmail} / testpassword123`, 'success');
+      log('\\n✅ NEW DATABASE IS READY!', 'success');
+      log('Open http://localhost:3001 to test', 'info');
+
+      btn.disabled = false;
+    };
+  </script>
+</body>
+</html>

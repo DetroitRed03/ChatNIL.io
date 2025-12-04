@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run Migration 080 - Auto-calculate Social Stats</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #f97316;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    button {
+      background: #f97316;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #ea580c;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    #output {
+      margin-top: 20px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      border-left: 4px solid #f97316;
+      white-space: pre-wrap;
+      font-family: monospace;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .success { color: #10b981; }
+    .error { color: #ef4444; }
+    .info { color: #3b82f6; }
+    .warning { color: #f59e0b; }
+    .step {
+      margin: 10px 0;
+      padding: 10px;
+      background: white;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔄 Migration 080: Auto-calculate Social Stats</h1>
+    <p class="subtitle">
+      This migration adds database triggers to automatically calculate <code>total_followers</code>
+      and <code>avg_engagement_rate</code> whenever <code>social_media_stats</code> is updated.
+    </p>
+
+    <div>
+      <button id="runBtn" onclick="runMigration()">▶️ Run Migration</button>
+      <button onclick="verifyData()">✅ Verify Data</button>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODY4NjcwOSwiZXhwIjoyMDc0MjYyNzA5fQ.fXvyvHrUoNLdAr1expbRsguM8fkmurrNQi3-7xk8-TM';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const output = document.getElementById('output');
+
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const className = type;
+      output.innerHTML += `<div class="step ${className}">[${timestamp}] ${message}</div>`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function runMigration() {
+      const btn = document.getElementById('runBtn');
+      btn.disabled = true;
+      output.innerHTML = '';
+
+      try {
+        log('🚀 Starting Migration 080...', 'info');
+        log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'info');
+
+        // Step 1: Drop existing trigger
+        log('📋 Step 1: Dropping existing trigger (if exists)...', 'info');
+        const { error: dropTriggerError } = await supabase.rpc('exec_sql', {
+          sql: 'DROP TRIGGER IF EXISTS trigger_update_social_stats ON users;'
+        });
+
+        if (dropTriggerError) {
+          log(`⚠️ Note: ${dropTriggerError.message}`, 'warning');
+        } else {
+          log('✅ Trigger dropped (or didn\'t exist)', 'success');
+        }
+
+        // Step 2: Drop existing function
+        log('📋 Step 2: Dropping existing function (if exists)...', 'info');
+        const { error: dropFuncError } = await supabase.rpc('exec_sql', {
+          sql: 'DROP FUNCTION IF EXISTS update_social_stats();'
+        });
+
+        if (dropFuncError) {
+          log(`⚠️ Note: ${dropFuncError.message}`, 'warning');
+        } else {
+          log('✅ Function dropped (or didn\'t exist)', 'success');
+        }
+
+        // Step 3: Create function
+        log('📋 Step 3: Creating update_social_stats() function...', 'info');
+        const createFunctionSQL = `
+CREATE OR REPLACE FUNCTION update_social_stats()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_total_followers INTEGER;
+  v_avg_engagement NUMERIC;
+  v_instagram_followers INTEGER := 0;
+  v_tiktok_followers INTEGER := 0;
+  v_twitter_followers INTEGER := 0;
+  v_youtube_subscribers INTEGER := 0;
+  v_instagram_engagement NUMERIC := 0;
+  v_tiktok_engagement NUMERIC := 0;
+  v_twitter_engagement NUMERIC := 0;
+  v_engagement_count INTEGER := 0;
+BEGIN
+  IF NEW.social_media_stats IS NOT NULL THEN
+    IF (NEW.social_media_stats->'instagram') IS NOT NULL THEN
+      v_instagram_followers := COALESCE((NEW.social_media_stats->'instagram'->>'followers')::INTEGER, 0);
+      IF (NEW.social_media_stats->'instagram'->>'engagement_rate') IS NOT NULL THEN
+        v_instagram_engagement := COALESCE((NEW.social_media_stats->'instagram'->>'engagement_rate')::NUMERIC, 0);
+        IF v_instagram_engagement > 0 THEN
+          v_engagement_count := v_engagement_count + 1;
+        END IF;
+      END IF;
+    END IF;
+
+    IF (NEW.social_media_stats->'tiktok') IS NOT NULL THEN
+      v_tiktok_followers := COALESCE((NEW.social_media_stats->'tiktok'->>'followers')::INTEGER, 0);
+      IF (NEW.social_media_stats->'tiktok'->>'engagement_rate') IS NOT NULL THEN
+        v_tiktok_engagement := COALESCE((NEW.social_media_stats->'tiktok'->>'engagement_rate')::NUMERIC, 0);
+        IF v_tiktok_engagement > 0 THEN
+          v_engagement_count := v_engagement_count + 1;
+        END IF;
+      END IF;
+    END IF;
+
+    IF (NEW.social_media_stats->'twitter') IS NOT NULL THEN
+      v_twitter_followers := COALESCE((NEW.social_media_stats->'twitter'->>'followers')::INTEGER, 0);
+      IF (NEW.social_media_stats->'twitter'->>'engagement_rate') IS NOT NULL THEN
+        v_twitter_engagement := COALESCE((NEW.social_media_stats->'twitter'->>'engagement_rate')::NUMERIC, 0);
+        IF v_twitter_engagement > 0 THEN
+          v_engagement_count := v_engagement_count + 1;
+        END IF;
+      END IF;
+    END IF;
+
+    IF (NEW.social_media_stats->'youtube') IS NOT NULL THEN
+      v_youtube_subscribers := COALESCE((NEW.social_media_stats->'youtube'->>'subscribers')::INTEGER, 0);
+    END IF;
+  END IF;
+
+  v_total_followers := v_instagram_followers + v_tiktok_followers + v_twitter_followers + v_youtube_subscribers;
+
+  IF v_engagement_count > 0 THEN
+    v_avg_engagement := (v_instagram_engagement + v_tiktok_engagement + v_twitter_engagement) / v_engagement_count;
+  ELSE
+    v_avg_engagement := 0;
+  END IF;
+
+  NEW.total_followers := v_total_followers;
+  NEW.avg_engagement_rate := v_avg_engagement;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;`;
+
+        const { error: createFuncError } = await supabase.rpc('exec_sql', {
+          sql: createFunctionSQL
+        });
+
+        if (createFuncError) {
+          log(`❌ Error creating function: ${createFuncError.message}`, 'error');
+          throw createFuncError;
+        }
+        log('✅ Function created successfully', 'success');
+
+        // Step 4: Create trigger
+        log('📋 Step 4: Creating trigger...', 'info');
+        const { error: createTriggerError } = await supabase.rpc('exec_sql', {
+          sql: `CREATE TRIGGER trigger_update_social_stats
+  BEFORE INSERT OR UPDATE OF social_media_stats
+  ON users
+  FOR EACH ROW
+  EXECUTE FUNCTION update_social_stats();`
+        });
+
+        if (createTriggerError) {
+          log(`❌ Error creating trigger: ${createTriggerError.message}`, 'error');
+          throw createTriggerError;
+        }
+        log('✅ Trigger created successfully', 'success');
+
+        // Step 5: Backfill existing data
+        log('📋 Step 5: Backfilling existing user data...', 'info');
+        const { data: users, error: selectError } = await supabase
+          .from('users')
+          .select('id, social_media_stats')
+          .not('social_media_stats', 'is', null);
+
+        if (selectError) {
+          log(`❌ Error fetching users: ${selectError.message}`, 'error');
+          throw selectError;
+        }
+
+        log(`📊 Found ${users.length} users with social_media_stats`, 'info');
+
+        // Update each user to trigger the function
+        for (const user of users) {
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({ social_media_stats: user.social_media_stats })
+            .eq('id', user.id);
+
+          if (updateError) {
+            log(`⚠️ Error updating user ${user.id}: ${updateError.message}`, 'warning');
+          }
+        }
+
+        log(`✅ Backfilled ${users.length} users`, 'success');
+
+        log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'info');
+        log('🎉 Migration 080 completed successfully!', 'success');
+        log('', 'info');
+        log('📝 Summary:', 'info');
+        log('  ✓ Trigger created: trigger_update_social_stats', 'success');
+        log('  ✓ Function created: update_social_stats()', 'success');
+        log(`  ✓ Backfilled: ${users.length} users`, 'success');
+        log('', 'info');
+        log('💡 The trigger will now automatically update total_followers and avg_engagement_rate', 'info');
+        log('   whenever social_media_stats is modified.', 'info');
+
+      } catch (error) {
+        log(`💥 Migration failed: ${error.message}`, 'error');
+        console.error(error);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function verifyData() {
+      output.innerHTML = '';
+      log('🔍 Verifying social stats calculation...', 'info');
+      log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'info');
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('first_name, last_name, email, social_media_stats, total_followers, avg_engagement_rate')
+        .eq('email', 'sarah.johnson@test.com')
+        .single();
+
+      if (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+        return;
+      }
+
+      log(`👤 User: ${data.first_name} ${data.last_name}`, 'info');
+      log(`📧 Email: ${data.email}`, 'info');
+      log('', 'info');
+      log('📱 Social Media Stats:', 'info');
+      log(JSON.stringify(data.social_media_stats, null, 2), 'info');
+      log('', 'info');
+      log('📊 Calculated Fields:', 'success');
+      log(`  Total Followers: ${data.total_followers}`, 'success');
+      log(`  Avg Engagement Rate: ${data.avg_engagement_rate}%`, 'success');
+
+      // Manual calculation
+      const stats = data.social_media_stats || {};
+      const instagram = stats.instagram?.followers || 0;
+      const tiktok = stats.tiktok?.followers || 0;
+      const twitter = stats.twitter?.followers || 0;
+      const youtube = stats.youtube?.subscribers || 0;
+      const manualTotal = instagram + tiktok + twitter + youtube;
+
+      log('', 'info');
+      log('🧮 Manual Verification:', 'info');
+      log(`  Instagram: ${instagram}`, 'info');
+      log(`  TikTok: ${tiktok}`, 'info');
+      log(`  Twitter: ${twitter}`, 'info');
+      log(`  YouTube: ${youtube}`, 'info');
+      log(`  Manual Total: ${manualTotal}`, 'info');
+      log('', 'info');
+
+      if (data.total_followers === manualTotal) {
+        log('✅ Calculation is CORRECT!', 'success');
+      } else {
+        log(`⚠️ Mismatch! DB shows ${data.total_followers}, expected ${manualTotal}`, 'warning');
+      }
+    }
+  </script>
+</body>
+</html>

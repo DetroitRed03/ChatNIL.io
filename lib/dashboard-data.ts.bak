@@ -1,0 +1,428 @@
+import { createClient } from '@/lib/supabase/server';
+import type {
+  DashboardMetrics,
+  NILDeal,
+  Opportunity,
+  Notification,
+  Event,
+  QuickStats,
+  QuizProgress,
+  BadgeProgress,
+  RecentChat,
+  LearningStats
+} from '@/lib/types';
+
+/**
+ * Get dashboard metrics for athlete
+ * Aggregates earnings, deals, profile views, and FMV score
+ */
+export async function getDashboardMetrics(userId: string): Promise<DashboardMetrics> {
+  const supabase = createClient();
+
+  // Fetch user profile data
+  const { data: user } = await supabase
+    .from('users')
+    .select('total_followers, avg_engagement_rate, profile_completion_score')
+    .eq('id', userId)
+    .single();
+
+  // Fetch NIL deals to calculate earnings
+  const { data: deals } = await supabase
+    .from('nil_deals')
+    .select('compensation_amount, status')
+    .eq('athlete_id', userId);
+
+  const totalEarnings = deals?.reduce((sum, deal) => {
+    if (deal.status === 'completed') {
+      return sum + (deal.compensation_amount || 0);
+    }
+    return sum;
+  }, 0) || 0;
+
+  const recentEarnings = deals?.filter(d => d.status === 'completed')
+    .slice(0, 3)
+    .reduce((sum, deal) => sum + (deal.compensation_amount || 0), 0) || 0;
+
+  const activeDeals = deals?.filter(d => d.status === 'active').length || 0;
+  const completedDeals = deals?.filter(d => d.status === 'completed').length || 0;
+
+  // Mock profile views (would come from analytics system)
+  const profileViews = Math.floor(Math.random() * 200) + 50;
+  const viewsChange = Math.floor(Math.random() * 50);
+
+  // Calculate FMV score (simplified version)
+  const fmvScore = Math.floor(
+    ((user?.total_followers || 0) / 1000) * 0.4 +
+    ((user?.avg_engagement_rate || 0) * 10) * 0.3 +
+    ((user?.profile_completion_score || 0)) * 0.3
+  );
+
+  return {
+    totalEarnings,
+    earningsChange: recentEarnings,
+    activeDeals,
+    completedDeals,
+    profileViews,
+    viewsChange,
+    fmvScore,
+    fmvChange: Math.floor(Math.random() * 10) - 2, // Mock change
+  };
+}
+
+/**
+ * Get active NIL deals for athlete
+ */
+export async function getActiveDeals(userId: string): Promise<NILDeal[]> {
+  const supabase = createClient();
+
+  const { data: deals } = await supabase
+    .from('nil_deals')
+    .select(`
+      *,
+      agency:users!nil_deals_agency_id_fkey(
+        id,
+        company_name,
+        email
+      )
+    `)
+    .eq('athlete_id', userId)
+    .eq('status', 'active')
+    .order('start_date', { ascending: false })
+    .limit(5);
+
+  return deals || [];
+}
+
+/**
+ * Get matched opportunities for athlete
+ */
+export async function getMatchedOpportunities(userId: string): Promise<Opportunity[]> {
+  const supabase = createClient();
+
+  // Fetch matched opportunities from agency_athlete_matches
+  const { data: matches } = await supabase
+    .from('agency_athlete_matches')
+    .select(`
+      *,
+      agency:users!agency_athlete_matches_agency_id_fkey(
+        id,
+        company_name,
+        industry,
+        campaign_interests
+      )
+    `)
+    .eq('athlete_id', userId)
+    .eq('match_status', 'potential')
+    .gte('match_score', 70)
+    .order('match_score', { ascending: false })
+    .limit(10);
+
+  // Transform matches into opportunities
+  const opportunities: Opportunity[] = (matches || []).map((match) => ({
+    id: match.id,
+    title: `${match.agency?.campaign_interests?.[0] || 'Brand'} Campaign`,
+    brand_name: match.agency?.company_name || 'Agency',
+    description: `Partnership opportunity in ${match.agency?.industry || 'your industry'}`,
+    compensation_min: 1000,
+    compensation_max: 5000,
+    deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now
+    match_score: Math.floor(match.match_score),
+    status: 'open',
+  }));
+
+  return opportunities;
+}
+
+/**
+ * Get notifications for athlete
+ * TODO: Implement real notifications system
+ */
+export async function getNotifications(userId: string): Promise<Notification[]> {
+  // Mock notifications for now
+  const mockNotifications: Notification[] = [
+    {
+      id: '1',
+      user_id: userId,
+      type: 'deal',
+      message: 'Nike accepted your deal proposal',
+      url: '/nil-deals',
+      read: false,
+      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+    },
+    {
+      id: '2',
+      user_id: userId,
+      type: 'fmv',
+      message: 'Your FMV score increased by 5 points',
+      url: '/fmv',
+      read: false,
+      created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
+    },
+    {
+      id: '3',
+      user_id: userId,
+      type: 'message',
+      message: 'New message from Gatorade',
+      url: '/messages',
+      read: false,
+      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+    },
+    {
+      id: '4',
+      user_id: userId,
+      type: 'profile',
+      message: 'Your profile was viewed 23 times today',
+      url: '/profile',
+      read: true,
+      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+    },
+    {
+      id: '5',
+      user_id: userId,
+      type: 'deal',
+      message: 'New deal request from Adidas',
+      url: '/nil-deals',
+      read: true,
+      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+    },
+  ];
+
+  return mockNotifications;
+}
+
+/**
+ * Get upcoming events from deal deliverables
+ */
+export async function getUpcomingEvents(userId: string): Promise<Event[]> {
+  const supabase = createClient();
+
+  // Fetch active deals with deliverables
+  const { data: deals } = await supabase
+    .from('nil_deals')
+    .select('id, deal_title, deliverables, payment_schedule')
+    .eq('athlete_id', userId)
+    .in('status', ['active', 'pending']);
+
+  const events: Event[] = [];
+
+  // Extract deliverable deadlines
+  deals?.forEach((deal) => {
+    if (deal.deliverables && Array.isArray(deal.deliverables)) {
+      deal.deliverables.forEach((deliverable: any) => {
+        if (deliverable.deadline) {
+          events.push({
+            id: `${deal.id}-${deliverable.type}`,
+            title: `${deliverable.type} due`,
+            type: 'deliverable',
+            date: deliverable.deadline,
+            deal_id: deal.id,
+            deal_title: deal.deal_title,
+          });
+        }
+      });
+    }
+
+    // Extract payment dates
+    if (deal.payment_schedule && Array.isArray(deal.payment_schedule)) {
+      deal.payment_schedule.forEach((payment: any) => {
+        if (payment.date) {
+          events.push({
+            id: `${deal.id}-payment-${payment.date}`,
+            title: `Payment due: $${payment.amount}`,
+            type: 'payment',
+            date: payment.date,
+            deal_id: deal.id,
+            deal_title: deal.deal_title,
+          });
+        }
+      });
+    }
+  });
+
+  // Sort by date and return upcoming events
+  return events
+    .filter(e => new Date(e.date) > new Date())
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(0, 5);
+}
+
+/**
+ * Get quick stats for athlete
+ */
+export async function getQuickStats(userId: string): Promise<QuickStats> {
+  const supabase = createClient();
+
+  // Fetch deals for calculations
+  const { data: deals } = await supabase
+    .from('nil_deals')
+    .select('status, created_at')
+    .eq('athlete_id', userId);
+
+  const totalDeals = deals?.length || 0;
+  const completedDeals = deals?.filter(d => d.status === 'completed').length || 0;
+  const activeDeals = deals?.filter(d => d.status === 'active').length || 0;
+
+  // Calculate success rate
+  const dealSuccessRate = totalDeals > 0
+    ? Math.round((completedDeals / totalDeals) * 100)
+    : 0;
+
+  // Mock response metrics (would come from messaging system)
+  const responseRate = 95;
+  const avgResponseTime = '4 hours';
+
+  // Calculate profile growth (mock for now)
+  const profileGrowth = 12;
+
+  return {
+    responseRate,
+    avgResponseTime,
+    dealSuccessRate,
+    profileGrowth,
+  };
+}
+
+/**
+ * Get quiz progress for athlete
+ * Shows recent quiz attempts and completion stats
+ */
+export async function getQuizProgress(userId: string): Promise<QuizProgress> {
+  const supabase = createClient();
+
+  // Fetch quiz attempts
+  const { data: attempts } = await supabase
+    .from('quiz_attempts')
+    .select('*')
+    .eq('user_id', userId)
+    .order('completed_at', { ascending: false })
+    .limit(5);
+
+  // Calculate completion stats
+  const { data: allAttempts } = await supabase
+    .from('quiz_attempts')
+    .select('score_percentage, category')
+    .eq('user_id', userId);
+
+  const totalQuizzes = allAttempts?.length || 0;
+  const averageScore = allAttempts && allAttempts.length > 0
+    ? Math.round(allAttempts.reduce((sum, a) => sum + (a.score_percentage || 0), 0) / allAttempts.length)
+    : 0;
+
+  // Get unique categories completed
+  const categoriesCompleted = new Set(allAttempts?.map(a => a.category) || []).size;
+
+  return {
+    recentAttempts: (attempts || []).map(a => ({
+      id: a.id,
+      category: a.category,
+      score: a.score_percentage,
+      completedAt: a.completed_at,
+      questionsCorrect: a.questions_correct,
+      questionsTotal: a.questions_total,
+    })),
+    totalQuizzes,
+    averageScore,
+    categoriesCompleted,
+    nextRecommended: 'NIL Basics', // Could be made smarter
+  };
+}
+
+/**
+ * Get badge progress for athlete
+ * Shows earned badges and stats
+ */
+export async function getBadgeProgress(userId: string): Promise<BadgeProgress> {
+  const supabase = createClient();
+
+  // Fetch earned badges
+  const { data: userBadges } = await supabase
+    .from('user_badges')
+    .select(`
+      id,
+      earned_at,
+      badge:badges(
+        id,
+        name,
+        description,
+        icon_url,
+        rarity,
+        points
+      )
+    `)
+    .eq('user_id', userId)
+    .order('earned_at', { ascending: false })
+    .limit(5);
+
+  // Get total badge count
+  const { data: allBadges } = await supabase
+    .from('badges')
+    .select('id, points')
+    .eq('is_active', true);
+
+  const totalBadges = allBadges?.length || 0;
+  const earnedCount = userBadges?.length || 0;
+  const totalPoints = userBadges?.reduce((sum, ub: any) => sum + (ub.badge?.points || 0), 0) || 0;
+
+  return {
+    recentBadges: (userBadges || []).map((ub: any) => ({
+      id: ub.badge?.id || '',
+      name: ub.badge?.name || '',
+      description: ub.badge?.description || '',
+      iconUrl: ub.badge?.icon_url,
+      rarity: ub.badge?.rarity || 'common',
+      points: ub.badge?.points || 0,
+      earnedAt: ub.earned_at,
+    })),
+    totalBadges,
+    earnedCount,
+    totalPoints,
+    completionPercentage: totalBadges > 0 ? Math.round((earnedCount / totalBadges) * 100) : 0,
+  };
+}
+
+/**
+ * Get recent AI chat conversations
+ */
+
+/**
+ * Get learning stats for athlete
+ * Overall education metrics
+ */
+export async function getLearningStats(userId: string): Promise<LearningStats> {
+  const supabase = createClient();
+
+  // Get quiz stats
+  const { data: quizzes } = await supabase
+    .from('quiz_attempts')
+    .select('score_percentage, completed_at')
+    .eq('user_id', userId);
+
+  const averageScore = quizzes && quizzes.length > 0
+    ? Math.round(quizzes.reduce((sum, q) => sum + (q.score_percentage || 0), 0) / quizzes.length)
+    : 0;
+
+  // Get badge count
+  const { data: badges } = await supabase
+    .from('user_badges')
+    .select('id')
+    .eq('user_id', userId);
+
+  const badgesEarned = badges?.length || 0;
+
+  // Calculate quiz streak (consecutive days)
+  const quizStreak = 3; // Mock for now - would calculate from quiz dates
+
+  // Calculate knowledge level based on average score
+  let knowledgeLevel = 'Beginner';
+  if (averageScore >= 90) knowledgeLevel = 'Expert';
+  else if (averageScore >= 75) knowledgeLevel = 'Advanced';
+  else if (averageScore >= 60) knowledgeLevel = 'Intermediate';
+
+  return {
+    knowledgeLevel,
+    averageScore,
+    badgesEarned,
+    quizStreak,
+    scoreChange: 5, // Mock - would calculate from recent vs past average
+  };
+}

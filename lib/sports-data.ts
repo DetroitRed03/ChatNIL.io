@@ -29,7 +29,8 @@ export const POPULAR_SPORTS = Object.keys(SPORTS_DATA) as SportName[];
  * Get positions for a specific sport
  */
 export function getPositionsForSport(sport: string): string[] {
-  return SPORTS_DATA[sport as SportName] || [];
+  const positions = SPORTS_DATA[sport as SportName];
+  return positions ? [...positions] : [];
 }
 
 /**

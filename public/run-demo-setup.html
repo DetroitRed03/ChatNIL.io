@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo Setup - ChatNIL.io</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+    .header h1 { font-size: 32px; margin-bottom: 8px; }
+    .header p { font-size: 16px; opacity: 0.9; }
+    .content { padding: 40px; }
+    .step {
+      background: #f9fafb;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .step-number {
+      width: 36px;
+      height: 36px;
+      background: #f97316;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .step-title { font-size: 20px; font-weight: 600; color: #111827; }
+    .step-description { color: #6b7280; margin-bottom: 16px; line-height: 1.6; }
+    .button {
+      background: #f97316;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    .button:hover { background: #ea580c; transform: translateY(-1px); }
+    .button:disabled {
+      background: #d1d5db;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .button.success { background: #10b981; }
+    .button.success:hover { background: #059669; }
+    .status {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+    }
+    .status.info { background: #dbeafe; color: #1e40af; display: block; }
+    .status.success { background: #d1fae5; color: #065f46; display: block; }
+    .status.error { background: #fee2e2; color: #991b1b; display: block; }
+    .log {
+      background: #1f2937;
+      color: #10b981;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 12px;
+      display: none;
+    }
+    .log.show { display: block; }
+    .log-line { margin-bottom: 4px; }
+    .summary {
+      background: #f0fdf4;
+      border: 2px solid #86efac;
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 32px;
+      display: none;
+    }
+    .summary.show { display: block; }
+    .summary h3 { color: #065f46; margin-bottom: 16px; font-size: 20px; }
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #d1fae5;
+    }
+    .summary-item:last-child { border-bottom: none; }
+    .summary-label { color: #047857; font-weight: 500; }
+    .summary-value { color: #065f46; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🚀 Demo Setup Wizard</h1>
+      <p>Set up your FMV & Matchmaking demo in 3 easy steps</p>
+    </div>
+
+    <div class="content">
+      <!-- Step 1: Create Tables -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">1</div>
+          <div class="step-title">Create Database Tables</div>
+        </div>
+        <div class="step-description">
+          Creates agency_campaigns, athlete_public_profiles, campaign_athlete_invites, and agency_athlete_messages tables with proper RLS policies.
+        </div>
+        <button id="btn-migration" class="button">Run Migration</button>
+        <div id="status-migration" class="status"></div>
+        <div id="log-migration" class="log"></div>
+      </div>
+
+      <!-- Step 2: Seed Data -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">2</div>
+          <div class="step-title">Seed Demo Data</div>
+        </div>
+        <div class="step-description">
+          Creates 157 athlete public profiles (matching all your existing athletes) and 6 sample agency campaigns for testing matchmaking.
+        </div>
+        <button id="btn-seed" class="button" disabled>Seed Data</button>
+        <div id="status-seed" class="status"></div>
+        <div id="log-seed" class="log"></div>
+      </div>
+
+      <!-- Step 3: Verify -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">3</div>
+          <div class="step-title">Verify Setup</div>
+        </div>
+        <div class="step-description">
+          Tests all API endpoints to ensure everything is working correctly.
+        </div>
+        <button id="btn-verify" class="button" disabled>Verify APIs</button>
+        <div id="status-verify" class="status"></div>
+        <div id="log-verify" class="log"></div>
+      </div>
+
+      <!-- Summary -->
+      <div id="summary" class="summary">
+        <h3>✅ Setup Complete!</h3>
+        <div class="summary-item">
+          <span class="summary-label">Athletes Created:</span>
+          <span class="summary-value" id="summary-athletes">0</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Campaigns Created:</span>
+          <span class="summary-value" id="summary-campaigns">0</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">API Status:</span>
+          <span class="summary-value" id="summary-api">—</span>
+        </div>
+        <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #86efac;">
+          <p style="color: #065f46; font-weight: 500; margin-bottom: 12px;">Next Steps:</p>
+          <ul style="color: #047857; padding-left: 20px; line-height: 1.8;">
+            <li>Navigate to <strong>http://localhost:3000/demo/athlete</strong></li>
+            <li>Select an athlete from the dropdown</li>
+            <li>View their FMV score and matched campaigns</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+
+    // Log helper
+    function addLog(elementId, message, type = 'info') {
+      const logEl = document.getElementById(elementId);
+      logEl.classList.add('show');
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.textContent = `${type === 'error' ? '❌' : type === 'success' ? '✅' : '▶️'} ${message}`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Status helper
+    function setStatus(elementId, message, type) {
+      const statusEl = document.getElementById(elementId);
+      statusEl.className = `status ${type}`;
+      statusEl.textContent = message;
+    }
+
+    // Step 1: Run Migration
+    document.getElementById('btn-migration').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-migration');
+      btn.disabled = true;
+      btn.textContent = 'Running Migration...';
+      setStatus('status-migration', 'Creating database tables...', 'info');
+
+      try {
+        addLog('log-migration', 'Starting migration...');
+
+        const response = await fetch('/api/demo/setup/migrate', {
+          method: 'POST'
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Migration failed');
+        }
+
+        addLog('log-migration', 'Created agency_campaigns table', 'success');
+        addLog('log-migration', 'Created athlete_public_profiles table', 'success');
+        addLog('log-migration', 'Created campaign_athlete_invites table', 'success');
+        addLog('log-migration', 'Created agency_athlete_messages table', 'success');
+        addLog('log-migration', 'Applied RLS policies', 'success');
+
+        setStatus('status-migration', '✅ Migration completed successfully!', 'success');
+        btn.classList.add('success');
+        btn.textContent = '✓ Migration Complete';
+
+        // Enable next step
+        document.getElementById('btn-seed').disabled = false;
+      } catch (error) {
+        addLog('log-migration', `Error: ${error.message}`, 'error');
+        setStatus('status-migration', `❌ Error: ${error.message}`, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Retry Migration';
+      }
+    });
+
+    // Step 2: Seed Data
+    document.getElementById('btn-seed').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-seed');
+      btn.disabled = true;
+      btn.textContent = 'Seeding Data...';
+      setStatus('status-seed', 'Creating athlete profiles and campaigns...', 'info');
+
+      try {
+        addLog('log-seed', 'Fetching athletes from database...');
+
+        const response = await fetch('/api/demo/setup/seed', {
+          method: 'POST'
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Seeding failed');
+        }
+
+        addLog('log-seed', `Created ${result.athletesCreated} athlete profiles`, 'success');
+        addLog('log-seed', `Created ${result.campaignsCreated} agency campaigns`, 'success');
+        addLog('log-seed', 'Sample campaigns: Nike, Gatorade, Adidas, Red Bull, Under Armour, Degree', 'success');
+
+        setStatus('status-seed', `✅ Created ${result.athletesCreated} profiles and ${result.campaignsCreated} campaigns!`, 'success');
+        btn.classList.add('success');
+        btn.textContent = '✓ Data Seeded';
+
+        // Update summary
+        document.getElementById('summary-athletes').textContent = result.athletesCreated;
+        document.getElementById('summary-campaigns').textContent = result.campaignsCreated;
+
+        // Enable next step
+        document.getElementById('btn-verify').disabled = false;
+      } catch (error) {
+        addLog('log-seed', `Error: ${error.message}`, 'error');
+        setStatus('status-seed', `❌ Error: ${error.message}`, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Retry Seeding';
+      }
+    });
+
+    // Step 3: Verify
+    document.getElementById('btn-verify').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-verify');
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+      setStatus('status-verify', 'Testing all API endpoints...', 'info');
+
+      try {
+        addLog('log-verify', 'Testing GET /api/demo/fmv/athletes...');
+        let response = await fetch('/api/demo/fmv/athletes');
+        if (!response.ok) throw new Error('Athletes endpoint failed');
+        const athletes = await response.json();
+        addLog('log-verify', `✓ Athletes endpoint: ${athletes.length} athletes found`, 'success');
+
+        addLog('log-verify', 'Testing GET /api/demo/matchmaking/campaigns...');
+        response = await fetch('/api/demo/matchmaking/campaigns');
+        if (!response.ok) throw new Error('Campaigns endpoint failed');
+        const campaigns = await response.json();
+        addLog('log-verify', `✓ Campaigns endpoint: ${campaigns.length} campaigns found`, 'success');
+
+        // Test with first athlete
+        if (athletes.length > 0) {
+          const athleteId = athletes[0].id;
+          addLog('log-verify', `Testing GET /api/demo/fmv/athlete/${athleteId}...`);
+          response = await fetch(`/api/demo/fmv/athlete/${athleteId}`);
+          if (!response.ok) throw new Error('Athlete FMV endpoint failed');
+          addLog('log-verify', '✓ Athlete FMV endpoint working', 'success');
+
+          addLog('log-verify', `Testing GET /api/demo/matchmaking/athlete/${athleteId}/campaigns...`);
+          response = await fetch(`/api/demo/matchmaking/athlete/${athleteId}/campaigns`);
+          if (!response.ok) throw new Error('Athlete campaigns endpoint failed');
+          const matches = await response.json();
+          addLog('log-verify', `✓ Matchmaking endpoint: ${matches.length} matches found`, 'success');
+        }
+
+        setStatus('status-verify', '✅ All API endpoints verified!', 'success');
+        btn.classList.add('success');
+        btn.textContent = '✓ Verification Complete';
+
+        // Update summary
+        document.getElementById('summary-api').textContent = 'All endpoints working';
+        document.getElementById('summary').classList.add('show');
+      } catch (error) {
+        addLog('log-verify', `Error: ${error.message}`, 'error');
+        setStatus('status-verify', `❌ Error: ${error.message}`, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Retry Verification';
+      }
+    });
+  </script>
+</body>
+</html>

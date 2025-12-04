@@ -42,16 +42,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get the user profile with service role privileges
-    const { data: profile, error: profileError } = await supabaseAdmin
+    // Get the user profile with service role privileges - Query BOTH tables
+    const { data: user, error: userError } = await supabaseAdmin
       .from('users')
-      .select('id, email, role, onboarding_completed, onboarding_completed_at, created_at, updated_at')
+      .select('*')
       .eq('id', userId)
       .single();
 
-    if (profileError) {
+    if (userError) {
       // If profile doesn't exist, that's a valid state (means user needs onboarding)
-      if (profileError.code === 'PGRST116') {
+      if (userError.code === 'PGRST116') {
         console.log('⚠️ Profile not found (user needs onboarding)');
         return NextResponse.json({
           profile: null,
@@ -59,17 +59,42 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      console.error('❌ Error fetching profile:', profileError);
+      console.error('❌ Error fetching user:', userError);
       return NextResponse.json(
-        { error: `Failed to fetch profile: ${profileError.message}` },
+        { error: `Failed to fetch user: ${userError.message}` },
         { status: 500 }
       );
     }
 
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Fetch athlete profile data from athlete_profiles table
+    const { data: athleteProfile, error: athleteError } = await supabaseAdmin
+      .from('athlete_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (athleteError) {
+      console.error('⚠️  Error fetching athlete profile:', athleteError);
+      // Don't fail if athlete profile doesn't exist - just continue with user data
+    }
+
+    // Merge user data with athlete profile data
+    const profile = {
+      ...user,
+      ...athleteProfile,
+      // Ensure user id is preserved
+      id: user.id,
+    };
+
     console.log('✅ Profile fetched for onboarding check:', {
       userId: profile.id,
       onboarding_completed: profile.onboarding_completed,
-      role: profile.role
+      role: profile.role,
+      hasAthleteData: !!athleteProfile
     });
 
     return NextResponse.json({

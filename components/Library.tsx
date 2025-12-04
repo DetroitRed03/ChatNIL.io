@@ -20,11 +20,11 @@ import {
   X,
   MessageSquare
 } from 'lucide-react';
-import { useLibraryStore, type LibraryFile, type FileType, type ViewMode } from '@/lib/library-store';
-import { addFileToLibrary } from '@/lib/library-store';
+import { useLibraryStore, type LibraryFile, type FileType, type ViewMode } from '@/lib/stores/library';
+import { addFileToLibrary } from '@/lib/stores/library';
 import { useChatHistoryStore } from '@/lib/chat-history-store';
 import SharedInput, { type UploadedFile } from '@/components/SharedInput';
-import { Message } from '@/lib/chat-store';
+import { Message } from '@/lib/stores/chat';
 import { useRouter } from 'next/navigation';
 
 export default function Library() {
@@ -46,7 +46,7 @@ export default function Library() {
     updateFile
   } = useLibraryStore();
 
-  const { sidebarCollapsed, newChat, addMessageToChat, setActiveChat } = useChatHistoryStore();
+  const { sidebarCollapsed, createChatWithFirstMessage, addMessageToChat, setActiveChat } = useChatHistoryStore();
   const router = useRouter();
 
   const [dragActive, setDragActive] = useState(false);
@@ -159,26 +159,14 @@ export default function Library() {
   const handleSendMessage = () => {
     if (!inputValue.trim() && attachedFiles.length === 0) return;
 
-    // Create a new chat for library-specific conversations
-    const chatId = newChat('athlete'); // Default to athlete role
-
-    // Create the user message
-    const userMessage: Message = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      content: inputValue.trim(),
-      role: 'user',
-      timestamp: new Date(),
-      attachments: attachedFiles.length > 0 ? attachedFiles : undefined
-    };
-
-    // Add message to chat
-    addMessageToChat(chatId, userMessage);
-
     // Add context about selected library file if one is selected
     let contextMessage = inputValue.trim();
     if (selectedFile) {
       contextMessage = `[Library file: ${selectedFile.name}] ${contextMessage}`;
     }
+
+    // Create a new chat with the first message (includes library context)
+    const chatId = createChatWithFirstMessage(contextMessage, 'athlete');
 
     // Set the active chat and navigate to chat page
     setActiveChat(chatId);

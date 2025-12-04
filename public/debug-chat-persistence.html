@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Persistence Debugger | ChatNIL</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      color: #667eea;
+      margin-bottom: 1rem;
+      font-size: 2rem;
+    }
+    .section {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      background: #f7fafc;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+    .section h2 {
+      color: #2d3748;
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+    }
+    .status {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+    .status.success { background: #c6f6d5; color: #22543d; }
+    .status.error { background: #fed7d7; color: #742a2a; }
+    .status.warning { background: #feebc8; color: #7c2d12; }
+    .log {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 1rem;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.875rem;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 1rem;
+    }
+    .log-entry {
+      margin: 0.5rem 0;
+      padding-left: 1rem;
+      border-left: 2px solid #4a5568;
+    }
+    button {
+      background: #667eea;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-right: 0.5rem;
+      transition: background 0.2s;
+    }
+    button:hover { background: #5a67d8; }
+    button:disabled {
+      background: #cbd5e0;
+      cursor: not-allowed;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    .data-table th, .data-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .data-table th {
+      background: #edf2f7;
+      font-weight: 600;
+      color: #2d3748;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Chat Persistence Debugger</h1>
+    <p>This tool helps diagnose why chats disappear on page refresh.</p>
+
+    <!-- Authentication Status -->
+    <div class="section">
+      <h2>1. Authentication Status</h2>
+      <div id="auth-status">Checking...</div>
+    </div>
+
+    <!-- localStorage Check -->
+    <div class="section">
+      <h2>2. LocalStorage Check</h2>
+      <div id="localStorage-status">Checking...</div>
+    </div>
+
+    <!-- Database Check -->
+    <div class="section">
+      <h2>3. Database Check</h2>
+      <div id="database-status">Checking...</div>
+      <button onclick="checkDatabase()" style="margin-top: 1rem;">Refresh Database Check</button>
+    </div>
+
+    <!-- RLS Policy Check -->
+    <div class="section">
+      <h2>4. Row Level Security (RLS) Test</h2>
+      <div id="rls-status">Not tested</div>
+      <button onclick="testRLS()" style="margin-top: 1rem;">Test RLS Policies</button>
+    </div>
+
+    <!-- Create Test Chat -->
+    <div class="section">
+      <h2>5. Create Test Chat</h2>
+      <div id="test-chat-status">Ready</div>
+      <button onclick="createTestChat()" style="margin-top: 1rem;">Create Test Chat</button>
+      <button onclick="refreshPage()" style="margin-top: 1rem;">Refresh Page</button>
+    </div>
+
+    <!-- Diagnostic Log -->
+    <div class="section">
+      <h2>📋 Diagnostic Log</h2>
+      <div id="log" class="log"></div>
+      <button onclick="clearLog()" style="margin-top: 1rem;">Clear Log</button>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2ODY3MDksImV4cCI6MjA3NDI2MjcwOX0.jlaEuh56-tFJwAggZ45sntiZ_2zCM6BPb52MKgMOGWs';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let currentUser = null;
+
+    function log(message, type = 'info') {
+      const logEl = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+      logEl.innerHTML += `<div class="log-entry">[${timestamp}] ${icon} ${message}</div>`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+
+    async function checkAuth() {
+      log('Checking authentication status...');
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const authStatusEl = document.getElementById('auth-status');
+
+      if (session && session.user) {
+        currentUser = session.user;
+        authStatusEl.innerHTML = `
+          <strong>Status:</strong> <span class="status success">Authenticated</span><br>
+          <strong>User ID:</strong> ${session.user.id}<br>
+          <strong>Email:</strong> ${session.user.email}<br>
+          <strong>Role:</strong> ${session.user.role || 'authenticated'}
+        `;
+        log(`User authenticated: ${session.user.email}`, 'success');
+        return true;
+      } else {
+        authStatusEl.innerHTML = `<strong>Status:</strong> <span class="status error">Not Authenticated</span><br>
+          <p style="margin-top: 0.5rem;">You need to log in first at <a href="/">ChatNIL.io</a></p>`;
+        log('User not authenticated - please log in first', 'error');
+        return false;
+      }
+    }
+
+    function checkLocalStorage() {
+      log('Checking localStorage...');
+      const localStorageEl = document.getElementById('localStorage-status');
+
+      // Check for chat history
+      const chatHistoryKey = 'chatnil-chat-history-v3';
+      const chatHistory = localStorage.getItem(chatHistoryKey);
+
+      if (chatHistory) {
+        try {
+          const parsed = JSON.parse(chatHistory);
+          const chatsCount = parsed.state?.chats?.length || 0;
+
+          localStorageEl.innerHTML = `
+            <strong>Status:</strong> <span class="status success">Found</span><br>
+            <strong>Key:</strong> ${chatHistoryKey}<br>
+            <strong>Chats Count:</strong> ${chatsCount}<br>
+            <strong>Size:</strong> ${(chatHistory.length / 1024).toFixed(2)} KB<br>
+            <strong>Active Chat ID:</strong> ${parsed.state?.activeChatId || 'None'}
+          `;
+          log(`Found ${chatsCount} chats in localStorage`, 'success');
+        } catch (error) {
+          localStorageEl.innerHTML = `<strong>Status:</strong> <span class="status error">Parse Error</span><br>${error.message}`;
+          log(`Error parsing localStorage: ${error.message}`, 'error');
+        }
+      } else {
+        localStorageEl.innerHTML = `<strong>Status:</strong> <span class="status warning">No Data</span><br>
+          No chat history found in localStorage. This is normal for first-time users.`;
+        log('No chat history in localStorage', 'warning');
+      }
+    }
+
+    async function checkDatabase() {
+      if (!currentUser) {
+        log('Cannot check database - not authenticated', 'error');
+        return;
+      }
+
+      log('Checking database for chat sessions...');
+      const databaseEl = document.getElementById('database-status');
+
+      try {
+        // Query chat_sessions
+        const { data: sessions, error: sessionsError } = await supabase
+          .from('chat_sessions')
+          .select('id, title, created_at, updated_at, is_archived')
+          .eq('user_id', currentUser.id)
+          .order('updated_at', { ascending: false })
+          .limit(10);
+
+        if (sessionsError) {
+          databaseEl.innerHTML = `<strong>Status:</strong> <span class="status error">Error</span><br>
+            <strong>Message:</strong> ${sessionsError.message}<br>
+            <strong>Code:</strong> ${sessionsError.code}`;
+          log(`Database error: ${sessionsError.message}`, 'error');
+          return;
+        }
+
+        if (!sessions || sessions.length === 0) {
+          databaseEl.innerHTML = `<strong>Status:</strong> <span class="status warning">No Sessions</span><br>
+            No chat sessions found in database for your account.`;
+          log('No chat sessions found in database', 'warning');
+          return;
+        }
+
+        // Get message counts for each session
+        const sessionsWithCounts = await Promise.all(
+          sessions.map(async (session) => {
+            const { count } = await supabase
+              .from('chat_messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('session_id', session.id);
+            return { ...session, messageCount: count || 0 };
+          })
+        );
+
+        let tableHTML = `<strong>Status:</strong> <span class="status success">Found ${sessions.length} sessions</span><br>`;
+        tableHTML += '<table class="data-table"><thead><tr><th>Title</th><th>Messages</th><th>Created</th><th>Updated</th></tr></thead><tbody>';
+
+        sessionsWithCounts.forEach(session => {
+          tableHTML += `<tr>
+            <td>${session.title}</td>
+            <td>${session.messageCount}</td>
+            <td>${new Date(session.created_at).toLocaleString()}</td>
+            <td>${new Date(session.updated_at).toLocaleString()}</td>
+          </tr>`;
+        });
+
+        tableHTML += '</tbody></table>';
+        databaseEl.innerHTML = tableHTML;
+        log(`Found ${sessions.length} chat sessions in database`, 'success');
+
+      } catch (error) {
+        databaseEl.innerHTML = `<strong>Status:</strong> <span class="status error">Exception</span><br>${error.message}`;
+        log(`Exception: ${error.message}`, 'error');
+      }
+    }
+
+    async function testRLS() {
+      if (!currentUser) {
+        log('Cannot test RLS - not authenticated', 'error');
+        return;
+      }
+
+      log('Testing RLS policies...');
+      const rlsEl = document.getElementById('rls-status');
+      const results = [];
+
+      // Test 1: Can read own sessions?
+      try {
+        const { data, error } = await supabase
+          .from('chat_sessions')
+          .select('id')
+          .eq('user_id', currentUser.id)
+          .limit(1);
+
+        if (error) {
+          results.push(`❌ SELECT: ${error.message}`);
+          log(`RLS SELECT test failed: ${error.message}`, 'error');
+        } else {
+          results.push(`✅ SELECT: Passed`);
+          log('RLS SELECT test passed', 'success');
+        }
+      } catch (error) {
+        results.push(`❌ SELECT: ${error.message}`);
+      }
+
+      // Test 2: Can insert own session?
+      try {
+        const testId = crypto.randomUUID();
+        const { error: insertError } = await supabase
+          .from('chat_sessions')
+          .insert({
+            id: testId,
+            user_id: currentUser.id,
+            title: 'RLS Test Session',
+            role_context: 'athlete'
+          });
+
+        if (insertError) {
+          results.push(`❌ INSERT: ${insertError.message}`);
+          log(`RLS INSERT test failed: ${insertError.message}`, 'error');
+        } else {
+          results.push(`✅ INSERT: Passed`);
+          log('RLS INSERT test passed', 'success');
+
+          // Clean up test session
+          await supabase
+            .from('chat_sessions')
+            .delete()
+            .eq('id', testId);
+        }
+      } catch (error) {
+        results.push(`❌ INSERT: ${error.message}`);
+      }
+
+      rlsEl.innerHTML = results.join('<br>');
+    }
+
+    async function createTestChat() {
+      if (!currentUser) {
+        log('Cannot create test chat - not authenticated', 'error');
+        return;
+      }
+
+      log('Creating test chat session...');
+      const statusEl = document.getElementById('test-chat-status');
+
+      try {
+        const chatId = crypto.randomUUID();
+        const messageId = crypto.randomUUID();
+
+        // Create session
+        const { error: sessionError } = await supabase
+          .from('chat_sessions')
+          .insert({
+            id: chatId,
+            user_id: currentUser.id,
+            title: 'Test Chat - ' + new Date().toLocaleTimeString(),
+            role_context: 'athlete',
+            is_pinned: false,
+            is_archived: false
+          });
+
+        if (sessionError) {
+          statusEl.innerHTML = `<span class="status error">Failed</span><br>${sessionError.message}`;
+          log(`Failed to create session: ${sessionError.message}`, 'error');
+          return;
+        }
+
+        // Create message
+        const { error: messageError } = await supabase
+          .from('chat_messages')
+          .insert({
+            id: messageId,
+            session_id: chatId,
+            user_id: currentUser.id,
+            content: 'This is a test message to verify chat persistence!',
+            role: 'user'
+          });
+
+        if (messageError) {
+          statusEl.innerHTML = `<span class="status warning">Partial</span><br>Session created but message failed: ${messageError.message}`;
+          log(`Message creation failed: ${messageError.message}`, 'error');
+          return;
+        }
+
+        statusEl.innerHTML = `<span class="status success">Success!</span><br>
+          Chat ID: ${chatId}<br>
+          Message ID: ${messageId}<br>
+          <strong>Now refresh this page to see if it persists!</strong>`;
+        log('Test chat created successfully!', 'success');
+
+        // Refresh database check
+        await checkDatabase();
+
+      } catch (error) {
+        statusEl.innerHTML = `<span class="status error">Exception</span><br>${error.message}`;
+        log(`Exception: ${error.message}`, 'error');
+      }
+    }
+
+    function refreshPage() {
+      window.location.reload();
+    }
+
+    // Run checks on page load
+    window.addEventListener('DOMContentLoaded', async () => {
+      log('=== Chat Persistence Diagnostic Started ===');
+      const isAuth = await checkAuth();
+      checkLocalStorage();
+      if (isAuth) {
+        await checkDatabase();
+      }
+      log('=== Initial Checks Complete ===');
+    });
+  </script>
+</body>
+</html>

@@ -32,9 +32,9 @@ export default function MessageFeedback({
         trackEvent('ai_feedback', {
           user_id: userId,
           role: userRole as any,
-          feedback: type,
+          rating: type,
           message_id: messageId,
-          session_id: sessionId || 'unknown',
+          prompt_category: 'chat',
         });
       }
 

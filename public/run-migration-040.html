@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run Migration 040 - Agency Platform</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 1000px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .container {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    h1 {
+      color: #60a5fa;
+      margin-bottom: 10px;
+    }
+    h2 {
+      color: #93c5fd;
+      margin-top: 30px;
+      font-size: 20px;
+    }
+    .subtitle {
+      color: #94a3b8;
+      margin-bottom: 30px;
+    }
+    button {
+      background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(96, 165, 250, 0.3);
+    }
+    button:disabled {
+      background: #475569;
+      cursor: not-allowed;
+      transform: none;
+    }
+    #output {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 20px;
+      min-height: 200px;
+      max-height: 600px;
+      overflow-y: auto;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .log {
+      margin: 4px 0;
+      padding: 6px 10px;
+      border-radius: 4px;
+    }
+    .log-info {
+      color: #93c5fd;
+    }
+    .log-success {
+      color: #6ee7b7;
+      background: rgba(16, 185, 129, 0.1);
+    }
+    .log-error {
+      color: #fca5a5;
+      background: rgba(239, 68, 68, 0.1);
+    }
+    .log-warning {
+      color: #fcd34d;
+      background: rgba(245, 158, 11, 0.1);
+    }
+    .progress {
+      margin: 20px 0;
+      background: #0f172a;
+      border-radius: 8px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #60a5fa, #3b82f6);
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .stat-card {
+      background: #0f172a;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+    .stat-label {
+      color: #94a3b8;
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+    .stat-value {
+      color: #e2e8f0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .instructions {
+      background: #1e293b;
+      border-left: 4px solid #60a5fa;
+      padding: 15px 20px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .instructions code {
+      background: #0f172a;
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #60a5fa;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Migration 040: Agency Platform</h1>
+    <p class="subtitle">Create database tables for agency talent discovery system</p>
+
+    <div class="instructions">
+      <strong>What this migration does:</strong>
+      <ul>
+        <li>Creates <code>athlete_public_profiles</code> table for agency discovery</li>
+        <li>Creates <code>athlete_portfolio_items</code> for content showcases</li>
+        <li>Creates <code>agency_campaigns</code> and related tables</li>
+        <li>Creates <code>agency_athlete_messages</code> for direct messaging</li>
+        <li>Sets up Row Level Security (RLS) policies</li>
+        <li>Creates indexes for fast searching and filtering</li>
+      </ul>
+    </div>
+
+    <button id="runButton" onclick="runMigration()">▶ Run Migration</button>
+
+    <div class="progress" id="progressContainer" style="display: none;">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div class="stats" id="stats" style="display: none;">
+      <div class="stat-card">
+        <div class="stat-label">Tables Created</div>
+        <div class="stat-value" id="tablesCreated">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Statements Executed</div>
+        <div class="stat-value" id="statementsExecuted">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Status</div>
+        <div class="stat-value" id="status">Ready</div>
+      </div>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://enbuwffusjhpcyoveewb.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYnV3ZmZ1c2pocGN5b3ZlZXdiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1ODY4NjcwOSwiZXhwIjoyMDc0MjYyNzA5fQ.fXvyvHrUoNLdAr1expbRsguM8fkmurrNQi3-7xk8-TM';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const logEntry = document.createElement('div');
+      logEntry.className = `log log-${type}`;
+      logEntry.textContent = message;
+      output.appendChild(logEntry);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function updateProgress(percent) {
+      document.getElementById('progressBar').style.width = percent + '%';
+    }
+
+    function updateStats(tablesCreated, statementsExecuted, status) {
+      document.getElementById('tablesCreated').textContent = tablesCreated;
+      document.getElementById('statementsExecuted').textContent = statementsExecuted;
+      document.getElementById('status').textContent = status;
+    }
+
+    async function runMigration() {
+      const button = document.getElementById('runButton');
+      button.disabled = true;
+      button.textContent = '⏳ Running...';
+
+      document.getElementById('output').innerHTML = '';
+      document.getElementById('progressContainer').style.display = 'block';
+      document.getElementById('stats').style.display = 'grid';
+
+      log('🚀 Starting Migration 040: Agency Platform', 'info');
+      log('', 'info');
+
+      updateStats(0, 0, 'Running');
+      updateProgress(0);
+
+      try {
+        // Fetch migration SQL from file
+        log('📄 Fetching migration SQL...', 'info');
+        const response = await fetch('/migrations/040_agency_platform.sql');
+        const sql = await response.text();
+        log(`✅ Loaded migration file (${sql.length} characters)`, 'success');
+        log('', 'info');
+
+        // Split SQL into statements
+        const statements = sql
+          .split(';')
+          .map(s => s.trim())
+          .filter(s => s.length > 0 && !s.startsWith('--') && !s.match(/^\/\*/));
+
+        log(`📋 Found ${statements.length} SQL statements to execute`, 'info');
+        log('', 'info');
+
+        let executed = 0;
+        let tablesCreated = 0;
+
+        // Execute each statement
+        for (let i = 0; i < statements.length; i++) {
+          const statement = statements[i];
+          const progress = ((i + 1) / statements.length) * 100;
+
+          // Log what we're doing
+          if (statement.includes('CREATE TABLE')) {
+            const tableName = statement.match(/CREATE TABLE (?:IF NOT EXISTS )?(\w+)/i)?.[1];
+            log(`📦 Creating table: ${tableName}`, 'info');
+          } else if (statement.includes('CREATE INDEX')) {
+            const indexName = statement.match(/CREATE INDEX (?:IF NOT EXISTS )?(\w+)/i)?.[1];
+            log(`⚡ Creating index: ${indexName}`, 'info');
+          } else if (statement.includes('CREATE POLICY')) {
+            const policyName = statement.match(/CREATE POLICY "?(\w+)"?/i)?.[1];
+            log(`  🔒 Creating RLS policy: ${policyName}`, 'info');
+          }
+
+          try {
+            const { error } = await supabase.rpc('exec', {
+              sql: statement + ';'
+            });
+
+            if (error) {
+              log(`  ❌ Error: ${error.message}`, 'error');
+              // Continue with other statements
+            } else {
+              executed++;
+              if (statement.includes('CREATE TABLE')) {
+                tablesCreated++;
+              }
+            }
+          } catch (err) {
+            log(`  ❌ Failed: ${err.message}`, 'error');
+          }
+
+          updateProgress(progress);
+          updateStats(tablesCreated, executed, 'Running');
+        }
+
+        log('', 'info');
+        log('🔍 Verifying tables were created...', 'info');
+        log('', 'info');
+
+        // Verify tables
+        const tables = [
+          'athlete_public_profiles',
+          'athlete_portfolio_items',
+          'agency_saved_searches',
+          'agency_athlete_lists',
+          'agency_athlete_list_items',
+          'agency_campaigns',
+          'campaign_athlete_invites',
+          'agency_athlete_messages'
+        ];
+
+        let verified = 0;
+        for (const table of tables) {
+          const { error } = await supabase
+            .from(table)
+            .select('*', { count: 'exact', head: true });
+
+          if (error) {
+            log(`❌ Table "${table}" - NOT FOUND`, 'error');
+          } else {
+            log(`✅ Table "${table}" - EXISTS`, 'success');
+            verified++;
+          }
+        }
+
+        log('', 'info');
+        log('═'.repeat(60), 'info');
+
+        if (verified === tables.length) {
+          log('✅ Migration 040 completed successfully!', 'success');
+          log('', 'info');
+          log('Next steps:', 'info');
+          log('  1. Run data migration: npx tsx scripts/migrate-athletes-to-public-profiles.ts', 'info');
+          log('  2. Verify: npx tsx scripts/verify-agency-platform.ts', 'info');
+          updateStats(verified, executed, '✅ Complete');
+          button.textContent = '✅ Migration Complete';
+          button.style.background = '#10b981';
+        } else {
+          log(`⚠️  Migration completed but ${tables.length - verified} tables are missing.`, 'warning');
+          log('Please check the errors above.', 'warning');
+          updateStats(verified, executed, '⚠️ Partial');
+          button.textContent = '⚠️ Partially Complete';
+          button.style.background = '#f59e0b';
+        }
+
+        updateProgress(100);
+
+      } catch (error) {
+        log('', 'info');
+        log(`❌ Migration failed: ${error.message}`, 'error');
+        log('', 'info');
+        log('Please run the migration manually in Supabase SQL Editor:', 'warning');
+        log('  1. Open Supabase Dashboard → SQL Editor', 'warning');
+        log('  2. Copy contents of migrations/040_agency_platform.sql', 'warning');
+        log('  3. Execute the SQL', 'warning');
+        updateStats(0, 0, '❌ Failed');
+        button.textContent = '❌ Migration Failed';
+        button.style.background = '#ef4444';
+      }
+    }
+  </script>
+</body>
+</html>

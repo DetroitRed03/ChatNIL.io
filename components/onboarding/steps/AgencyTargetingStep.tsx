@@ -6,9 +6,10 @@ import { z } from 'zod';
 import { Target, MapPin, DollarSign, Megaphone } from 'lucide-react';
 import { BUDGET_RANGES, CAMPAIGN_TYPES, US_REGIONS, US_STATES, AGE_RANGES, GENDER_OPTIONS } from '@/lib/agency-data';
 import { useState } from 'react';
+import { CreativeSlider } from '@/components/ui';
 
 const schema = z.object({
-  budget_range: z.string().min(1, 'Please select a budget range'),
+  budget_range: z.number().min(1000, 'Budget must be at least $1,000'),
   campaign_interests: z.array(z.string()).min(1, 'Select at least one campaign type'),
   geographic_focus: z.array(z.string()).min(1, 'Select at least one geographic area'),
   target_demographics: z.object({
@@ -40,10 +41,10 @@ export default function AgencyTargetingStep({
     watch,
     setValue,
   } = useForm<AgencyTargetingData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     mode: 'onChange',
     defaultValues: initialData || {
-      budget_range: '',
+      budget_range: 5000,
       campaign_interests: [],
       geographic_focus: [],
       target_demographics: {
@@ -96,32 +97,54 @@ export default function AgencyTargetingStep({
       </div>
 
       {/* Budget Range */}
-      <div>
-        <label htmlFor="budget_range" className="block text-sm font-medium text-gray-700 mb-2">
-          Budget Range <span className="text-red-500">*</span>
-        </label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <DollarSign className="h-5 w-5 text-gray-400" />
-          </div>
-          <select
-            id="budget_range"
-            {...register('budget_range')}
-            className={`block w-full pl-10 pr-3 py-3 border ${
-              errors.budget_range ? 'border-red-300' : 'border-gray-300'
-            } rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors appearance-none bg-white`}
-          >
-            <option value="">Select budget range...</option>
-            {BUDGET_RANGES.map((range) => (
-              <option key={range.value} value={range.value}>
-                {range.label} - {range.description}
-              </option>
-            ))}
-          </select>
+      <div className="bg-gradient-to-br from-purple-50/50 to-pink-50/50 border-2 border-purple-200 rounded-2xl p-6 backdrop-blur-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <DollarSign className="h-5 w-5 text-purple-600" />
+          <h3 className="font-semibold text-gray-900">
+            Campaign Budget <span className="text-red-500">*</span>
+          </h3>
         </div>
+        <p className="text-sm text-gray-600 mb-6">
+          Set your total budget for NIL partnerships and campaigns
+        </p>
+
+        <Controller
+          name="budget_range"
+          control={control}
+          defaultValue={5000}
+          render={({ field }) => (
+            <CreativeSlider
+              min={1000}
+              max={100000}
+              step={1000}
+              value={field.value}
+              onChange={field.onChange}
+              formatValue={(val) => `$${val.toLocaleString()}`}
+              gradientColors={['#a855f7', '#ec4899']}
+              snapPoints={[1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000]}
+              showValue
+            />
+          )}
+        />
+
         {errors.budget_range && (
-          <p className="mt-1 text-sm text-red-600">{errors.budget_range.message}</p>
+          <p className="mt-2 text-sm text-red-600 px-4">{errors.budget_range.message}</p>
         )}
+
+        <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
+          <div className="bg-white/60 rounded-lg p-3 border border-purple-200">
+            <p className="text-gray-500 mb-1">Micro</p>
+            <p className="font-semibold text-purple-700">$1K - $5K</p>
+          </div>
+          <div className="bg-white/60 rounded-lg p-3 border border-purple-200">
+            <p className="text-gray-500 mb-1">Mid-Tier</p>
+            <p className="font-semibold text-purple-700">$5K - $25K</p>
+          </div>
+          <div className="bg-white/60 rounded-lg p-3 border border-purple-200">
+            <p className="text-gray-500 mb-1">Premium</p>
+            <p className="font-semibold text-purple-700">$25K+</p>
+          </div>
+        </div>
       </div>
 
       {/* Campaign Types */}

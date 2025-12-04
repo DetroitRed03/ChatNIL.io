@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { DollarSign, FileText, Shield, MapPin, Clock, AlertTriangle } from 'lucide-react';
@@ -14,13 +14,13 @@ import {
   USAGE_RIGHTS,
 } from '@/lib/athlete-data';
 import { useState } from 'react';
+import { CreativeSlider } from '@/components/ui';
 
 const schema = z.object({
   nil_preferences: z.object({
     // Deal preferences
     preferred_deal_types: z.array(z.string()).min(1, 'Select at least one deal type'),
-    min_compensation: z.number().min(0, 'Must be positive').optional(),
-    max_compensation: z.number().min(0, 'Must be positive').optional(),
+    compensation_range: z.tuple([z.number(), z.number()]).optional(),
     preferred_partnership_length: z.string().optional(),
 
     // Content preferences
@@ -72,9 +72,11 @@ export default function AthleteNILPreferencesStep({
     formState: { errors, isValid },
     watch,
     setValue,
+    control,
   } = useForm<AthleteNILPreferencesData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: initialData || {
       nil_preferences: {
         preferred_deal_types: [],
@@ -91,11 +93,31 @@ export default function AthleteNILPreferencesStep({
 
   const preferences = watch('nil_preferences');
 
+  // Debug logging
+  console.log('🎯 NIL Preferences Form State:', {
+    isValid,
+    errors: errors.nil_preferences,
+    dealTypes: preferences?.preferred_deal_types?.length || 0,
+    dealTypesArray: preferences?.preferred_deal_types,
+    contentTypes: preferences?.content_types_willing?.length || 0,
+    contentTypesArray: preferences?.content_types_willing,
+    allPreferences: preferences,
+  });
+
   const toggleArrayValue = (field: string, value: string) => {
     const currentValues = (preferences[field as keyof typeof preferences] as string[]) || [];
     const newValues = currentValues.includes(value)
       ? currentValues.filter((v: string) => v !== value)
       : [...currentValues, value];
+
+    console.log('🔄 Toggling array value:', {
+      field,
+      value,
+      currentValues,
+      newValues,
+      willValidate: true
+    });
+
     setValue(`nil_preferences.${field}` as any, newValues, { shouldValidate: true });
   };
 
@@ -201,35 +223,47 @@ export default function AthleteNILPreferencesStep({
             </div>
 
             {/* Compensation Range */}
-            <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-              <h4 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-green-500" />
-                Compensation Range (Optional)
+            <div className="bg-gradient-to-br from-green-50/50 to-emerald-50/50 border-2 border-green-200 rounded-2xl p-6 backdrop-blur-sm">
+              <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-green-600" />
+                Desired Compensation Range
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Minimum Compensation (USD)
-                  </label>
-                  <input
-                    type="number"
-                    {...register('nil_preferences.min_compensation', { valueAsNumber: true })}
-                    placeholder="e.g., 500"
-                    className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              <p className="text-sm text-gray-600 mb-6">
+                Set your preferred deal value range to help match with appropriate opportunities
+              </p>
+
+              <Controller
+                name="nil_preferences.compensation_range"
+                control={control}
+                defaultValue={[500, 10000]}
+                render={({ field }) => (
+                  <CreativeSlider
+                    range
+                    min={0}
+                    max={50000}
+                    step={100}
+                    value={field.value}
+                    onChange={field.onChange}
+                    formatValue={(val) => `$${val.toLocaleString()}`}
+                    gradientColors={['#10b981', '#059669']}
+                    snapPoints={[500, 1000, 2500, 5000, 10000, 25000]}
+                    showValue
                   />
-                  <p className="text-xs text-gray-500 mt-1">Lowest deal value you'll consider</p>
+                )}
+              />
+
+              <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
+                <div className="bg-white/60 rounded-lg p-3 border border-green-200">
+                  <p className="text-gray-500 mb-1">Minimum</p>
+                  <p className="font-semibold text-green-700">
+                    ${(watch('nil_preferences.compensation_range')?.[0] ?? 500).toLocaleString()}
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Maximum Compensation (USD)
-                  </label>
-                  <input
-                    type="number"
-                    {...register('nil_preferences.max_compensation', { valueAsNumber: true })}
-                    placeholder="e.g., 10000"
-                    className="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Your target deal ceiling</p>
+                <div className="bg-white/60 rounded-lg p-3 border border-green-200">
+                  <p className="text-gray-500 mb-1">Maximum</p>
+                  <p className="font-semibold text-green-700">
+                    ${(watch('nil_preferences.compensation_range')?.[1] ?? 10000).toLocaleString()}
+                  </p>
                 </div>
               </div>
             </div>

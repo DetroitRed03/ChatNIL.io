@@ -97,15 +97,16 @@ class PerformanceMonitor {
         // Monitor First Input Delay
         const fidObserver = new PerformanceObserver((list) => {
           list.getEntries().forEach((entry) => {
-            const fid = entry.processingStart - entry.startTime;
+            const fidEntry = entry as any;
+            const fid = (fidEntry.processingStart || 0) - entry.startTime;
             this.recordMetric('first-input-delay', fid, 'ms', {
               name: entry.name,
-              target: (entry.target as Element)?.tagName
+              target: (fidEntry.target as Element)?.tagName
             });
 
             logger.info(`First Input Delay: ${fid.toFixed(2)}ms`, 'performance', {
               fid: fid,
-              target: (entry.target as Element)?.tagName
+              target: (fidEntry.target as Element)?.tagName
             });
           });
         });
@@ -248,16 +249,17 @@ class PerformanceMonitor {
 
     // Wait for page to be fully loaded
     setTimeout(() => {
-      const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      const navigation = performance.getEntriesByType('navigation')[0] as any;
       if (navigation) {
-        this.recordMetric('page-load-time', navigation.loadEventEnd - navigation.navigationStart, 'ms');
-        this.recordMetric('dom-content-loaded', navigation.domContentLoadedEventEnd - navigation.navigationStart, 'ms');
-        this.recordMetric('first-byte', navigation.responseStart - navigation.navigationStart, 'ms');
+        const navStart = navigation.navigationStart || navigation.startTime || 0;
+        this.recordMetric('page-load-time', navigation.loadEventEnd - navStart, 'ms');
+        this.recordMetric('dom-content-loaded', navigation.domContentLoadedEventEnd - navStart, 'ms');
+        this.recordMetric('first-byte', navigation.responseStart - navStart, 'ms');
 
         logger.info('Page load metrics recorded', 'performance', {
-          loadTime: navigation.loadEventEnd - navigation.navigationStart,
-          domContentLoaded: navigation.domContentLoadedEventEnd - navigation.navigationStart,
-          firstByte: navigation.responseStart - navigation.navigationStart
+          loadTime: navigation.loadEventEnd - navStart,
+          domContentLoaded: navigation.domContentLoadedEventEnd - navStart,
+          firstByte: navigation.responseStart - navStart
         });
       }
 

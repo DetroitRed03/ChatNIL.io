@@ -1,11 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, Target, Instagram, Twitter, Youtube, Hash, User, Briefcase, Shield, CheckCircle, AlertCircle, DollarSign, Loader2, Info } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Target, Instagram, Twitter, Youtube, Hash, User, Briefcase, Shield, CheckCircle, AlertCircle, DollarSign, Loader2, Info, SkipForward, Save } from 'lucide-react';
 import { athleteNILInfoSchema, AthleteNILInfo, OnboardingStepProps } from '@/lib/onboarding-types';
 import { useOnboarding } from '@/contexts/OnboardingContext';
+import {
+  OnboardingInput,
+  OnboardingTextarea,
+  OnboardingButton,
+} from '@/components/ui/OnboardingInput';
 
 // Brand categories for interests
 const BRAND_CATEGORIES = [
@@ -141,11 +146,14 @@ export default function AthleteNILInfoStep({
   data,
   onNext,
   onBack,
+  onSkip,
+  onSaveAndExit,
   isFirst,
   isLast,
-  isLoading
+  isLoading,
+  allowSkip = false // This is the final step, so skip should be disabled by default
 }: OnboardingStepProps) {
-  const { nextStep, updateFormData } = useOnboarding();
+  const { nextStep, previousStep, skipStep, saveAndExit, updateFormData } = useOnboarding();
   const [selectedBrands, setSelectedBrands] = useState<string[]>(data.brandInterests || []);
   const [selectedGoals, setSelectedGoals] = useState<string[]>(data.nilGoals || []);
   const [acknowledgedCompliance, setAcknowledgedCompliance] = useState(false);
@@ -159,9 +167,11 @@ export default function AthleteNILInfoStep({
     handleSubmit,
     watch,
     setValue,
+    getValues,
+    control,
     formState: { errors, isValid }
   } = useForm<AthleteNILInfo>({
-    resolver: zodResolver(athleteNILInfoSchema),
+    resolver: zodResolver(athleteNILInfoSchema) as any,
     defaultValues: {
       bio: data.bio || '',
       socialMediaHandles: {
@@ -195,14 +205,6 @@ export default function AthleteNILInfoStep({
       : [...selectedGoals, goalId];
     setSelectedGoals(updated);
     setValue('nilGoals', updated);
-  };
-
-  // Validate social media handle format
-  const validateHandle = (handle: string, platform: string) => {
-    if (!handle) return true;
-    const cleanHandle = handle.replace('@', '');
-    const validFormat = /^[a-zA-Z0-9_.]+$/.test(cleanHandle);
-    return validFormat;
   };
 
   const formatHandle = (handle: string) => {
@@ -254,9 +256,6 @@ export default function AthleteNILInfoStep({
     setSubmitError(null);
     setShowSuccessMessage(false);
 
-    console.log('🎯 AthleteNILInfoStep: Starting form submission');
-    console.log('📋 Form data:', formData);
-
     // Clean and format social media handles
     const cleanedData = {
       ...formData,
@@ -271,31 +270,20 @@ export default function AthleteNILInfoStep({
     };
 
     try {
-
-      console.log('✅ Cleaned form data:', cleanedData);
-
-      // Update form data in context
       updateFormData(cleanedData);
-
-      // Attempt to progress to next step
-      console.log('⏭️ Calling nextStep to trigger completion flow');
       const success = await nextStep(cleanedData);
 
       if (success) {
-        console.log('🎉 Form submission successful, showing success message');
         setShowSuccessMessage(true);
-
-        // Call onNext after brief delay to show success message
         setTimeout(() => {
           onNext(cleanedData);
         }, 500);
       } else {
-        console.warn('⚠️ Step progression failed, but data was saved locally');
+        console.warn('Step progression failed, but data was saved locally');
         setSubmitError('Unable to advance to the next step right now, but your data has been saved. Please try again.');
       }
     } catch (error: any) {
-      console.error('❌ Form submission failed:', error);
-      // Still update form data locally as fallback
+      console.error('Form submission failed:', error);
       updateFormData(cleanedData);
       setSubmitError(
         error.message || 'An unexpected error occurred while saving your information. Your progress has been saved locally.'
@@ -305,19 +293,25 @@ export default function AthleteNILInfoStep({
     }
   };
 
+  const handleBack = () => {
+    updateFormData(getValues());
+    previousStep();
+    if (onBack) onBack();
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-      {/* Introduction */}
-      <div className="mb-8 p-6 bg-orange-50 rounded-xl border border-orange-200">
-        <div className="flex items-start">
-          <div className="p-2 bg-orange-100 rounded-lg mr-4">
-            <Target className="h-6 w-6 text-orange-600" />
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* Introduction Card */}
+      <div className="p-5 bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200/50">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
+            <Target className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-orange-900 mb-2">
+            <h3 className="font-bold text-orange-900 mb-1">
               Build your NIL brand and opportunities
             </h3>
-            <p className="text-orange-700 leading-relaxed">
+            <p className="text-sm text-orange-700 leading-relaxed">
               This information helps us match you with the most relevant NIL opportunities
               and ensures you're compliant with all regulations.
             </p>
@@ -327,14 +321,12 @@ export default function AthleteNILInfoStep({
 
       {/* Error Message */}
       {submitError && (
-        <div className="mb-6 p-4 bg-red-50 rounded-xl border border-red-200">
-          <div className="flex items-start">
-            <div className="p-1 bg-red-100 rounded-lg mr-3">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-            </div>
+        <div className="p-4 bg-red-50 rounded-xl border-2 border-red-200">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
             <div>
-              <h4 className="text-sm font-medium text-red-900 mb-1">Submission Failed</h4>
-              <p className="text-xs text-red-700">{submitError}</p>
+              <h4 className="text-sm font-bold text-red-900 mb-1">Submission Failed</h4>
+              <p className="text-sm text-red-700">{submitError}</p>
             </div>
           </div>
         </div>
@@ -342,136 +334,130 @@ export default function AthleteNILInfoStep({
 
       {/* Success Message */}
       {showSuccessMessage && (
-        <div className="mb-6 p-4 bg-green-50 rounded-xl border border-green-200">
-          <div className="flex items-start">
-            <div className="p-1 bg-green-100 rounded-lg mr-3">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </div>
+        <div className="p-4 bg-green-50 rounded-xl border-2 border-green-200">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
             <div>
-              <h4 className="text-sm font-medium text-green-900 mb-1">Success!</h4>
-              <p className="text-xs text-green-700">Your information has been saved. Taking you to the completion screen...</p>
+              <h4 className="text-sm font-bold text-green-900 mb-1">Success!</h4>
+              <p className="text-sm text-green-700">Your information has been saved. Taking you to the completion screen...</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Personal Bio */}
-      <div>
-        <label className="block text-sm font-medium text-gray-900 mb-2">
-          Personal Bio (Optional)
-        </label>
-        <div className="relative">
-          <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-          <textarea
-            {...register('bio')}
-            rows={4}
-            maxLength={500}
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-            placeholder="Tell brands and fans about yourself, your journey, and what makes you unique as an athlete..."
-          />
-        </div>
-        <div className="flex justify-between mt-1">
-          <p className="text-xs text-gray-500">This helps brands understand your personality and story</p>
-          <p className="text-xs text-gray-400">{watchedBio?.length || 0}/500</p>
-        </div>
-      </div>
+      <Controller
+        name="bio"
+        control={control}
+        render={({ field }) => (
+          <div className="space-y-2">
+            <OnboardingTextarea
+              {...field}
+              label="Personal Bio"
+              placeholder="Tell brands and fans about yourself, your journey, and what makes you unique as an athlete..."
+              helperText="This helps brands understand your personality and story (optional)"
+              rows={4}
+              maxLength={500}
+            />
+            <div className="flex justify-end">
+              <span className="text-xs text-gray-400">{watchedBio?.length || 0}/500</span>
+            </div>
+          </div>
+        )}
+      />
 
       {/* Social Media Handles */}
       <div>
-        <h4 className="text-sm font-medium text-gray-900 mb-4">Social Media Handles (Optional)</h4>
+        <label className="block text-sm font-bold text-gray-700 mb-4">Social Media Handles</label>
         <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">Instagram</label>
-            <div className="relative">
-              <Instagram className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <input
-                {...register('socialMediaHandles.instagram')}
-                type="text"
-                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+          <Controller
+            name="socialMediaHandles.instagram"
+            control={control}
+            render={({ field }) => (
+              <OnboardingInput
+                {...field}
+                label="Instagram"
                 placeholder="@username"
               />
-            </div>
-          </div>
+            )}
+          />
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">Twitter/X</label>
-            <div className="relative">
-              <Twitter className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <input
-                {...register('socialMediaHandles.twitter')}
-                type="text"
-                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+          <Controller
+            name="socialMediaHandles.twitter"
+            control={control}
+            render={({ field }) => (
+              <OnboardingInput
+                {...field}
+                label="Twitter/X"
                 placeholder="@username"
               />
-            </div>
-          </div>
+            )}
+          />
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">TikTok</label>
-            <div className="relative">
-              <Hash className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <input
-                {...register('socialMediaHandles.tiktok')}
-                type="text"
-                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+          <Controller
+            name="socialMediaHandles.tiktok"
+            control={control}
+            render={({ field }) => (
+              <OnboardingInput
+                {...field}
+                label="TikTok"
                 placeholder="@username"
               />
-            </div>
-          </div>
+            )}
+          />
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">YouTube</label>
-            <div className="relative">
-              <Youtube className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <input
-                {...register('socialMediaHandles.youtube')}
-                type="text"
-                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+          <Controller
+            name="socialMediaHandles.youtube"
+            control={control}
+            render={({ field }) => (
+              <OnboardingInput
+                {...field}
+                label="YouTube"
                 placeholder="@channelname"
               />
-            </div>
-          </div>
+            )}
+          />
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Social media followers help determine sponsorship values and opportunities
+          Social media followers help determine sponsorship values and opportunities (optional)
         </p>
       </div>
 
       {/* Brand Interests */}
       <div>
-        <h4 className="text-sm font-medium text-gray-900 mb-4">Brand Partnership Interests</h4>
+        <label className="block text-sm font-bold text-gray-700 mb-4">Brand Partnership Interests</label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {BRAND_CATEGORIES.map(({ id, label, icon: Icon, color }) => {
+          {BRAND_CATEGORIES.map(({ id, label, icon: Icon }) => {
             const isSelected = selectedBrands.includes(id);
             return (
               <button
                 key={id}
                 type="button"
                 onClick={() => toggleBrandInterest(id)}
-                className={`p-3 rounded-xl border-2 text-left transition-all ${
+                className={`p-4 rounded-xl border-2 text-left transition-all ${
                   isSelected
-                    ? 'border-orange-500 bg-orange-50 text-orange-900'
-                    : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                    ? 'border-orange-500 bg-orange-50 shadow-md'
+                    : 'border-orange-200/50 hover:border-orange-300 hover:bg-orange-50/50'
                 }`}
               >
                 <Icon className={`h-5 w-5 mb-2 ${
                   isSelected ? 'text-orange-500' : 'text-gray-400'
                 }`} />
-                <div className="text-sm font-medium">{label}</div>
+                <div className={`text-sm font-semibold ${isSelected ? 'text-orange-900' : 'text-gray-700'}`}>{label}</div>
               </button>
             );
           })}
         </div>
         <p className="text-xs text-gray-500 mt-2">
-          Select categories you're interested in for brand partnerships
+          Select categories you're interested in for brand partnerships (optional)
         </p>
       </div>
 
       {/* NIL Goals with Educational Tooltips */}
       <div>
-        <h4 className="text-sm font-medium text-gray-900 mb-2">NIL Goals & Interests</h4>
+        <label className="block text-sm font-bold text-gray-700 mb-2">NIL Goals & Interests</label>
         <p className="text-xs text-gray-600 mb-4">
-          Select the types of NIL opportunities you're interested in. Click the info icon to learn more about each option.
+          Select the types of NIL opportunities you're interested in. Click the info icon to learn more.
         </p>
         <div className="space-y-3">
           {NIL_GOALS.map((goal) => {
@@ -480,102 +466,92 @@ export default function AthleteNILInfoStep({
 
             return (
               <div key={goal.id} className="relative" data-tooltip-container>
-                <label className="relative flex items-center group">
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleNILGoal(goal.id)}
-                    className="sr-only"
-                  />
-                  <div className={`flex items-center justify-between w-full p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                <button
+                  type="button"
+                  onClick={() => toggleNILGoal(goal.id)}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border-2 text-left transition-all ${
                     isSelected
-                      ? 'border-orange-500 bg-orange-50 text-orange-900'
-                      : 'border-gray-200 hover:border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}>
-                    <div className="flex items-center flex-1">
-                      <div className={`w-5 h-5 rounded border-2 mr-4 flex items-center justify-center ${
-                        isSelected ? 'border-orange-500 bg-orange-500' : 'border-gray-300'
-                      }`}>
-                        {isSelected && <CheckCircle className="w-4 h-4 text-white" />}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center">
-                          <span className="text-sm font-semibold">{goal.label}</span>
-                          <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full border ${getDifficultyColor(goal.difficulty)}`}>
-                            {goal.difficulty}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-600 mt-1">{goal.description}</p>
-                      </div>
+                      ? 'border-orange-500 bg-orange-50 shadow-md'
+                      : 'border-orange-200/50 hover:border-orange-300 hover:bg-orange-50/50'
+                  }`}
+                >
+                  <div className="flex items-center flex-1">
+                    <div className={`w-5 h-5 rounded-md border-2 mr-4 flex items-center justify-center ${
+                      isSelected ? 'border-orange-500 bg-orange-500' : 'border-gray-300'
+                    }`}>
+                      {isSelected && <CheckCircle className="w-3 h-3 text-white" />}
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggleTooltip(goal.id);
-                      }}
-                      className={`ml-3 p-2 rounded-full transition-colors ${
-                        isTooltipActive
-                          ? 'bg-blue-100 text-blue-600'
-                          : 'bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-600'
-                      }`}
-                    >
-                      <Info className="w-4 h-4" />
-                    </button>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-bold ${isSelected ? 'text-orange-900' : 'text-gray-700'}`}>{goal.label}</span>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getDifficultyColor(goal.difficulty)}`}>
+                          {goal.difficulty}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">{goal.description}</p>
+                    </div>
                   </div>
-                </label>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleTooltip(goal.id);
+                    }}
+                    className={`ml-3 p-2 rounded-full transition-colors ${
+                      isTooltipActive
+                        ? 'bg-blue-100 text-blue-600'
+                        : 'bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-600'
+                    }`}
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                </button>
 
                 {/* Educational Tooltip */}
                 {isTooltipActive && (
                   <div className="absolute top-full left-0 right-0 mt-2 z-20">
-                    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-5 max-w-md mx-auto">
-                      {/* Close button for mobile */}
+                    <div className="bg-white rounded-xl shadow-lg border-2 border-orange-200 p-5">
                       <div className="flex items-center justify-between mb-3">
-                        <h5 className="font-semibold text-gray-900">{goal.label}</h5>
+                        <h5 className="font-bold text-gray-900">{goal.label}</h5>
                         <button
+                          type="button"
                           onClick={() => setActiveTooltip(null)}
-                          className="text-gray-400 hover:text-gray-600 lg:hidden"
+                          className="text-gray-400 hover:text-gray-600"
                         >
                           <CheckCircle className="w-4 h-4" />
                         </button>
                       </div>
 
                       <div className="space-y-3">
-                        {/* Details */}
-                        <div>
-                          <p className="text-sm text-gray-700 leading-relaxed">{goal.details}</p>
-                        </div>
+                        <p className="text-sm text-gray-700 leading-relaxed">{goal.details}</p>
 
-                        {/* Key Info */}
                         <div className="grid grid-cols-2 gap-3 text-xs">
-                          <div className="bg-green-50 p-2 rounded-lg">
-                            <p className="font-medium text-green-800">Potential Earnings</p>
+                          <div className="bg-green-50 p-3 rounded-lg">
+                            <p className="font-bold text-green-800">Potential Earnings</p>
                             <p className="text-green-700">{goal.potentialEarnings}</p>
                           </div>
-                          <div className="bg-blue-50 p-2 rounded-lg">
-                            <p className="font-medium text-blue-800">Time Commitment</p>
+                          <div className="bg-blue-50 p-3 rounded-lg">
+                            <p className="font-bold text-blue-800">Time Commitment</p>
                             <p className="text-blue-700">{goal.timeCommitment}</p>
                           </div>
                         </div>
 
-                        {/* Examples */}
                         <div>
-                          <h6 className="text-xs font-semibold text-gray-900 mb-2">Real Examples:</h6>
+                          <h6 className="text-xs font-bold text-gray-900 mb-2">Real Examples:</h6>
                           <ul className="space-y-1">
                             {goal.examples.map((example, index) => (
                               <li key={index} className="text-xs text-gray-600 flex items-start">
-                                <span className="w-1 h-1 bg-orange-400 rounded-full mt-1.5 mr-2 flex-shrink-0"></span>
+                                <span className="w-1.5 h-1.5 bg-orange-400 rounded-full mt-1.5 mr-2 flex-shrink-0"></span>
                                 <span>{example}</span>
                               </li>
                             ))}
                           </ul>
                         </div>
 
-                        {/* Getting Started Tip */}
                         <div className="bg-orange-50 p-3 rounded-lg">
-                          <p className="text-xs font-medium text-orange-800 mb-1">💡 Getting Started Tip</p>
+                          <p className="text-xs font-bold text-orange-800 mb-1">Getting Started Tip</p>
                           <p className="text-xs text-orange-700">
                             {goal.difficulty === 'easy' && "Perfect for beginners! Start building your personal brand and connecting with local businesses."}
                             {goal.difficulty === 'moderate' && "Build your social media presence first, then explore these opportunities as you gain followers."}
@@ -592,11 +568,11 @@ export default function AthleteNILInfoStep({
         </div>
 
         {/* Educational note */}
-        <div className="mt-4 p-4 bg-blue-50 rounded-xl">
-          <div className="flex items-start">
-            <Target className="h-5 w-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+        <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200/50">
+          <div className="flex items-start gap-3">
+            <Target className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div>
-              <h5 className="text-sm font-medium text-blue-900 mb-1">New to NIL?</h5>
+              <h5 className="text-sm font-bold text-blue-900 mb-1">New to NIL?</h5>
               <p className="text-xs text-blue-800 leading-relaxed">
                 Start with "easy" opportunities like local endorsements and social media partnerships.
                 Build your personal brand and follower count before pursuing major brand deals.
@@ -609,93 +585,125 @@ export default function AthleteNILInfoStep({
 
       {/* Agent Information */}
       <div>
-        <h4 className="text-sm font-medium text-gray-900 mb-4">Representation</h4>
+        <label className="block text-sm font-bold text-gray-700 mb-4">Representation</label>
         <div className="space-y-4">
-          <label className="flex items-center">
+          <label className="flex items-center gap-3 cursor-pointer">
             <input
               {...register('hasAgent')}
               type="checkbox"
-              className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+              className="w-5 h-5 rounded border-2 border-orange-300 text-orange-500 focus:ring-orange-500"
             />
-            <span className="ml-2 text-sm text-gray-700">
+            <span className="text-sm font-medium text-gray-700">
               I currently have an agent or NIL representation
             </span>
           </label>
 
           {watchedHasAgent && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Agent/Representative Information
-              </label>
-              <textarea
-                {...register('agentInfo')}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                placeholder="Name, agency, contact information..."
-              />
-            </div>
+            <Controller
+              name="agentInfo"
+              control={control}
+              render={({ field }) => (
+                <OnboardingTextarea
+                  {...field}
+                  label="Agent/Representative Information"
+                  placeholder="Name, agency, contact information..."
+                  rows={3}
+                />
+              )}
+            />
           )}
         </div>
       </div>
 
       {/* Compliance Acknowledgment */}
-      <div className="p-6 bg-blue-50 rounded-xl border border-blue-200">
-        <div className="flex items-start">
-          <div className="flex-shrink-0">
-            <Shield className="h-6 w-6 text-blue-600" />
+      <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-200/50">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Shield className="h-6 w-6 text-white" />
           </div>
-          <div className="ml-3">
-            <h4 className="text-sm font-medium text-blue-900 mb-2">NIL Compliance Requirements</h4>
-            <div className="space-y-2 text-xs text-blue-800">
+          <div className="flex-1">
+            <h4 className="font-bold text-blue-900 mb-3">NIL Compliance Requirements</h4>
+            <div className="space-y-2 text-sm text-blue-800 mb-4">
               <p>• All NIL activities must comply with NCAA, state, and institutional rules</p>
               <p>• You must report NIL activities to your school's compliance office as required</p>
               <p>• NIL deals cannot be used as recruiting inducements</p>
               <p>• School logos/marks require institutional permission</p>
             </div>
 
-            <label className="flex items-center mt-4">
+            <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={acknowledgedCompliance}
                 onChange={(e) => setAcknowledgedCompliance(e.target.checked)}
-                className="rounded border-blue-300 text-blue-500 focus:ring-blue-500"
+                className="w-5 h-5 rounded border-2 border-blue-300 text-blue-500 focus:ring-blue-500"
               />
-              <span className="ml-2 text-sm text-blue-900">
-                I understand and agree to comply with all NIL regulations
+              <span className="text-sm font-bold text-blue-900">
+                I understand and agree to comply with all NIL regulations <span className="text-red-500">*</span>
               </span>
             </label>
           </div>
         </div>
       </div>
 
-      {/* Complete Button */}
-      <div className="flex justify-end pt-6">
-        <button
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row justify-between items-center pt-4 gap-4">
+        {/* Left side - Back and Save buttons */}
+        <div className="flex gap-3">
+          {!isFirst && (
+            <OnboardingButton
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={handleBack}
+              disabled={isLoading || isSubmitting}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </OnboardingButton>
+          )}
+
+          <OnboardingButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              updateFormData(getValues());
+              onSaveAndExit ? await onSaveAndExit() : await saveAndExit();
+            }}
+            disabled={isLoading || isSubmitting}
+          >
+            <Save className="h-4 w-4" />
+            Save & Exit
+          </OnboardingButton>
+        </div>
+
+        {/* Right side - Complete button */}
+        <OnboardingButton
           type="submit"
+          variant="primary"
+          size="lg"
           disabled={!acknowledgedCompliance || isLoading || isSubmitting || showSuccessMessage}
-          className={`inline-flex items-center px-6 py-3 rounded-xl font-medium transition-all ${
-            acknowledgedCompliance && !isLoading && !isSubmitting && !showSuccessMessage
-              ? 'bg-orange-500 text-white hover:bg-orange-600 shadow-lg hover:shadow-xl'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          }`}
+          isLoading={isLoading || isSubmitting}
         >
-          {isLoading || isSubmitting ? (
+          {showSuccessMessage ? (
             <>
-              <Loader2 className="animate-spin h-4 w-4 mr-2" />
-              {isSubmitting ? 'Saving Information...' : 'Loading...'}
-            </>
-          ) : showSuccessMessage ? (
-            <>
-              <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+              <CheckCircle className="h-5 w-5" />
               Redirecting...
             </>
           ) : (
             <>
               Complete Onboarding
-              <ArrowRight className="ml-2 h-4 w-4" />
+              <ArrowRight className="h-5 w-5" />
             </>
           )}
-        </button>
+        </OnboardingButton>
+      </div>
+
+      {/* Required field indicator */}
+      <div className="text-center">
+        <p className="text-xs text-gray-500">
+          Fields marked with <span className="text-red-500">*</span> are required
+        </p>
       </div>
     </form>
   );

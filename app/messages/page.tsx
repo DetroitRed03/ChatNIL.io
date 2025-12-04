@@ -1,15 +1,35 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { MessageSquare, Users, Zap, Calendar, Bell } from 'lucide-react';
-import { ProtectedRoute } from '@/components/AuthGuard';
-import AppShell from '@/components/Chat/AppShell';
-import Header from '@/components/Header';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
-function MessagesPageContent() {
+export default function MessagesPage() {
+  const { user } = useAuth();
+  const router = useRouter();
+
+  // Redirect agency/business users to their dedicated messaging page
+  useEffect(() => {
+    if (user?.role === 'agency' || user?.role === 'business') {
+      router.replace('/agencies/messages');
+    }
+  }, [user, router]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/';
+  };
+
+  // Don't render anything while checking role or if agency/business (will redirect)
+  if (!user || user.role === 'agency' || user.role === 'business') {
+    return null;
+  }
+
   return (
-    <AppShell>
-      <Header />
-      <div className="min-h-full bg-gradient-to-br from-orange-50 to-orange-100 py-8 sm:py-12 px-4 sm:px-6 overflow-y-auto">
+    <>
+      <div className="flex flex-col overflow-y-auto bg-background py-6 sm:py-8 px-4 sm:px-6">
         <div className="max-w-2xl mx-auto text-center">
           {/* Coming Soon Icon */}
           <div className="relative mb-8">
@@ -100,14 +120,6 @@ function MessagesPageContent() {
           </div>
         </div>
       </div>
-    </AppShell>
-  );
-}
-
-export default function MessagesPage() {
-  return (
-    <ProtectedRoute>
-      <MessagesPageContent />
-    </ProtectedRoute>
+    </>
   );
 }

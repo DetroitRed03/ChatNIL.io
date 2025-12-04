@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { startQuizSession } from '@/lib/quiz';
-import { QuizCategory, QuizDifficulty } from '@/lib/types';
+import { QuizCategory, QuizDifficulty } from '@/types';
 import { trackEventServer } from '@/lib/analytics-server';
 
 /**
@@ -55,12 +55,10 @@ export async function POST(request: NextRequest) {
     const questionsForClient = questions.map(q => ({
       id: q.id,
       question: q.question,
-      question_type: q.question_type,
       options: q.options,
       category: q.category,
       difficulty: q.difficulty,
-      points: q.points,
-      time_limit_seconds: q.time_limit_seconds
+      points: q.points
     }));
 
     console.log(`✅ Quiz session started: ${sessionId}, ${questions.length} questions`);

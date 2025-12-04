@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apply Migration 200 - Matchmaking & NIL Deals RLS</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 { color: #00d9ff; }
+    h2 { color: #00ff88; margin-top: 30px; }
+    .section {
+      background: #16213e;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    pre {
+      background: #0f0f1a;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    button {
+      background: #00d9ff;
+      color: #000;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 5px;
+    }
+    button:hover { background: #00b8d9; }
+    button.success { background: #00ff88; }
+    button.danger { background: #ff4757; color: white; }
+    .status {
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .status.success { background: #00ff8822; border: 1px solid #00ff88; }
+    .status.error { background: #ff475722; border: 1px solid #ff4757; }
+    .status.info { background: #00d9ff22; border: 1px solid #00d9ff; }
+    a { color: #00d9ff; }
+    .step-number {
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      background: #00d9ff;
+      color: #000;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 30px;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Migration 200: Matchmaking & NIL Deals RLS</h1>
+
+  <div class="section">
+    <p><strong>Purpose:</strong> Fix schema issues and add Row Level Security policies for security</p>
+    <p><strong>Tables affected:</strong> agency_athlete_matches, nil_deals</p>
+    <p><strong>Changes:</strong></p>
+    <ul>
+      <li>Rename <code>tier</code> to <code>match_tier</code> for consistency</li>
+      <li>Add tracking columns (score_breakdown, contacted_at, deal_id, etc.)</li>
+      <li>Add RLS policies for secure user-level access</li>
+      <li>Create helper views (athlete_opportunities, match_deal_pipeline)</li>
+    </ul>
+  </div>
+
+  <h2><span class="step-number">1</span>Open Supabase SQL Editor</h2>
+  <div class="section">
+    <p>Click the button below to open the Supabase SQL Editor:</p>
+    <a href="https://supabase.com/dashboard/project/lqskiijspudfocddhkqs/sql/new" target="_blank">
+      <button>Open SQL Editor</button>
+    </a>
+  </div>
+
+  <h2><span class="step-number">2</span>Copy & Run: Part A - Schema Fixes</h2>
+  <div class="section">
+    <p>Copy this SQL and paste into the SQL Editor, then click "Run":</p>
+    <button onclick="copyToClipboard('partA')">Copy Part A</button>
+    <pre id="partA">-- Part A: Fix agency_athlete_matches Schema
+
+-- 1. Rename 'tier' to 'match_tier' for consistency with codebase
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'agency_athlete_matches' AND column_name = 'tier') THEN
+    ALTER TABLE agency_athlete_matches RENAME COLUMN tier TO match_tier;
+    RAISE NOTICE 'Renamed tier -> match_tier';
+  ELSE
+    RAISE NOTICE 'Column match_tier already exists or tier does not exist';
+  END IF;
+END $$;
+
+-- 2. Add additional columns for better tracking (if not exist)
+ALTER TABLE agency_athlete_matches
+  ADD COLUMN IF NOT EXISTS score_breakdown JSONB DEFAULT '{}'::jsonb;
+
+ALTER TABLE agency_athlete_matches
+  ADD COLUMN IF NOT EXISTS contacted_at TIMESTAMPTZ;
+
+ALTER TABLE agency_athlete_matches
+  ADD COLUMN IF NOT EXISTS athlete_response_at TIMESTAMPTZ;
+
+ALTER TABLE agency_athlete_matches
+  ADD COLUMN IF NOT EXISTS athlete_response_status TEXT;
+
+-- Check if nil_deals table exists before adding FK
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'nil_deals') THEN
+    ALTER TABLE agency_athlete_matches
+      ADD COLUMN IF NOT EXISTS deal_id UUID REFERENCES nil_deals(id) ON DELETE SET NULL;
+  ELSE
+    ALTER TABLE agency_athlete_matches
+      ADD COLUMN IF NOT EXISTS deal_id UUID;
+  END IF;
+END $$;
+
+ALTER TABLE agency_athlete_matches
+  ADD COLUMN IF NOT EXISTS deal_created_at TIMESTAMPTZ;
+
+-- 3. Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_matches_agency_score
+  ON agency_athlete_matches(agency_id, match_score DESC);
+
+CREATE INDEX IF NOT EXISTS idx_matches_athlete_score
+  ON agency_athlete_matches(athlete_id, match_score DESC);
+
+CREATE INDEX IF NOT EXISTS idx_matches_status
+  ON agency_athlete_matches(status);
+
+CREATE INDEX IF NOT EXISTS idx_matches_tier
+  ON agency_athlete_matches(match_tier);
+
+CREATE INDEX IF NOT EXISTS idx_matches_deal_id
+  ON agency_athlete_matches(deal_id) WHERE deal_id IS NOT NULL;</pre>
+    <div id="statusA" class="status info">Copy and run this in Supabase SQL Editor</div>
+  </div>
+
+  <h2><span class="step-number">3</span>Copy & Run: Part B - RLS for agency_athlete_matches</h2>
+  <div class="section">
+    <button onclick="copyToClipboard('partB')">Copy Part B</button>
+    <pre id="partB">-- Part B: RLS Policies for agency_athlete_matches
+
+-- Enable RLS
+ALTER TABLE agency_athlete_matches ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if any (to avoid conflicts)
+DROP POLICY IF EXISTS "agencies_view_own_matches" ON agency_athlete_matches;
+DROP POLICY IF EXISTS "athletes_view_own_matches" ON agency_athlete_matches;
+DROP POLICY IF EXISTS "agencies_update_own_matches" ON agency_athlete_matches;
+DROP POLICY IF EXISTS "athletes_respond_to_matches" ON agency_athlete_matches;
+DROP POLICY IF EXISTS "service_role_full_access_matches" ON agency_athlete_matches;
+
+-- Policy 1: Agencies can view matches where they are the agency
+CREATE POLICY "agencies_view_own_matches"
+  ON agency_athlete_matches
+  FOR SELECT
+  TO authenticated
+  USING (agency_id = auth.uid());
+
+-- Policy 2: Athletes can view matches where they are the athlete
+CREATE POLICY "athletes_view_own_matches"
+  ON agency_athlete_matches
+  FOR SELECT
+  TO authenticated
+  USING (athlete_id = auth.uid());
+
+-- Policy 3: Agencies can update their matches (status changes, contact info)
+CREATE POLICY "agencies_update_own_matches"
+  ON agency_athlete_matches
+  FOR UPDATE
+  TO authenticated
+  USING (agency_id = auth.uid())
+  WITH CHECK (agency_id = auth.uid());
+
+-- Policy 4: Athletes can update matches (respond to contact)
+CREATE POLICY "athletes_respond_to_matches"
+  ON agency_athlete_matches
+  FOR UPDATE
+  TO authenticated
+  USING (athlete_id = auth.uid())
+  WITH CHECK (athlete_id = auth.uid());
+
+-- Policy 5: Service role has full access (for matchmaking engine)
+CREATE POLICY "service_role_full_access_matches"
+  ON agency_athlete_matches
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+-- Grant permissions
+GRANT SELECT, INSERT, UPDATE ON agency_athlete_matches TO authenticated;
+GRANT ALL ON agency_athlete_matches TO service_role;</pre>
+    <div id="statusB" class="status info">Copy and run this in Supabase SQL Editor</div>
+  </div>
+
+  <h2><span class="step-number">4</span>Copy & Run: Part C - RLS for nil_deals</h2>
+  <div class="section">
+    <button onclick="copyToClipboard('partC')">Copy Part C</button>
+    <pre id="partC">-- Part C: RLS Policies for nil_deals
+
+-- Enable RLS
+ALTER TABLE nil_deals ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if any
+DROP POLICY IF EXISTS "agencies_view_own_deals" ON nil_deals;
+DROP POLICY IF EXISTS "athletes_view_own_deals" ON nil_deals;
+DROP POLICY IF EXISTS "agencies_create_deals" ON nil_deals;
+DROP POLICY IF EXISTS "agencies_update_own_deals" ON nil_deals;
+DROP POLICY IF EXISTS "athletes_update_own_deals" ON nil_deals;
+DROP POLICY IF EXISTS "service_role_full_access_deals" ON nil_deals;
+
+-- Policy 1: Agencies can view their own deals
+CREATE POLICY "agencies_view_own_deals"
+  ON nil_deals
+  FOR SELECT
+  TO authenticated
+  USING (agency_id = auth.uid());
+
+-- Policy 2: Athletes can view their own deals
+CREATE POLICY "athletes_view_own_deals"
+  ON nil_deals
+  FOR SELECT
+  TO authenticated
+  USING (athlete_id = auth.uid());
+
+-- Policy 3: Agencies can create deals (must be their agency_id)
+CREATE POLICY "agencies_create_deals"
+  ON nil_deals
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (agency_id = auth.uid());
+
+-- Policy 4: Agencies can update their own deals
+CREATE POLICY "agencies_update_own_deals"
+  ON nil_deals
+  FOR UPDATE
+  TO authenticated
+  USING (agency_id = auth.uid())
+  WITH CHECK (agency_id = auth.uid());
+
+-- Policy 5: Athletes can update their own deals (for approvals)
+CREATE POLICY "athletes_update_own_deals"
+  ON nil_deals
+  FOR UPDATE
+  TO authenticated
+  USING (athlete_id = auth.uid())
+  WITH CHECK (athlete_id = auth.uid());
+
+-- Policy 6: Service role has full access
+CREATE POLICY "service_role_full_access_deals"
+  ON nil_deals
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+-- NO DELETE policy for authenticated users (soft delete only via status update)
+
+-- Add indexes for nil_deals
+CREATE INDEX IF NOT EXISTS idx_deals_athlete
+  ON nil_deals(athlete_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_deals_agency
+  ON nil_deals(agency_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_deals_status
+  ON nil_deals(status);
+
+CREATE INDEX IF NOT EXISTS idx_deals_dates
+  ON nil_deals(start_date, end_date);
+
+-- Grant permissions
+GRANT SELECT, INSERT, UPDATE ON nil_deals TO authenticated;
+GRANT ALL ON nil_deals TO service_role;</pre>
+    <div id="statusC" class="status info">Copy and run this in Supabase SQL Editor</div>
+  </div>
+
+  <h2><span class="step-number">5</span>Copy & Run: Part D - Helper Views</h2>
+  <div class="section">
+    <button onclick="copyToClipboard('partD')">Copy Part D</button>
+    <pre id="partD">-- Part D: Create helper views
+
+-- View: Active opportunities for athletes (simplified match view)
+DROP VIEW IF EXISTS athlete_opportunities;
+CREATE OR REPLACE VIEW athlete_opportunities AS
+SELECT
+  m.id,
+  m.agency_id,
+  m.athlete_id,
+  m.match_score,
+  m.match_tier,
+  m.match_reasons,
+  m.status,
+  m.contacted_at,
+  m.created_at,
+  m.deal_id,
+  u.first_name as agency_first_name,
+  u.last_name as agency_last_name,
+  u.company_name as agency_name,
+  u.email as agency_email,
+  CASE
+    WHEN m.status IN ('rejected', 'expired') THEN 'inactive'
+    ELSE 'active'
+  END as opportunity_status
+FROM agency_athlete_matches m
+JOIN users u ON u.id = m.agency_id
+WHERE m.status NOT IN ('rejected', 'expired');
+
+-- Grant access to view
+GRANT SELECT ON athlete_opportunities TO authenticated;
+
+-- View: Match-to-Deal pipeline for tracking conversion
+DROP VIEW IF EXISTS match_deal_pipeline;
+CREATE OR REPLACE VIEW match_deal_pipeline AS
+SELECT
+  m.id as match_id,
+  m.agency_id,
+  m.athlete_id,
+  m.match_score,
+  m.match_tier,
+  m.status as match_status,
+  m.contacted_at,
+  m.deal_id,
+  m.deal_created_at,
+  d.deal_title,
+  d.status as deal_status,
+  d.compensation_amount,
+  d.start_date,
+  d.end_date,
+  ag.company_name as agency_name,
+  ag.first_name as agency_first_name,
+  ag.last_name as agency_last_name,
+  at.first_name as athlete_first_name,
+  at.last_name as athlete_last_name,
+  at.primary_sport as athlete_sport,
+  at.school_name as athlete_school
+FROM agency_athlete_matches m
+JOIN users ag ON ag.id = m.agency_id
+JOIN users at ON at.id = m.athlete_id
+LEFT JOIN nil_deals d ON d.id = m.deal_id;
+
+-- Grant access to view
+GRANT SELECT ON match_deal_pipeline TO authenticated;</pre>
+    <div id="statusD" class="status info">Copy and run this in Supabase SQL Editor</div>
+  </div>
+
+  <h2><span class="step-number">6</span>Verify Migration</h2>
+  <div class="section">
+    <p>Run this query to verify the migration was successful:</p>
+    <button onclick="copyToClipboard('verify')">Copy Verification Query</button>
+    <pre id="verify">-- Verify Migration 200
+
+-- Check columns in agency_athlete_matches
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'agency_athlete_matches'
+ORDER BY ordinal_position;
+
+-- Check RLS is enabled
+SELECT tablename, rowsecurity
+FROM pg_tables
+WHERE tablename IN ('agency_athlete_matches', 'nil_deals');
+
+-- Check policies exist
+SELECT schemaname, tablename, policyname, permissive, roles, cmd
+FROM pg_policies
+WHERE tablename IN ('agency_athlete_matches', 'nil_deals')
+ORDER BY tablename, policyname;
+
+-- Check views exist
+SELECT table_name
+FROM information_schema.views
+WHERE table_schema = 'public'
+AND table_name IN ('athlete_opportunities', 'match_deal_pipeline');</pre>
+  </div>
+
+  <div class="section" style="background: #00ff8822; border: 1px solid #00ff88;">
+    <h3 style="color: #00ff88; margin-top: 0;">Expected Results After Migration:</h3>
+    <ul>
+      <li><code>match_tier</code> column exists (renamed from <code>tier</code>)</li>
+      <li><code>score_breakdown</code>, <code>contacted_at</code>, <code>deal_id</code> columns added</li>
+      <li>RLS enabled: <code>rowsecurity = true</code> for both tables</li>
+      <li>5 policies on <code>agency_athlete_matches</code></li>
+      <li>6 policies on <code>nil_deals</code></li>
+      <li>2 views created: <code>athlete_opportunities</code>, <code>match_deal_pipeline</code></li>
+    </ul>
+  </div>
+
+  <script>
+    function copyToClipboard(elementId) {
+      const element = document.getElementById(elementId);
+      const text = element.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const statusId = 'status' + elementId.charAt(elementId.length - 1).toUpperCase();
+        const statusEl = document.getElementById(statusId);
+        if (statusEl) {
+          statusEl.className = 'status success';
+          statusEl.textContent = 'Copied to clipboard! Paste into SQL Editor and click Run.';
+        }
+        alert('Copied to clipboard!');
+      });
+    }
+  </script>
+</body>
+</html>

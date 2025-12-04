@@ -29,7 +29,7 @@ export default function ChildConnectionStep({
     control,
     formState: { errors, isValid }
   } = useForm<ChildConnection>({
-    resolver: zodResolver(childConnectionSchema),
+    resolver: zodResolver(childConnectionSchema) as any,
     defaultValues: {
       athletes: data.athletes?.length > 0 ? data.athletes : [
         { name: '', email: '', school: '', sport: '', gradeLevel: undefined, hasNILDeals: undefined }
@@ -75,8 +75,8 @@ export default function ChildConnectionStep({
     if (onSaveAndExit) onSaveAndExit();
   };
 
-  const toggleNotification = (key: keyof typeof notificationPrefs) => {
-    setValue(`notificationPreferences.${key}`, !notificationPrefs?.[key]);
+  const toggleNotification = (key: string) => {
+    (setValue as any)(`notificationPreferences.${key}`, !(notificationPrefs as any)?.[key]);
   };
 
   const addAthlete = () => {

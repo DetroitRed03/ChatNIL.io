@@ -1,19 +1,34 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChatHistoryStore } from '@/lib/chat-history-store';
-import { chatPersistence } from '@/lib/chat-persistence';
 
 export function useChatSync() {
   const { user } = useAuth();
-  const { chats, loadChatsFromDatabase, syncAllToDatabase, setUserId, clearAllChats, currentUserId } = useChatHistoryStore();
+  const {
+    chats,
+    loadChatsFromDatabase,
+    syncAllToDatabase,
+    setUserId,
+    clearAllChats,
+    currentUserId
+  } = useChatHistoryStore();
+
   const previousUserIdRef = useRef<string | null>(null);
+  const hasSyncedRef = useRef<boolean>(false);
+  const loadingRef = useRef<boolean>(false);
+
+  // Track sync status for UI
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'synced' | 'error' | 'offline'>('idle');
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
   // Handle user changes - set user ID in chat store and clear previous user's data
   useEffect(() => {
-    console.log('👤 useChatSync: User ID changed to:', user?.id);
-    console.log('👤 Previous user ID was:', previousUserIdRef.current);
-    console.log('👤 Current store user ID:', currentUserId);
-    console.log('👤 Current chats count:', chats.length);
+    console.log('👤 useChatSync: User ID effect triggered:', {
+      authUserId: user?.id,
+      previousUserId: previousUserIdRef.current,
+      storeUserId: currentUserId,
+      chatsCount: chats.length
+    });
 
     // If user is logging out (user becomes null)
     if (!user?.id && previousUserIdRef.current) {
@@ -21,111 +36,219 @@ export function useChatSync() {
       clearAllChats();
       setUserId(null);
       previousUserIdRef.current = null;
+      hasSyncedRef.current = false;
+      setSyncStatus('idle');
       return;
     }
 
     // If user is logging in or switching users
     if (user?.id) {
-      const userChanged = previousUserIdRef.current && previousUserIdRef.current !== user.id;
+      const isActualUserSwitch = previousUserIdRef.current && previousUserIdRef.current !== user.id;
+      const isInitialLoad = !previousUserIdRef.current;
 
-      if (userChanged) {
-        console.warn('🔄 useChatSync: User ACTUALLY changed (different user login), clearing previous user data');
-        clearAllChats(); // Clear previous user's chats from memory
-      } else if (!previousUserIdRef.current) {
-        console.log('✅ useChatSync: Initial user login detected - will load chats from localStorage/DB');
+      if (isActualUserSwitch) {
+        console.warn('🔄 useChatSync: Different user detected - clearing previous user data FOR SECURITY');
+        console.warn(`   Previous: ${previousUserIdRef.current} → New: ${user.id}`);
+
+        // SECURITY: Clear BOTH memory AND localStorage to prevent data leakage
+        clearAllChats();
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem('chatnil-chat-history-v3');
+            console.log('🧹 useChatSync: Cleared localStorage for user switch');
+          } catch (error) {
+            console.error('❌ useChatSync: Error clearing localStorage:', error);
+          }
+        }
+
+        hasSyncedRef.current = false;
+        loadingRef.current = false;
+        setSyncStatus('idle');
+      } else if (isInitialLoad) {
+        console.log('✅ useChatSync: Initial user detection - will load from Supabase');
       }
 
-      // Set new user ID in chat store
-      // This should NOT clear chats on initial load (only on user switch)
-      setUserId(user.id);
+      if (currentUserId !== user.id) {
+        console.log(`📝 useChatSync: Setting store user ID from ${currentUserId} to ${user.id}`);
+        setUserId(user.id);
+      }
+
       previousUserIdRef.current = user.id;
     }
   }, [user?.id, setUserId, clearAllChats, currentUserId, chats.length]);
 
-  // Load chats from database when user logs in or user ID is set
-  // Only load if chats are empty (localStorage already loaded if available)
+  // Load chats from Supabase on login - Supabase is source of truth
   useEffect(() => {
-    if (user?.id && currentUserId === user.id && chats.length === 0) {
+    console.log('🔍 useChatSync LOAD effect triggered:', {
+      hasUser: !!user?.id,
+      userId: user?.id,
+      currentUserId,
+      userIdsMatch: currentUserId === user?.id,
+      chatsLength: chats.length,
+      hasSynced: hasSyncedRef.current,
+      isLoading: loadingRef.current,
+    });
+
+    // Only load if we haven't synced yet AND not currently loading
+    const shouldLoad = user?.id &&
+                      currentUserId === user.id &&
+                      !hasSyncedRef.current &&
+                      !loadingRef.current;
+
+    if (shouldLoad) {
       const loadChats = async () => {
+        loadingRef.current = true;
+        setSyncStatus('loading');
+
         try {
-          console.log('📥 useChatSync: No chats in memory, attempting to load from database for user:', user.id);
+          // Check if we're online
+          if (!navigator.onLine) {
+            console.log('📴 useChatSync: Offline - using localStorage cache');
+            setSyncStatus('offline');
+            hasSyncedRef.current = true;
+            return;
+          }
+
+          console.log('📥 useChatSync: Loading from Supabase (source of truth) for user:', user.id);
           const loaded = await loadChatsFromDatabase(user.id);
+          hasSyncedRef.current = true;
+
           if (loaded) {
-            console.log('✅ useChatSync: Successfully loaded chats from database');
+            console.log('✅ useChatSync: Successfully loaded chats from Supabase');
+            setSyncStatus('synced');
+            setLastSyncTime(new Date());
           } else {
-            console.log('ℹ️ useChatSync: No chats found in database - user may be starting fresh');
+            console.log('ℹ️ useChatSync: No chats found in database - user starting fresh');
+            setSyncStatus('synced');
+            setLastSyncTime(new Date());
           }
         } catch (error) {
-          console.error('❌ useChatSync: Error loading chats from database:', error);
+          console.error('❌ useChatSync: Error loading chats from Supabase:', error);
+
+          // Fall back to localStorage cache
+          if (chats.length > 0) {
+            console.log('📂 useChatSync: Using localStorage cache as fallback');
+            setSyncStatus('offline');
+          } else {
+            setSyncStatus('error');
+          }
+
+          hasSyncedRef.current = true;
+        } finally {
+          loadingRef.current = false;
         }
       };
 
-      // Small delay to allow localStorage rehydration to complete first
-      const timeoutId = setTimeout(loadChats, 500);
+      // Small delay to prevent race conditions
+      const timeoutId = setTimeout(loadChats, 300);
       return () => clearTimeout(timeoutId);
-    } else if (chats.length > 0) {
-      console.log('ℹ️ useChatSync: Chats already loaded from localStorage, skipping database load');
+    } else if (chats.length > 0 && !hasSyncedRef.current) {
+      console.log('ℹ️ useChatSync: Using cached chats, count:', chats.length);
+      hasSyncedRef.current = true;
+      setSyncStatus('synced');
     }
-  }, [user?.id, currentUserId, chats.length, loadChatsFromDatabase]);
+  }, [user?.id, currentUserId, loadChatsFromDatabase, chats.length]);
 
-  // Sync chats to database periodically or when chats change (only for current user)
+  // Listen for online/offline events
   useEffect(() => {
-    if (user?.id && currentUserId === user.id && chats.length > 0) {
-      const syncChats = async () => {
-        try {
-          console.log('📤 useChatSync: Syncing chats to database for user:', user.id);
-          const synced = await syncAllToDatabase(user.id);
-          if (synced) {
-            console.log('✅ useChatSync: Successfully synced chats to database');
-          } else {
-            console.log('⚠️ useChatSync: Error syncing chats to database');
-          }
-        } catch (error) {
-          console.error('❌ useChatSync: Error syncing chats to database:', error);
-        }
-      };
+    const handleOnline = async () => {
+      console.log('🌐 useChatSync: Back online - syncing with Supabase');
 
-      // Debounce sync operations
-      const timeoutId = setTimeout(syncChats, 2000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [user?.id, currentUserId, chats, syncAllToDatabase]);
+      if (user?.id && currentUserId === user.id) {
+        setSyncStatus('loading');
+
+        try {
+          // First, sync any local changes to Supabase
+          await syncAllToDatabase(user.id);
+
+          // Then reload from Supabase to get any changes from other devices
+          await loadChatsFromDatabase(user.id);
+
+          setSyncStatus('synced');
+          setLastSyncTime(new Date());
+          console.log('✅ useChatSync: Re-synced with Supabase after coming online');
+        } catch (error) {
+          console.error('❌ useChatSync: Error syncing after coming online:', error);
+          setSyncStatus('error');
+        }
+      }
+    };
+
+    const handleOffline = () => {
+      console.log('📴 useChatSync: Went offline - using localStorage cache');
+      setSyncStatus('offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [user?.id, currentUserId, syncAllToDatabase, loadChatsFromDatabase]);
 
   // Manual sync function that can be called from components
-  const manualSync = async () => {
-    if (user?.id) {
-      try {
-        const synced = await syncAllToDatabase(user.id);
-        return synced;
-      } catch (error) {
-        console.error('Manual sync failed:', error);
-        return false;
-      }
-    }
-    return false;
-  };
+  const manualSync = useCallback(async () => {
+    if (!user?.id) return false;
 
-  // Function to add a message and sync to database
-  const addMessageWithSync = async (chatId: string, message: any) => {
-    if (user?.id) {
-      try {
-        // Add message to database
-        const added = await chatPersistence.addMessage(chatId, message, user.id);
-        if (added) {
-          console.log('Message added to database successfully');
-        }
-        return added;
-      } catch (error) {
-        console.error('Error adding message to database:', error);
-        return false;
-      }
+    if (!navigator.onLine) {
+      console.log('📴 useChatSync: Cannot sync - offline');
+      setSyncStatus('offline');
+      return false;
     }
-    return false;
-  };
+
+    setSyncStatus('loading');
+
+    try {
+      const synced = await syncAllToDatabase(user.id);
+      if (synced) {
+        setSyncStatus('synced');
+        setLastSyncTime(new Date());
+        console.log('✅ useChatSync: Manual sync completed');
+      }
+      return synced;
+    } catch (error) {
+      console.error('❌ Manual sync failed:', error);
+      setSyncStatus('error');
+      return false;
+    }
+  }, [user?.id, syncAllToDatabase]);
+
+  // Force refresh from Supabase
+  const forceRefresh = useCallback(async () => {
+    if (!user?.id) return false;
+
+    if (!navigator.onLine) {
+      console.log('📴 useChatSync: Cannot refresh - offline');
+      setSyncStatus('offline');
+      return false;
+    }
+
+    setSyncStatus('loading');
+    hasSyncedRef.current = false;
+
+    try {
+      const loaded = await loadChatsFromDatabase(user.id);
+      hasSyncedRef.current = true;
+      setSyncStatus('synced');
+      setLastSyncTime(new Date());
+      console.log('✅ useChatSync: Force refresh completed');
+      return loaded;
+    } catch (error) {
+      console.error('❌ Force refresh failed:', error);
+      setSyncStatus('error');
+      return false;
+    }
+  }, [user?.id, loadChatsFromDatabase]);
 
   return {
     manualSync,
-    addMessageWithSync,
+    forceRefresh,
+    syncStatus,
+    lastSyncTime,
+    isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
     isReady: !!user?.id && currentUserId === user?.id,
     currentUserId,
     isUserIsolated: !!currentUserId

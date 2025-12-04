@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test exec_sql Function</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { color: #667eea; margin-bottom: 10px; }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      margin: 10px 5px;
+    }
+    button:hover { transform: translateY(-2px); transition: 0.2s; }
+    #output {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 600px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+    .warning { color: #fbbf24; }
+    .info { color: #60a5fa; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Test exec_sql Function</h1>
+    <p>This will test if the exec_sql function exists and works</p>
+
+    <button onclick="testExecSQL()">Test exec_sql</button>
+    <button onclick="testSimpleQuery()">Test Simple Table Creation</button>
+    <button onclick="checkTables()">Check Existing Tables</button>
+
+    <div id="output"></div>
+  </div>
+
+  <script type="module">
+    const SUPABASE_URL = 'https://lqskiijspudfocddkhqs.supabase.co';
+    const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxxc2tpaWpzcHVkZm9jZGRoa3FzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTU5MzM1NCwiZXhwIjoyMDc3MTY5MzU0fQ.LpapT51choXCwTfpbE81AIc4JC9QOO0FpOtqUxZ405I';
+
+    window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const output = document.getElementById('output');
+
+    function log(message, type = 'info') {
+      const line = document.createElement('div');
+      line.className = type;
+      line.textContent = message;
+      output.appendChild(line);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    window.testExecSQL = async function() {
+      output.innerHTML = '';
+      log('🔍 Testing exec_sql function...\\n', 'info');
+
+      try {
+        // Try a very simple query
+        const { data, error } = await window.supabase.rpc('exec_sql', {
+          query: 'SELECT 1 as test;'
+        });
+
+        if (error) {
+          log(`❌ Error: ${error.message}`, 'error');
+          log(`\\nDetails: ${JSON.stringify(error, null, 2)}`, 'error');
+        } else {
+          log('✅ exec_sql function works!', 'success');
+          log(`Result: ${JSON.stringify(data)}`, 'success');
+        }
+      } catch (err) {
+        log(`❌ Exception: ${err.message}`, 'error');
+        log(`\\nFull error: ${JSON.stringify(err, null, 2)}`, 'error');
+      }
+    };
+
+    window.testSimpleQuery = async function() {
+      output.innerHTML = '';
+      log('🔍 Testing simple table creation...\\n', 'info');
+
+      const testSQL = \`
+CREATE TABLE IF NOT EXISTS test_table (
+  id SERIAL PRIMARY KEY,
+  name TEXT
+);
+      \`;
+
+      try {
+        const { data, error } = await window.supabase.rpc('exec_sql', {
+          query: testSQL
+        });
+
+        if (error) {
+          log(`❌ Error: ${error.message}`, 'error');
+          log(`\\nError details: ${JSON.stringify(error, null, 2)}`, 'error');
+        } else {
+          log('✅ Table created successfully!', 'success');
+        }
+      } catch (err) {
+        log(`❌ Exception: ${err.message}`, 'error');
+      }
+    };
+
+    window.checkTables = async function() {
+      output.innerHTML = '';
+      log('🔍 Checking existing tables...\\n', 'info');
+
+      try {
+        // Query to list all tables in public schema
+        const checkSQL = \`
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+ORDER BY table_name;
+        \`;
+
+        const { data, error } = await window.supabase.rpc('exec_sql', {
+          query: checkSQL
+        });
+
+        if (error) {
+          log(`❌ Error: ${error.message}`, 'error');
+
+          // Try alternative method - direct query
+          log('\\nTrying alternative method...', 'info');
+
+          const { data: tables, error: err2 } = await window.supabase
+            .from('information_schema.tables')
+            .select('table_name')
+            .eq('table_schema', 'public');
+
+          if (err2) {
+            log(`❌ Alternative method also failed: ${err2.message}`, 'error');
+          } else {
+            log(`✅ Found ${tables?.length || 0} tables`, 'success');
+            tables?.forEach(t => log(`  - ${t.table_name}`, 'info'));
+          }
+        } else {
+          log('✅ Tables query succeeded', 'success');
+          log(JSON.stringify(data, null, 2), 'info');
+        }
+      } catch (err) {
+        log(`❌ Exception: ${err.message}`, 'error');
+      }
+    };
+
+    // Auto-run test on load
+    log('Page loaded. Click buttons above to test.\\n', 'info');
+    log('Database: ' + SUPABASE_URL, 'info');
+  </script>
+</body>
+</html>

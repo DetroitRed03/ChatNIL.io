@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Debug Sidebar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="fixed left-0 top-0 h-full bg-white border-r border-gray-300 flex flex-col transition-all duration-300 z-40 hidden md:flex w-64">
+      <div class="p-4">
+        <h2 class="text-lg font-semibold">Sidebar Content</h2>
+        <p class="text-sm text-gray-600">This is the fixed sidebar</p>
+      </div>
+    </aside>
+
+    <!-- Spacer -->
+    <div class="hidden md:block flex-shrink-0 transition-all duration-300 w-64 bg-red-100 border-r-4 border-red-500">
+      <p class="p-4 text-sm">This is the SPACER div</p>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col min-h-screen p-8">
+      <h1 class="text-2xl font-bold mb-4">Main Content</h1>
+      <p>This should be next to the sidebar.</p>
+      <p class="mt-4">The spacer (red bg) should be pushing this content over so it doesn't go behind the fixed sidebar.</p>
+    </main>
+  </div>
+</body>
+</html>
