@@ -48,3 +48,11 @@ logs
 # Temp files
 *.tmp
 .temp/
+
+# Documentation and planning files
+*.md
+!README.md
+!CONTRIBUTING.md
+!CODE_OF_CONDUCT.md
+!CHANGELOG.md
+!LICENSE.md
