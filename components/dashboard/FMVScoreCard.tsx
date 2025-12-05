@@ -31,50 +31,42 @@ interface FMVScoreCardProps {
   className?: string;
 }
 
+// V3 Premium tier colors - refined, professional
 const tierColors = {
   ELITE: {
-    gradient: 'from-purple-500 via-pink-500 to-purple-600',
-    shadow: 'shadow-purple-500/30',
-    badge: 'bg-gradient-to-r from-purple-500 to-pink-500',
-    text: 'text-purple-600',
-    warmOverlay: 'from-orange-500/5 to-amber-500/5',
+    gradient: 'from-primary-600 via-primary-700 to-primary-800',
+    badge: 'bg-gradient-to-r from-accent-500 to-accent-600',
+    text: 'text-primary-700',
   },
   RISING: {
-    gradient: 'from-blue-500 via-cyan-500 to-blue-600',
-    shadow: 'shadow-blue-500/30',
-    badge: 'bg-gradient-to-r from-blue-500 to-cyan-500',
-    text: 'text-blue-600',
-    warmOverlay: 'from-orange-500/5 to-amber-500/5',
+    gradient: 'from-primary-600 via-primary-700 to-primary-800',
+    badge: 'bg-gradient-to-r from-accent-500 to-accent-600',
+    text: 'text-primary-700',
   },
   ESTABLISHED: {
-    gradient: 'from-green-500 via-emerald-500 to-green-600',
-    shadow: 'shadow-green-500/30',
-    badge: 'bg-gradient-to-r from-green-500 to-emerald-500',
-    text: 'text-green-600',
-    warmOverlay: 'from-orange-500/5 to-amber-500/5',
+    gradient: 'from-primary-600 via-primary-700 to-primary-800',
+    badge: 'bg-gradient-to-r from-accent-500 to-accent-600',
+    text: 'text-primary-700',
   },
   EMERGING: {
-    gradient: 'from-yellow-500 via-orange-500 to-orange-600',
-    shadow: 'shadow-orange-500/30',
-    badge: 'bg-gradient-to-r from-yellow-500 to-orange-500',
-    text: 'text-orange-600',
-    warmOverlay: 'from-orange-500/5 to-amber-500/5',
+    gradient: 'from-primary-600 via-primary-700 to-primary-800',
+    badge: 'bg-gradient-to-r from-accent-500 to-accent-600',
+    text: 'text-primary-700',
   },
   DEVELOPING: {
-    gradient: 'from-amber-400 via-orange-400 to-amber-500',
-    shadow: 'shadow-amber-500/30',
-    badge: 'bg-gradient-to-r from-amber-400 to-orange-500',
-    text: 'text-amber-600',
-    warmOverlay: 'from-orange-500/5 to-amber-500/5',
+    gradient: 'from-primary-600 via-primary-700 to-primary-800',
+    badge: 'bg-gradient-to-r from-accent-500 to-accent-600',
+    text: 'text-primary-700',
   },
 };
 
+// V3 Premium tier labels - professional, no emojis in tier names
 const tierLabels = {
-  ELITE: '🚀 ELITE STATUS',
-  RISING: '✨ Rising Star',
-  ESTABLISHED: '💪 Established',
-  EMERGING: '🌟 On the Come Up',
-  DEVELOPING: '🔥 Building Steam',
+  ELITE: 'Elite Status',
+  RISING: 'Rising Star',
+  ESTABLISHED: 'Established',
+  EMERGING: 'Emerging Talent',
+  DEVELOPING: 'Developing',
 };
 
 export function FMVScoreCard({ showDetails = true, className = '' }: FMVScoreCardProps) {
@@ -127,37 +119,46 @@ export function FMVScoreCard({ showDetails = true, className = '' }: FMVScoreCar
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      whileHover={{ y: -4 }}
-      className={`bg-white rounded-2xl shadow-lg hover:shadow-2xl ${tierConfig.shadow} border border-border overflow-hidden transition-all duration-300 ${className}`}
+      transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+      whileHover={{ y: -3, transition: { duration: 0.2 } }}
+      className={`bg-[#FFFBF7] rounded-2xl border border-orange-100/50 overflow-hidden transition-all duration-300 group ${className}`}
+      style={{ boxShadow: '0 4px 16px -4px rgba(234, 88, 12, 0.08), 0 2px 8px -2px rgba(234, 88, 12, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.95)' }}
     >
-      {/* Gradient Header with Warm Overlay */}
-      <div className={`relative bg-gradient-to-r ${tierConfig.gradient} px-6 py-6 overflow-hidden`}>
-        {/* Warm overlay */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${tierConfig.warmOverlay} pointer-events-none`} />
+      {/* Warm Professional Header with Pattern Overlay */}
+      <div className={`relative bg-gradient-to-br ${tierConfig.gradient} px-7 py-7 overflow-hidden`}>
+        {/* Pattern overlay for texture */}
+        <div className="absolute inset-0 opacity-10">
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 1px)',
+              backgroundSize: '24px 24px',
+            }}
+          />
+        </div>
 
-        {/* Animated shimmer effect */}
+        {/* Subtle shimmer - less aggressive */}
         <motion.div
-          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
           animate={{
             x: ['-100%', '200%'],
           }}
           transition={{
-            duration: 3,
+            duration: 4,
             repeat: Infinity,
-            repeatDelay: 2,
+            repeatDelay: 3,
           }}
         />
 
         {/* Header Content */}
         <div className="relative flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 backdrop-blur-sm rounded-xl">
-              <Award className="h-6 w-6" />
+            <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-lg">
+              <Award className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-bold text-lg">Your NIL Value 💎</h3>
-              <p className="text-white/90 text-sm font-medium">What you're worth</p>
+              <h3 className="text-lg font-semibold tracking-tight">Fair Market Value</h3>
+              <p className="text-white/90 text-sm">Your NIL worth</p>
             </div>
           </div>
           <button
@@ -174,28 +175,27 @@ export function FMVScoreCard({ showDetails = true, className = '' }: FMVScoreCar
         {/* FMV Score with Trend */}
         <div className="flex items-end gap-4 mb-4">
           <div>
-            <p className="text-sm text-gray-600 mb-1 font-medium">Your Power Score</p>
-            <div className={`text-5xl font-bold bg-gradient-to-r ${tierConfig.gradient} bg-clip-text text-transparent`}>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Current Score</p>
+            <div className="text-3xl font-semibold tracking-tight text-gray-900">
               {fmvScore.toLocaleString()}
             </div>
           </div>
-          <div className={`flex items-center gap-1 pb-2 ${trendColor}`}>
-            <TrendIcon className="h-5 w-5" />
-            <span className="text-lg font-bold">{trendValue}%</span>
-            <span className="text-xs font-medium">📈</span>
+          <div className={`flex items-center gap-1 pb-1 ${trendColor}`}>
+            <TrendIcon className="h-4 w-4" />
+            <span className="text-sm font-semibold">{trendValue}%</span>
           </div>
         </div>
 
-        {/* Tier Badge with Glow */}
+        {/* Tier Badge - Gold Premium */}
         <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
+          initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.15 }}
           className="inline-flex items-center gap-2 mb-5"
         >
-          <div className={`px-4 py-2 rounded-full ${tierConfig.badge} shadow-lg ${tierConfig.shadow}`}>
-            <span className="text-white font-semibold text-sm flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
+          <div className={`px-4 py-2 rounded-full ${tierConfig.badge} shadow-md`}>
+            <span className="text-white font-semibold text-sm tracking-wide flex items-center gap-2">
+              <Sparkles className="h-3.5 w-3.5" />
               {tierLabels[fmvTier]}
             </span>
           </div>
@@ -204,64 +204,45 @@ export function FMVScoreCard({ showDetails = true, className = '' }: FMVScoreCar
         {/* Animated Progress Bar */}
         {showDetails && (
           <div className="mb-5">
-            <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-              <span className="font-medium">Next Level Progress 🎯</span>
-              <span className="font-bold text-base">72%</span>
+            <div className="flex items-center justify-between text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+              <span>Next Level Progress</span>
+              <span className="text-sm font-semibold text-gray-900">72%</span>
             </div>
-            <div className="h-3 bg-gray-100 rounded-full overflow-hidden relative">
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: '72%' }}
-                transition={{ duration: 1.2, delay: 0.3, ease: 'easeOut' }}
-                className={`h-full bg-gradient-to-r ${tierConfig.gradient} rounded-full relative overflow-hidden`}
-              >
-                {/* Shimmer on progress bar */}
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
-                  animate={{
-                    x: ['-100%', '200%'],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    repeatDelay: 1,
-                  }}
-                />
-              </motion.div>
+                transition={{ duration: 1, delay: 0.2, ease: 'easeOut' }}
+                className="h-full bg-gradient-to-r from-primary-600 to-primary-700 rounded-full"
+              />
             </div>
           </div>
         )}
 
-        {/* Key Metrics with Warm Gradient Overlays */}
+        {/* Key Metrics - Clean Professional Style */}
         {showDetails && (
           <div className="grid grid-cols-2 gap-4 mb-5">
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-              className="relative bg-gradient-to-br from-orange-50/30 to-amber-50/20 rounded-xl p-4 border border-orange-100/40 overflow-hidden group hover:shadow-md hover:shadow-orange-200/30 transition-shadow"
+              transition={{ delay: 0.25 }}
+              className="bg-gray-50 rounded-lg p-4 border border-gray-100"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500 to-amber-500 opacity-0 group-hover:opacity-10 transition-opacity" />
-              <div className="relative">
-                <div className="text-xs font-semibold text-orange-600 mb-1">📱 Social Reach</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {(metrics?.total_followers || 0).toLocaleString()}
-                </div>
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Social Reach</div>
+              <div className="text-2xl font-semibold tracking-tight text-gray-900">
+                {(metrics?.total_followers || 0).toLocaleString()}
               </div>
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
-              className="relative bg-gradient-to-br from-amber-50/30 to-yellow-50/20 rounded-xl p-4 border border-amber-100/40 overflow-hidden group hover:shadow-md hover:shadow-amber-200/30 transition-shadow"
+              transition={{ delay: 0.3 }}
+              className="bg-gray-50 rounded-lg p-4 border border-gray-100"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-500 to-yellow-500 opacity-0 group-hover:opacity-10 transition-opacity" />
-              <div className="relative">
-                <div className="text-xs font-semibold text-amber-600 mb-1">💼 Active Deals</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {metrics?.total_deals || 0}
-                </div>
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Active Deals</div>
+              <div className="text-2xl font-semibold tracking-tight text-gray-900">
+                {metrics?.total_deals || 0}
               </div>
             </motion.div>
           </div>
@@ -271,15 +252,15 @@ export function FMVScoreCard({ showDetails = true, className = '' }: FMVScoreCar
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
+          transition={{ delay: 0.35 }}
         >
           <NeumorphicButton
             variant="glow"
             size="md"
-            className="w-full font-bold"
+            className="w-full font-semibold"
             rightIcon={<ExternalLink className="h-4 w-4" />}
           >
-            See Full Stats 📊
+            View Full Analytics
           </NeumorphicButton>
         </motion.div>
       </div>

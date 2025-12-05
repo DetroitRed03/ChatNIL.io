@@ -1,16 +1,15 @@
 /**
- * Activity Feed Widget Component - HIGH ENERGY
+ * Activity Feed Widget Component - V3 Premium
  *
- * Bold, vibrant activity feed with enhanced visuals.
- * Matches the FMVScoreCard aesthetic with gradient header and colored backgrounds.
+ * Professional activity feed with clean design.
+ * Matches V3 Premium aesthetic with refined styling and subtle interactions.
  *
  * Features:
- * - Gradient header with shimmer effect
- * - Larger icons (h-12 w-12)
- * - Gradient backgrounds for activity types
- * - Prominent filter tabs
- * - Larger text (text-base for titles)
- * - Dramatic hover effects
+ * - Clean header with professional typography
+ * - Monochrome icons in subtle backgrounds
+ * - Filter tabs with refined styling
+ * - Professional text hierarchy
+ * - Subtle hover effects
  */
 
 'use client';
@@ -27,30 +26,29 @@ interface ActivityFeedWidgetProps {
   className?: string;
 }
 
+// V3 Premium - Monochrome icons with professional styling
 const activityIcons = {
-  match: <Users className="h-6 w-6" />,
-  deal: <FileText className="h-6 w-6" />,
-  message: <MessageCircle className="h-6 w-6" />,
+  match: <Users className="h-5 w-5" />,
+  deal: <FileText className="h-5 w-5" />,
+  message: <MessageCircle className="h-5 w-5" />,
 };
 
+// Warm professional color scheme
 const activityColors = {
   match: {
-    gradient: 'from-orange-500 to-amber-500',
-    bg: 'bg-gradient-to-br from-orange-50/30 to-amber-50/20',
-    border: 'border-orange-200',
-    shadow: 'shadow-orange-500/30',
+    iconBg: 'bg-blue-50/80',
+    iconColor: 'text-blue-600',
+    border: 'border-blue-100/60',
   },
   deal: {
-    gradient: 'from-amber-500 to-yellow-500',
-    bg: 'bg-gradient-to-br from-amber-50/30 to-yellow-50/20',
-    border: 'border-amber-200',
-    shadow: 'shadow-amber-500/30',
+    iconBg: 'bg-emerald-50/80',
+    iconColor: 'text-emerald-600',
+    border: 'border-emerald-100/60',
   },
   message: {
-    gradient: 'from-yellow-500 to-orange-500',
-    bg: 'bg-gradient-to-br from-yellow-50/30 to-orange-50/20',
-    border: 'border-yellow-200',
-    shadow: 'shadow-yellow-500/30',
+    iconBg: 'bg-orange-50/80',
+    iconColor: 'text-orange-600',
+    border: 'border-orange-100/60',
   },
 };
 
@@ -69,9 +67,9 @@ export function ActivityFeedWidget({
 
   if (isLoading) {
     return (
-      <div className={`bg-gradient-to-br from-orange-50/20 via-white to-amber-50/15 rounded-xl shadow-sm border border-orange-100/40 ${className}`}>
-        <div className="px-6 py-4 border-b border-orange-100/30">
-          <div className="h-6 bg-orange-200/50 rounded w-1/4 animate-pulse"></div>
+      <div className={`bg-[#FFFBF7] rounded-xl border border-gray-200/60 ${className}`}>
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="h-5 bg-gray-200 rounded w-1/4 animate-pulse"></div>
         </div>
         <div className="p-6 space-y-4">
           {[...Array(3)].map((_, i) => (
@@ -100,39 +98,27 @@ export function ActivityFeedWidget({
   const hasActivities = activities.length > 0;
 
   return (
-    <div className={`bg-gradient-to-br from-orange-50/20 via-white to-amber-50/15 rounded-xl shadow-sm shadow-orange-100/30 border border-orange-100/40 overflow-hidden ${className}`}>
-      {/* Warm Gradient Header with Shimmer */}
-      <div className="relative bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 px-6 py-6 overflow-hidden">
-        {/* Animated shimmer effect */}
-        <motion.div
-          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-          animate={{
-            x: ['-100%', '200%'],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            repeatDelay: 2,
-          }}
-        />
-
-        {/* Header Content */}
-        <div className="relative flex items-center justify-between">
+    <div className={`bg-[#FFFBF7] rounded-2xl border border-orange-100/50 overflow-hidden group ${className}`}
+      style={{ boxShadow: '0 4px 16px -4px rgba(234, 88, 12, 0.08), 0 2px 8px -2px rgba(234, 88, 12, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.95)' }}
+    >
+      {/* Warm Professional Header */}
+      <div className="px-7 py-5 border-b border-orange-100/40 bg-gradient-to-r from-white to-orange-50/30">
+        <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-2xl text-white">Recent Activity 📈</h3>
-            <p className="text-white/90 text-sm font-medium mt-1">What's happening</p>
+            <h3 className="text-lg font-semibold tracking-tight text-gray-900">Recent Activity</h3>
+            <p className="text-sm text-gray-700 mt-0.5 leading-relaxed">Track your latest updates</p>
           </div>
 
-          {/* Filter Tabs */}
-          <div className="flex items-center gap-1 bg-white/20 backdrop-blur-sm rounded-lg p-1">
+          {/* Filter Tabs - Warm Style */}
+          <div className="flex items-center gap-1 bg-orange-50/50 rounded-lg p-1 border border-orange-100/60">
             {(['all', 'match', 'deal', 'message'] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => setFilter(type)}
-                className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                   filter === type
-                    ? 'bg-white text-gray-900 shadow-lg'
-                    : 'text-white/90 hover:text-white hover:bg-white/10'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                 }`}
               >
                 {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -160,34 +146,34 @@ export function ActivityFeedWidget({
               return (
                 <motion.div
                   key={activity.activity_id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                  whileHover={{ x: 4, scale: 1.02 }}
-                  className={`flex items-start gap-4 p-4 rounded-xl ${colorConfig.bg} border ${colorConfig.border} transition-all cursor-pointer group hover:shadow-lg ${colorConfig.shadow}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: index * 0.03 }}
+                  whileHover={{ y: -1 }}
+                  className={`flex items-start gap-4 p-4 rounded-lg ${colorConfig.iconBg} border ${colorConfig.border} transition-all cursor-pointer group hover:border-gray-200`}
                 >
-                  {/* Icon with Gradient */}
+                  {/* Icon - Professional Monochrome */}
                   <div
-                    className={`flex items-center justify-center h-12 w-12 rounded-xl bg-gradient-to-br ${colorConfig.gradient} shadow-md flex-shrink-0`}
+                    className={`flex items-center justify-center h-10 w-10 rounded-lg ${colorConfig.iconBg} border ${colorConfig.border} flex-shrink-0`}
                   >
-                    <div className="text-white">
+                    <div className={colorConfig.iconColor}>
                       {activityIcons[activity.activity_type as keyof typeof activityIcons]}
                     </div>
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-base font-bold text-gray-900 mb-1">
+                    <h4 className="text-sm font-semibold text-gray-900 mb-1">
                       {activity.title}
                     </h4>
-                    <p className="text-sm text-gray-700 font-medium mb-2">{activity.description}</p>
-                    <p className="text-sm text-gray-500 font-medium">
+                    <p className="text-sm text-gray-600 mb-1">{activity.description}</p>
+                    <p className="text-xs text-gray-500">
                       {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
                     </p>
                   </div>
 
                   {/* Arrow */}
-                  <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0 mt-2" />
+                  <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors flex-shrink-0 mt-2" />
                 </motion.div>
               );
             })}

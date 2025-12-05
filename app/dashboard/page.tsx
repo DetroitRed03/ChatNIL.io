@@ -43,10 +43,10 @@ export default function DashboardPage() {
   // Show loading state while checking auth
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50/15 via-amber-50/8 to-yellow-50/15 flex items-center justify-center">
+      <div className="min-h-screen bg-[#FAF6F1] flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-orange-600 border-r-transparent"></div>
-          <p className="mt-4 text-gray-700">Loading dashboard...</p>
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-600 border-r-transparent"></div>
+          <p className="mt-4 text-gray-600 text-sm font-medium">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -58,89 +58,38 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50/15 via-amber-50/8 to-yellow-50/15">
-      {/* Enhanced Header with Warm Gradient & Glass Morphism */}
+    <div className="min-h-screen bg-[#fafafa]">
+      {/* Modern Clean Header */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
+        initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="relative bg-gradient-to-r from-orange-400/90 via-orange-500/90 to-amber-500/90 border-b border-orange-600/20 overflow-hidden"
+        transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+        className="bg-white border-b border-gray-200"
       >
-        {/* Animated background shimmer */}
-        <motion.div
-          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/8 to-transparent"
-          animate={{
-            x: ['-100%', '200%'],
-          }}
-          transition={{
-            duration: 5,
-            repeat: Infinity,
-            repeatDelay: 3,
-          }}
-        />
-
-        {/* Glass morphism overlay */}
-        <div className="absolute inset-0 backdrop-blur-sm bg-white/5" />
-
-        {/* Content */}
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between">
             <div>
-              <motion.h1
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                className="text-3xl font-bold text-white mb-2 flex items-center gap-3"
-              >
-                <span className="text-4xl">🏆</span>
-                Your NIL Dashboard
-              </motion.h1>
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-                className="flex items-center gap-2"
-              >
-                <p className="text-white/90 text-base">
-                  Welcome back, <span className="font-bold">{user.first_name || 'Athlete'}</span>! 👋
-                </p>
-                <span className="h-1 w-1 bg-white/50 rounded-full"></span>
-                <p className="text-white/80 text-sm">
-                  Let's level up your NIL game
-                </p>
-              </motion.div>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900 mb-1">
+                Welcome back, {user.first_name || 'Athlete'}
+              </h1>
+              <p className="text-sm text-slate-600">
+                Track your NIL performance and brand opportunities
+              </p>
             </div>
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.4 }}
-              className="flex items-center gap-3"
+              transition={{ delay: 0.1 }}
+              className="flex items-center gap-2.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg"
             >
-              <div className="px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl shadow-lg shadow-black/10">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                  </span>
-                  <span className="text-white font-semibold text-sm">Live</span>
-                </div>
-              </div>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-600"></span>
+              </span>
+              <span className="text-green-700 font-medium text-sm">Live</span>
             </motion.div>
           </div>
         </div>
-
-        {/* Gradient underline animation */}
-        <motion.div
-          className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/50 to-transparent"
-          animate={{
-            x: ['-100%', '100%'],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            repeatDelay: 2,
-          }}
-        />
       </motion.div>
 
       {/* Main Content */}
@@ -220,21 +169,20 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* AI Coach Section - Dedicated prominent section */}
+        {/* AI Coach Section - V3 Premium Professional */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.4 }}
           className="mt-10"
         >
-          {/* Gradient Divider */}
+          {/* Professional Divider */}
           <div className="flex items-center gap-4 mb-6">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-orange-300 to-transparent" />
-            <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-100 to-amber-100 rounded-full border border-orange-200">
-              <span className="text-2xl">🤖</span>
-              <h2 className="text-lg font-bold text-orange-700">Your AI Coach</h2>
+            <div className="flex-1 h-px bg-gray-200" />
+            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-gray-200">
+              <h2 className="text-lg font-semibold tracking-tight text-gray-900">AI Coach</h2>
             </div>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-orange-300 to-transparent" />
+            <div className="flex-1 h-px bg-gray-200" />
           </div>
 
           {/* Centered Chat Widget */}
