@@ -1,5 +1,19 @@
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import {
+  validateUUID,
+  validateString,
+  validateEnum,
+  validateDate,
+  validateCompensation,
+  validateArray,
+  validateAll,
+  DEAL_TYPES,
+  DEAL_STATUSES,
+  MAX_LENGTHS
+} from '@/lib/validation';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/nil-deals
@@ -122,45 +136,85 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
-    // Validate required fields
-    if (!body.athlete_id || !body.deal_title || !body.deal_type || !body.start_date) {
+    // Comprehensive input validation
+    const athleteIdValidation = validateUUID(body.athlete_id, 'athlete_id');
+    const dealTitleValidation = validateString(body.deal_title, 'deal_title', {
+      required: true,
+      minLength: 3,
+      maxLength: MAX_LENGTHS.title
+    });
+    const dealTypeValidation = validateEnum(body.deal_type, 'deal_type', DEAL_TYPES, { required: true });
+    const startDateValidation = validateDate(body.start_date, 'start_date', { required: true });
+    const endDateValidation = validateDate(body.end_date, 'end_date', {
+      required: false,
+      minDate: body.start_date ? new Date(body.start_date) : undefined
+    });
+    const descriptionValidation = validateString(body.description, 'description', {
+      maxLength: MAX_LENGTHS.description
+    });
+    const brandNameValidation = validateString(body.brand_name, 'brand_name', {
+      maxLength: MAX_LENGTHS.name
+    });
+    const compensationValidation = validateCompensation(body.compensation_amount, 'compensation_amount');
+    const statusValidation = body.status
+      ? validateEnum(body.status, 'status', DEAL_STATUSES)
+      : { valid: true, sanitized: 'draft' };
+
+    // Collect all validation errors
+    const validation = validateAll([
+      { result: athleteIdValidation, field: 'athlete_id' },
+      { result: dealTitleValidation, field: 'deal_title' },
+      { result: dealTypeValidation, field: 'deal_type' },
+      { result: startDateValidation, field: 'start_date' },
+      { result: endDateValidation, field: 'end_date' },
+      { result: descriptionValidation, field: 'description' },
+      { result: brandNameValidation, field: 'brand_name' },
+      { result: compensationValidation, field: 'compensation_amount' },
+      { result: statusValidation, field: 'status' }
+    ]);
+
+    if (!validation.valid) {
       return NextResponse.json(
         {
-          error: 'Missing required fields',
-          required: ['athlete_id', 'deal_title', 'deal_type', 'start_date']
+          error: 'Validation failed',
+          details: validation.errors
         },
         { status: 400 }
       );
     }
 
-    // Validate deal_type enum
-    const validDealTypes = [
-      'sponsorship', 'endorsement', 'appearance', 'content_creation',
-      'social_media', 'merchandise', 'licensing', 'event', 'other'
-    ];
-    if (!validDealTypes.includes(body.deal_type)) {
+    // Validate deliverables array if provided
+    if (body.deliverables && !Array.isArray(body.deliverables)) {
       return NextResponse.json(
-        { error: `Invalid deal_type. Must be one of: ${validDealTypes.join(', ')}` },
+        { error: 'deliverables must be an array' },
+        { status: 400 }
+      );
+    }
+
+    // Limit deliverables array size
+    if (body.deliverables && body.deliverables.length > 50) {
+      return NextResponse.json(
+        { error: 'deliverables cannot exceed 50 items' },
         { status: 400 }
       );
     }
 
     const serviceClient = createServiceRoleClient();
 
-    // Prepare deal data - agency_id is current user
+    // Prepare deal data using sanitized values - agency_id is current user
     const dealData = {
-      athlete_id: body.athlete_id,
+      athlete_id: athleteIdValidation.sanitized as string,
       agency_id: user.id,
-      deal_title: body.deal_title,
-      deal_type: body.deal_type,
-      brand_name: body.brand_name || null,
-      description: body.description || null,
-      compensation_amount: body.compensation_amount || null,
-      start_date: body.start_date,
-      end_date: body.end_date || null,
-      status: body.status || 'draft',
+      deal_title: dealTitleValidation.sanitized as string,
+      deal_type: dealTypeValidation.sanitized as string,
+      brand_name: brandNameValidation.sanitized || null,
+      description: descriptionValidation.sanitized || null,
+      compensation_amount: compensationValidation.sanitized || null,
+      start_date: startDateValidation.sanitized as string,
+      end_date: endDateValidation.sanitized || null,
+      status: statusValidation.sanitized || 'draft',
       deliverables: body.deliverables || [],
-      is_public: body.is_public || false
+      is_public: body.is_public === true // Explicit boolean check
     };
 
     // Insert deal

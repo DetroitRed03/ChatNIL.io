@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient, createClient } from '@/lib/supabase/server';
 import { resolveAthleteName } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Agency Roster API
  *

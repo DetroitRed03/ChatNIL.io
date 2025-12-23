@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { awardBadgeByName } from '@/lib/badges';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/badges/check-quiz
  * Check and award quiz-related badges based on user's quiz history

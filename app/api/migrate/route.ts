@@ -3,17 +3,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-// Server-side service role client for migrations
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+export const dynamic = 'force-dynamic';
 
+// Server-side service role client for migrations
 function getSupabaseAdmin() {
-  return createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  );
 }
 
 interface Migration {
@@ -62,6 +65,7 @@ async function ensureSQLExecutor() {
 
 // Execute raw SQL using our custom function
 async function executeSQL(sql: string): Promise<{ success: boolean; error?: string; data?: any }> {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     // Ensure the SQL executor function exists
     await ensureSQLExecutor();
@@ -86,6 +90,7 @@ async function executeSQL(sql: string): Promise<{ success: boolean; error?: stri
 
 // Ensure migrations table exists
 async function ensureMigrationsTable() {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     // Try to query the migrations table first to see if it exists
     const { data, error } = await supabaseAdmin
@@ -146,6 +151,7 @@ function getAvailableMigrations(): Migration[] {
 
 // Get executed migrations from database
 async function getExecutedMigrations(): Promise<MigrationRecord[]> {
+  const supabaseAdmin = getSupabaseAdmin();
   try {
     const { data, error } = await supabaseAdmin
       .from('migrations')
@@ -166,6 +172,7 @@ async function getExecutedMigrations(): Promise<MigrationRecord[]> {
 
 // Execute a single migration
 async function executeMigration(migration: Migration): Promise<{ success: boolean; error?: string }> {
+  const supabaseAdmin = getSupabaseAdmin();
   console.log(`🔄 Executing migration: ${migration.id}`);
 
   try {

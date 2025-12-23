@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/compliance/check
  * Check NIL compliance rules for a specific state

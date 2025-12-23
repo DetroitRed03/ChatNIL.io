@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBadgesWithStatus, getBadgeStats } from '@/lib/badges';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/badges
  * Fetch all badges with earned status for a user

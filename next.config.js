@@ -9,6 +9,10 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  experimental: {
+    // Optimize package imports to reduce bundle size
+    optimizePackageImports: ['@supabase/supabase-js'],
+  },
   images: {
     remotePatterns: [
       {

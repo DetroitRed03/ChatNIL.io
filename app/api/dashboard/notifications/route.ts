@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getNotifications } from '@/lib/dashboard-data';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     console.log('📬 GET /api/dashboard/notifications - Request received');

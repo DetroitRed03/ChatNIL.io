@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAndAwardBadgeForActionServer } from '@/lib/badges-server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/badges/check
  * Check and automatically award badges based on user actions

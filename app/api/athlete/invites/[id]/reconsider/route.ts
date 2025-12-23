@@ -19,6 +19,8 @@ import {
   RECONSIDER_WINDOW_HOURS
 } from '@/lib/reconsider-utils';
 
+export const dynamic = 'force-dynamic';
+
 function getSupabaseClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

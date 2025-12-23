@@ -3,6 +3,8 @@ import { startQuizSession } from '@/lib/quiz';
 import { QuizCategory, QuizDifficulty } from '@/types';
 import { trackEventServer } from '@/lib/analytics-server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/quizzes/start
  * Start a new quiz session

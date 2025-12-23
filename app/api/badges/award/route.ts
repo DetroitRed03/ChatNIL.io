@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { awardBadge, awardBadgeByName } from '@/lib/badges';
 import { trackEventServer } from '@/lib/analytics-server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/badges/award
  * Award a badge to a user

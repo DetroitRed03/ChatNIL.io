@@ -19,6 +19,8 @@ import {
   type MatchScore
 } from '@/lib/campaign-matchmaking';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: Request,
   { params }: { params: { athleteId: string; campaignId: string } }

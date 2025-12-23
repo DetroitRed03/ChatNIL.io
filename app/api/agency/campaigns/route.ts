@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceRoleClient, createClient } from '@/lib/supabase/server';
 import { triggerMatchmakingForCampaign } from '@/lib/matchmaking-trigger';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Agency Campaigns API
  *

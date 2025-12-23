@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import type { UserDocument, DocumentsStats } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 const STORAGE_LIMIT_MB = 100;
 const STORAGE_LIMIT_BYTES = STORAGE_LIMIT_MB * 1024 * 1024;
 

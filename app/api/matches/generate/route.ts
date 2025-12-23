@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { calculateMatchScore } from '@/lib/matchmaking-engine';
 import type { User } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/matches/generate
  * Generate matches for an agency based on their preferences and athlete profiles

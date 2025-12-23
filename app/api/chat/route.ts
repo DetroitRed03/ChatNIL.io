@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { trackEventServer } from '@/lib/analytics-server';
 import { estimateTokenCount, estimateCost, categorizePrompt } from '@/lib/analytics';
 
+export const dynamic = 'force-dynamic';
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;

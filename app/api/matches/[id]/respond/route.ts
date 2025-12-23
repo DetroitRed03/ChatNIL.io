@@ -1,6 +1,8 @@
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Helper to get authenticated user ID with multiple fallbacks
  */

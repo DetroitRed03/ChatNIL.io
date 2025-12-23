@@ -15,6 +15,8 @@ import { getSystemPrompt, type UserContext } from '@/lib/ai/system-prompts';
 import { getRAGContext, detectStateInQuery, detectQuizTopicInQuery, getStateNILRules, getQuizStudyMaterial } from '@/lib/ai/rag';
 import { withRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 
+export const dynamic = 'force-dynamic';
+
 interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;

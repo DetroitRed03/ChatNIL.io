@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { calculateFMV } from '@/lib/fmv/fmv-calculator';
 import type { User, SocialMediaStat, NILDeal, ScrapedAthleteData } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/fmv
  *

@@ -1,6 +1,8 @@
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * PATCH /api/agency/profile
  * Update agency-specific profile fields

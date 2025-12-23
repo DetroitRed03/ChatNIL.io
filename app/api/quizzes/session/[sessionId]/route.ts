@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuizSessionResults, getQuizSessionProgress } from '@/lib/quiz';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/quizzes/session/[sessionId]
  * Get quiz session results and progress

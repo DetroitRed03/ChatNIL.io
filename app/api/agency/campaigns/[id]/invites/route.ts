@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createAuthClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 // Create supabase client lazily inside functions to ensure env vars are loaded
 function getSupabaseClient() {
   return createClient(

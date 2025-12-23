@@ -2,6 +2,8 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { resolveAthleteName } from '@/lib/utils';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/matches
  * Get athlete matches with filtering and sorting

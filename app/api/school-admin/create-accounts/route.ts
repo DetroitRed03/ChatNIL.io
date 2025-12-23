@@ -1,6 +1,8 @@
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 interface StudentAccount {
   first_name: string;
   last_name: string;

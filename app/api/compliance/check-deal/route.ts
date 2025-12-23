@@ -8,6 +8,8 @@ import {
   type ComplianceCheckParams,
 } from '@/lib/geo-compliance';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/compliance/check-deal
  *

@@ -2,6 +2,8 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { splitProfileUpdates, ensureAthleteProfile } from '@/lib/profile-field-mapper';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/user/update-athlete-profile
  * Update athlete profile with Migration 016 enhanced fields

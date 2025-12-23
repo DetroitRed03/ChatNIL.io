@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { submitQuizAnswer } from '@/lib/quiz';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/quizzes/submit-answer
  * Submit an answer to a quiz question

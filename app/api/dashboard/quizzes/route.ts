@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getQuizProgress } from '@/lib/dashboard-data';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     // Parse userId from query params (consistent with other dashboard APIs)

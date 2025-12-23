@@ -8,6 +8,8 @@ import {
 } from '@/lib/photo-upload-utils';
 import { PhotoUploadErrorCode } from '@/lib/types/photo-upload';
 
+export const dynamic = 'force-dynamic';
+
 export const runtime = 'nodejs';
 export const maxDuration = 60; // 60 seconds for image processing
 

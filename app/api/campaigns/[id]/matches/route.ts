@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findCampaignMatches } from '@/lib/campaign-matchmaking';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { splitProfileUpdates, mergeProfileData } from '@/lib/profile-field-mapper';
 
+export const dynamic = 'force-dynamic';
+
 // Use service role client to bypass RLS
 // Note: Using untyped client because some tables aren't in Database types
 function getSupabaseAdmin() {

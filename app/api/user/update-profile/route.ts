@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { splitProfileUpdates, ensureAthleteProfile, isAthleteRole } from '@/lib/profile-field-mapper';
 
+export const dynamic = 'force-dynamic';
+
 // Helper function to calculate profile completion percentage
 function calculateProfileCompletion(profile: any): number {
   if (!profile) return 0;

@@ -9,6 +9,8 @@ import {
   RECONSIDER_WINDOW_HOURS
 } from '@/lib/reconsider-utils';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Helper to get authenticated user ID with multiple fallbacks
  */

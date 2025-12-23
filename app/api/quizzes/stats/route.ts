@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserQuizStats, getRecommendedQuizzes } from '@/lib/quiz';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/quizzes/stats
  * Get user's overall quiz statistics

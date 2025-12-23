@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { Database } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 type ChatSession = Database['public']['Tables']['chat_sessions']['Row'];
 type ChatSessionUpdate = Database['public']['Tables']['chat_sessions']['Update'];
 

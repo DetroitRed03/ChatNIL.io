@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 // Use service role client to bypass RLS
 function getSupabaseAdmin() {
   return createClient<Database>(

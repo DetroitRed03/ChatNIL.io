@@ -12,6 +12,8 @@
 import { NextRequest } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 // In-memory store for tracking last check times and unread notifications
 // In production, this would be stored in Redis or a database
 const lastCheckMap = new Map<string, Date>();

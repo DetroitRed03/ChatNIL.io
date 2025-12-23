@@ -1,16 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Server-side service role client
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+export const dynamic = 'force-dynamic';
 
+// Server-side service role client
 function getSupabaseAdmin() {
-  return createClient(supabaseUrl, supabaseServiceRoleKey);
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 }
 
 export async function GET(request: NextRequest) {
   const supabaseAdmin = getSupabaseAdmin();
+  const supabaseUrl = process.env.SUPABASE_URL!;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
   try {
     console.log('🔍 === RLS DEBUG ENDPOINT ===');
 
