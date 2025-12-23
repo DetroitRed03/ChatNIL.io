@@ -4,22 +4,23 @@ import { checkAnonRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-l
 
 export const dynamic = 'force-dynamic';
 
-// Server-side service role client (secure)
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
+// Server-side service role client (secure) - initialized at runtime for Vercel compatibility
 function getSupabaseAdmin() {
-  return createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'chatnil-admin-api'
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'chatnil-admin-api'
+        }
+      }
     }
-  }
-});
+  );
 }
 
 export async function POST(request: NextRequest) {
