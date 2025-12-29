@@ -1,8 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Building, Star, TrendingUp, FileText, Eye, ThumbsUp, ThumbsDown, RotateCcw, Clock } from 'lucide-react';
+import { ChevronDown, ChevronUp, Building, Star, TrendingUp, FileText, Eye, ThumbsUp, ThumbsDown, RotateCcw, Clock, Sparkles } from 'lucide-react';
 import { canReconsider, getReconsiderTimeRemaining } from '@/lib/reconsider-utils';
+
+// Trait display names for UI
+const TRAIT_DISPLAY_NAMES: Record<string, string> = {
+  leadership: 'Leadership',
+  creativity: 'Creativity',
+  community_focus: 'Community',
+  competition: 'Competitive',
+  authenticity: 'Authentic',
+  resilience: 'Resilient',
+  teamwork: 'Team Player',
+  ambition: 'Ambitious',
+  charisma: 'Charismatic',
+  discipline: 'Disciplined',
+  innovation: 'Innovative',
+  loyalty: 'Loyal',
+};
 
 interface OpportunityCardProps {
   opportunity: {
@@ -24,6 +40,11 @@ interface OpportunityCardProps {
     agency_email?: string;
     agency_first_name?: string;
     agency_last_name?: string;
+    // Trait alignment from matchmaking engine
+    traitAlignment?: {
+      matchingTraits: string[];
+      alignmentScore: number;
+    };
   };
   onViewDetails: () => void;
   onRespond?: (response: 'interested' | 'declined') => void;
@@ -170,6 +191,31 @@ export function OpportunityCard({ opportunity, onViewDetails, onRespond, onRecon
               )}
             </div>
           </>
+        )}
+
+        {/* Trait Alignment - Personality Match */}
+        {opportunity.traitAlignment?.matchingTraits && opportunity.traitAlignment.matchingTraits.length > 0 && (
+          <div className="mt-2 p-2 bg-violet-50 rounded-lg border border-violet-100">
+            <p className="text-[10px] font-medium text-violet-700 mb-1.5 flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              Personality Match
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {opportunity.traitAlignment.matchingTraits.slice(0, 3).map(trait => (
+                <span
+                  key={trait}
+                  className="inline-flex items-center px-1.5 py-0.5 bg-violet-100 text-violet-800 rounded-full text-[10px] font-medium"
+                >
+                  {TRAIT_DISPLAY_NAMES[trait] || trait.replace('_', ' ')}
+                </span>
+              ))}
+              {opportunity.traitAlignment.matchingTraits.length > 3 && (
+                <span className="text-[10px] text-violet-600">
+                  +{opportunity.traitAlignment.matchingTraits.length - 3} more
+                </span>
+              )}
+            </div>
+          </div>
         )}
       </div>
 

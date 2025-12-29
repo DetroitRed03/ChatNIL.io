@@ -1,13 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-interface UploadedFile {
+export type FileProcessingStatus = 'pending' | 'processing' | 'ready' | 'failed';
+
+export interface UploadedFile {
   id: string;
   name: string;
   size: number;
   type: string;
   file: File;
   preview?: string;
+  // Document processing fields
+  processingStatus?: FileProcessingStatus;
+  processingError?: string;
+  documentId?: string; // Server-side document ID after processing
 }
 
 export interface Message {
@@ -19,7 +25,7 @@ export interface Message {
   isStreaming?: boolean;
 }
 
-type StreamingState = 'idle' | 'submitting' | 'streaming' | 'complete' | 'error';
+type StreamingState = 'idle' | 'submitting' | 'processing_attachments' | 'streaming' | 'complete' | 'error';
 
 interface ChatState {
   // Messages
@@ -36,6 +42,7 @@ interface ChatState {
   attachedFiles: UploadedFile[];
   addAttachedFile: (file: UploadedFile) => void;
   removeAttachedFile: (fileId: string) => void;
+  updateAttachedFile: (fileId: string, updates: Partial<UploadedFile>) => void;
   clearAttachedFiles: () => void;
 
   // Streaming state
@@ -53,6 +60,9 @@ interface ChatState {
 
   typingText: string;
   setTypingText: (text: string) => void;
+
+  typingStatus: string;
+  setTypingStatus: (status: string) => void;
 
   showSuggestions: boolean;
   setShowSuggestions: (show: boolean) => void;
@@ -93,6 +103,12 @@ export const useChatStore = create<ChatState>()(
         set((state) => ({
           attachedFiles: state.attachedFiles.filter(f => f.id !== fileId)
         })),
+      updateAttachedFile: (fileId, updates) =>
+        set((state) => ({
+          attachedFiles: state.attachedFiles.map(f =>
+            f.id === fileId ? { ...f, ...updates } : f
+          )
+        })),
       clearAttachedFiles: () => set({ attachedFiles: [] }),
 
       // Streaming state (not persisted)
@@ -110,6 +126,9 @@ export const useChatStore = create<ChatState>()(
 
       typingText: '',
       setTypingText: (typingText) => set({ typingText }),
+
+      typingStatus: '',
+      setTypingStatus: (typingStatus) => set({ typingStatus }),
 
       showSuggestions: false,
       setShowSuggestions: (showSuggestions) => set({ showSuggestions }),

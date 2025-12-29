@@ -113,6 +113,22 @@ export async function GET(
       .in('status', ['active', 'completed'])
       .eq('is_public', true);
 
+    // Fetch Core Traits / Brand Identity (if athlete has completed assessment)
+    const { data: traitResults } = await supabaseAdmin
+      .from('user_trait_results')
+      .select('archetype_code, archetype_name, archetype_description, top_traits, trait_scores')
+      .eq('user_id', profile.id)
+      .maybeSingle();
+
+    // Build brand identity object if assessment completed
+    const brandIdentity = traitResults ? {
+      archetypeCode: traitResults.archetype_code,
+      archetypeName: traitResults.archetype_name,
+      archetypeDescription: traitResults.archetype_description,
+      topTraits: traitResults.top_traits,
+      traitScores: traitResults.trait_scores
+    } : null;
+
     // Fetch social media stats from athlete_public_profiles (primary source, more complete data)
     // Include handles in the query
     const { data: publicProfileData } = await supabaseAdmin
@@ -242,6 +258,9 @@ export async function GET(
 
       // NIL deals count
       active_deals_count: activeDealsCount || 0,
+
+      // Brand Identity (Core Traits Assessment results)
+      brandIdentity,
 
       // Timestamps
       created_at: profile.created_at

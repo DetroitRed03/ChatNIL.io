@@ -15,13 +15,18 @@ export interface UserContext {
   athleteName?: string; // For parents/coaches
   sport?: string;
   schoolLevel?: string; // 'high_school' | 'college'
+  // Assessment results
+  archetypeCode?: string;
+  archetypeName?: string;
+  topTraits?: string[];
+  traitScores?: Record<string, number>;
 }
 
 const BASE_SYSTEM_PROMPT = `You are the ChatNIL AI Assistant, an expert on Name, Image, and Likeness (NIL) deals for student-athletes. Your mission is to help users understand NIL opportunities, navigate compliance, and make informed decisions.
 
 Core Principles:
 - Provide accurate, trustworthy information based on current NIL regulations
-- Cite sources when referencing specific state laws or regulations
+- Do NOT include citation markers like [1], [2], etc. in your responses - the system automatically displays a References section showing the sources used
 - Be encouraging and supportive while being realistic about opportunities
 - Never provide legal advice - recommend consulting with lawyers for legal questions
 - Stay up-to-date on NIL landscape changes
@@ -34,8 +39,28 @@ Core Principles:
  * Focus: Simple explanations, opportunities, step-by-step guidance
  * Avoid: Legal jargon, complex financial terms without explanation
  */
+// Archetype-specific hints for AI personalization
+const ARCHETYPE_HINTS: Record<string, string> = {
+  captain: 'This athlete is a natural leader. Emphasize team impact, legacy, and opportunities to inspire others. Suggest leadership-focused partnerships and mentorship content.',
+  trailblazer: 'This athlete loves innovation. Suggest unique, unconventional opportunities. Encourage being first-to-market and pushing boundaries with creative campaigns.',
+  champion: 'This athlete is highly competitive. Focus on performance-based deals, winning mindset, and results-driven partnerships. Emphasize elite brand associations.',
+  ambassador: 'This athlete values community impact. Prioritize cause-aligned partnerships, community service, and authentic storytelling. Emphasize giving back.',
+  entertainer: 'This athlete has strong charisma. Focus on content opportunities, audience engagement, and personality-driven campaigns. Suggest media and entertainment partnerships.',
+  purist: 'This athlete values authenticity and craft. Suggest minimal but meaningful partnerships. Focus on sports equipment, training, and performance-focused brands.',
+  connector: 'This athlete builds relationships. Emphasize collaborative opportunities, team-oriented brands, and relationship-building deals. Suggest network-leveraging strategies.',
+  builder: 'This athlete thinks long-term. Discuss equity deals, business ownership, and long-term brand building. Emphasize entrepreneurial opportunities.',
+};
+
 export function getAthleteSystemPrompt(context: UserContext): string {
-  const { state, name, sport, schoolLevel } = context;
+  const { state, name, sport, schoolLevel, archetypeCode, archetypeName, topTraits, traitScores } = context;
+
+  // Get archetype-specific hints
+  const archetypeHint = archetypeCode ? ARCHETYPE_HINTS[archetypeCode] : '';
+
+  // Format top traits for the prompt
+  const topTraitsList = topTraits && topTraits.length > 0
+    ? topTraits.slice(0, 5).join(', ')
+    : '';
 
   return `${BASE_SYSTEM_PROMPT}
 
@@ -44,6 +69,9 @@ ${name ? `Name: ${name}` : ''}
 ${sport ? `Sport: ${sport}` : ''}
 ${schoolLevel ? `Level: ${schoolLevel === 'high_school' ? 'High School' : 'College'}` : ''}
 ${state ? `State: ${state}` : ''}
+${archetypeName ? `\nATHLETE ARCHETYPE: ${archetypeName}` : ''}
+${topTraitsList ? `Top Personality Traits: ${topTraitsList}` : ''}
+${archetypeHint ? `\nPERSONALIZATION GUIDANCE:\n${archetypeHint}` : ''}
 
 COMMUNICATION STYLE:
 - Use friendly, encouraging language

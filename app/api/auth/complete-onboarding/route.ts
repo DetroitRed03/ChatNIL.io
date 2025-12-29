@@ -350,44 +350,77 @@ export async function POST(request: NextRequest) {
       // Get the user's role to determine relationship handling
       const userRole = updatedProfile.role;
 
-      if (userRole === 'parent' && onboardingData.childEmail) {
-        console.log('👨‍👩‍👧‍👦 Creating parent-athlete relationship...');
+      // Handle parent-athlete relationships
+      // Supports both new athletes[] array format and legacy childEmail format
+      if (userRole === 'parent') {
+        const athletesToLink: { email: string; name?: string }[] = [];
 
-        // Find the athlete by email
-        const { data: athleteUser, error: athleteError } = await supabaseAdmin
-          .from('users')
-          .select('id')
-          .eq('email', onboardingData.childEmail)
-          .eq('role', 'athlete')
-          .single();
-
-        if (athleteError || !athleteUser) {
-          console.warn('⚠️ Athlete not found for parent relationship:', onboardingData.childEmail);
-          // Don't fail the whole onboarding, just log the issue
-        } else {
-          // Create parent-athlete relationship
-          const { data: relationship, error: relationshipError } = await supabaseAdmin
-            .from('parent_athlete_relationships')
-            .insert({
-              parent_id: userId,
-              athlete_id: athleteUser.id,
-              relationship_type: onboardingData.relationshipType || 'guardian',
-              permissions: {
-                view_nil_activities: onboardingData.notificationPreferences?.nilActivities ?? true,
-                approve_contracts: onboardingData.approvalSettings?.contractApproval ?? true,
-                receive_notifications: true,
-                access_financial_info: onboardingData.approvalSettings?.financialDecisions ?? true,
-              },
-              verified: false // Requires athlete confirmation
-            })
-            .select();
-
-          if (relationshipError) {
-            console.warn('⚠️ Failed to create parent-athlete relationship:', relationshipError);
-          } else {
-            console.log('✅ Parent-athlete relationship created successfully');
-            relationshipResults = { type: 'parent', relationship };
+        // Check for new athletes array format (from ChildConnectionStep)
+        if (onboardingData.athletes && Array.isArray(onboardingData.athletes)) {
+          for (const athlete of onboardingData.athletes) {
+            if (athlete.email) {
+              athletesToLink.push({ email: athlete.email, name: athlete.name });
+            }
           }
+        }
+
+        // Fallback to legacy childEmail format
+        if (athletesToLink.length === 0 && onboardingData.childEmail) {
+          athletesToLink.push({ email: onboardingData.childEmail, name: onboardingData.childName });
+        }
+
+        if (athletesToLink.length > 0) {
+          console.log(`👨‍👩‍👧‍👦 Creating parent-athlete relationships for ${athletesToLink.length} athlete(s)...`);
+
+          const createdRelationships = [];
+          const notFoundAthletes = [];
+
+          for (const athleteInfo of athletesToLink) {
+            // Find the athlete by email
+            const { data: athleteUser, error: athleteError } = await supabaseAdmin
+              .from('users')
+              .select('id')
+              .eq('email', athleteInfo.email)
+              .eq('role', 'athlete')
+              .single();
+
+            if (athleteError || !athleteUser) {
+              console.warn('⚠️ Athlete not found:', athleteInfo.email);
+              notFoundAthletes.push(athleteInfo.email);
+              continue;
+            }
+
+            // Create parent-athlete relationship
+            const { data: relationship, error: relationshipError } = await supabaseAdmin
+              .from('parent_athlete_relationships')
+              .upsert({
+                parent_id: userId,
+                athlete_id: athleteUser.id,
+                relationship_type: onboardingData.relationshipType || 'guardian',
+                permissions: {
+                  view_nil_activities: onboardingData.notificationPreferences?.nilActivities ?? true,
+                  approve_contracts: onboardingData.approvalSettings?.contractApproval ?? true,
+                  receive_notifications: true,
+                  access_financial_info: onboardingData.approvalSettings?.financialDecisions ?? true,
+                },
+                verified: false // Requires athlete confirmation
+              })
+              .select()
+              .single();
+
+            if (relationshipError) {
+              console.warn('⚠️ Failed to create relationship for:', athleteInfo.email, relationshipError.message);
+            } else {
+              console.log('✅ Parent-athlete relationship created for:', athleteInfo.email);
+              createdRelationships.push(relationship);
+            }
+          }
+
+          relationshipResults = {
+            type: 'parent',
+            relationships: createdRelationships,
+            notFound: notFoundAthletes
+          };
         }
       }
 

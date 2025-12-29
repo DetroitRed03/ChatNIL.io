@@ -36,6 +36,7 @@ export interface FMVInputs {
   socialStats?: SocialMediaStat[];
   nilDeals?: NILDeal[];
   externalRankings?: ScrapedAthleteData[];
+  traitScores?: Record<string, number> | null;
 }
 
 export interface FMVResult extends Omit<AthleteFMVData, 'id' | 'created_at' | 'updated_at'> {
@@ -124,17 +125,17 @@ const BASE_DEAL_VALUES = {
 
 /**
  * Calculate comprehensive FMV score for an athlete
- * @param inputs - Athlete data including profile, social stats, deals, rankings
+ * @param inputs - Athlete data including profile, social stats, deals, rankings, trait scores
  * @returns Complete FMV result with scores, suggestions, and estimates
  */
 export async function calculateFMV(inputs: FMVInputs): Promise<FMVResult> {
-  const { athlete, socialStats = [], nilDeals = [], externalRankings = [] } = inputs;
+  const { athlete, socialStats = [], nilDeals = [], externalRankings = [], traitScores } = inputs;
 
   // Calculate individual category scores
   const social_score = calculateSocialScore(athlete, socialStats);
   const athletic_score = calculateAthleticScore(athlete, externalRankings);
   const market_score = calculateMarketScore(athlete);
-  const brand_score = calculateBrandScore(athlete, nilDeals);
+  const brand_score = calculateBrandScore(athlete, nilDeals, traitScores);
 
   // Total FMV score
   const fmv_score = social_score + athletic_score + market_score + brand_score;
@@ -306,43 +307,57 @@ export function calculateMarketScore(athlete: any): number {
 /**
  * Calculate brand & deals score (0-20 points)
  * Breakdown:
- * - Active NIL deals: 0-8 points (2 pts each, max 4 deals)
- * - Total earnings: 0-6 points
- * - Deal success rate: 0-3 points
- * - Content samples: 0-3 points
+ * - Active NIL deals: 0-6 points (2 pts each, max 3 deals)
+ * - Total earnings: 0-5 points
+ * - Deal success rate: 0-2 points
+ * - Content samples: 0-2 points
+ * - Trait personality bonus: 0-5 points (charisma, creativity, authenticity, ambition)
  */
-export function calculateBrandScore(athlete: any, nilDeals: NILDeal[]): number {
+export function calculateBrandScore(
+  athlete: any,
+  nilDeals: NILDeal[],
+  traitScores?: Record<string, number> | null
+): number {
   let score = 0;
 
-  // Active NIL deals (0-8 points)
+  // Active NIL deals (0-6 points)
   const activeDeals = nilDeals.filter(deal => deal.status === 'active').length;
-  score += Math.min(activeDeals * 2, 8);
+  score += Math.min(activeDeals * 2, 6);
 
-  // Total earnings (0-6 points)
+  // Total earnings (0-5 points)
   const totalEarnings = nilDeals.reduce((sum, deal) => sum + (deal.compensation_amount || 0), 0);
-  if (totalEarnings >= 50000) score += 6;
-  else if (totalEarnings >= 25000) score += 5;
-  else if (totalEarnings >= 10000) score += 4;
-  else if (totalEarnings >= 5000) score += 3;
-  else if (totalEarnings >= 1000) score += 2;
-  else if (totalEarnings > 0) score += 1;
+  if (totalEarnings >= 50000) score += 5;
+  else if (totalEarnings >= 25000) score += 4;
+  else if (totalEarnings >= 10000) score += 3;
+  else if (totalEarnings >= 5000) score += 2;
+  else if (totalEarnings >= 1000) score += 1;
 
-  // Deal success rate (0-3 points)
+  // Deal success rate (0-2 points)
   const completedDeals = nilDeals.filter(deal => deal.status === 'completed').length;
   const totalDeals = nilDeals.length;
   if (totalDeals > 0) {
     const successRate = completedDeals / totalDeals;
-    if (successRate >= 0.9) score += 3;
-    else if (successRate >= 0.7) score += 2;
+    if (successRate >= 0.8) score += 2;
     else if (successRate >= 0.5) score += 1;
   }
 
-  // Content samples (0-3 points)
+  // Content samples (0-2 points)
   const contentSamples = athlete.content_samples || [];
   if (Array.isArray(contentSamples)) {
-    if (contentSamples.length >= 5) score += 3;
-    else if (contentSamples.length >= 3) score += 2;
+    if (contentSamples.length >= 3) score += 2;
     else if (contentSamples.length >= 1) score += 1;
+  }
+
+  // Trait personality bonus (0-5 points) - Based on brand-relevant traits
+  // Traits that indicate strong brand potential: charisma, creativity, authenticity, ambition
+  if (traitScores && Object.keys(traitScores).length > 0) {
+    const brandTraits = ['charisma', 'creativity', 'authenticity', 'ambition'];
+    const traitValues = brandTraits.map(trait => traitScores[trait] || 0);
+    const avgBrandTraitScore = traitValues.reduce((sum, val) => sum + val, 0) / brandTraits.length;
+
+    // 0-5 points based on average of brand-relevant traits (0-100 scale)
+    const traitBonus = Math.round((avgBrandTraitScore / 100) * 5);
+    score += traitBonus;
   }
 
   return Math.min(score, 20); // Cap at 20

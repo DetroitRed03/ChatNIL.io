@@ -26,6 +26,9 @@ import { useChatHistoryStore } from '@/lib/chat-history-store';
 import SharedInput, { type UploadedFile } from '@/components/SharedInput';
 import { Message } from '@/lib/stores/chat';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function Library() {
   const {
@@ -48,6 +51,13 @@ export default function Library() {
 
   const { sidebarCollapsed, createChatWithFirstMessage, addMessageToChat, setActiveChat } = useChatHistoryStore();
   const router = useRouter();
+  const { user } = useAuth();
+
+  // Helper to get auth token for document uploads
+  const getAuthToken = async (): Promise<string | undefined> => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token;
+  };
 
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<LibraryFile | null>(null);
@@ -77,19 +87,57 @@ export default function Library() {
     setDragActive(false);
 
     const droppedFiles = Array.from(e.dataTransfer.files);
+    const authToken = await getAuthToken();
     for (const file of droppedFiles) {
-      await addFileToLibrary(file);
+      await addFileToLibrary(file, authToken);
     }
   };
 
   const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
+    const authToken = await getAuthToken();
     for (const file of selectedFiles) {
-      await addFileToLibrary(file);
+      await addFileToLibrary(file, authToken);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  // Processing status badge
+  const ProcessingBadge = ({ file }: { file: LibraryFile }) => {
+    if (!file.processingStatus || file.processingStatus === 'pending') {
+      return null;
+    }
+
+    if (file.processingStatus === 'processing') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Processing
+        </span>
+      );
+    }
+
+    if (file.processingStatus === 'completed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
+          <CheckCircle className="w-3 h-3" />
+          AI Ready
+        </span>
+      );
+    }
+
+    if (file.processingStatus === 'failed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700" title={file.processingError}>
+          <AlertCircle className="w-3 h-3" />
+          Failed
+        </span>
+      );
+    }
+
+    return null;
   };
 
   const formatFileSize = (bytes: number) => {
@@ -244,8 +292,9 @@ export default function Library() {
         )}
 
         <h3 className="text-sm font-medium text-gray-900 truncate w-full mb-1">{file.name}</h3>
-        <p className="text-xs text-gray-500 mb-2">{formatFileSize(file.size)}</p>
-        <p className="text-xs text-gray-400">{file.uploadDate.toLocaleDateString()}</p>
+        <p className="text-xs text-gray-500 mb-1">{formatFileSize(file.size)}</p>
+        <ProcessingBadge file={file} />
+        <p className="text-xs text-gray-400 mt-1">{file.uploadDate.toLocaleDateString()}</p>
       </div>
     </div>
   );
@@ -269,6 +318,7 @@ export default function Library() {
       </div>
 
       <div className="flex items-center gap-2">
+        <ProcessingBadge file={file} />
         <span className="text-xs text-gray-400 capitalize">{file.category}</span>
         <button
           onClick={(e) => {

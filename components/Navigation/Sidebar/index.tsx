@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare } from 'lucide-react';
-import { useChatHistoryStore } from '@/lib/chat-history-store';
+import { useChatHistoryStore, type Chat } from '@/lib/chat-history-store';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChatSync } from '@/hooks/useChatSync';
@@ -91,6 +91,78 @@ export default function Sidebar({ className = '', isNonAuth = false }: SidebarPr
     await renameChat(chatId, newTitle);
   };
 
+  // Handle PDF export
+  const handleExportPDF = useCallback(async (chat: Chat) => {
+    try {
+      // Dynamically import the PDF export utilities to avoid SSR issues
+      const { exportAndDownloadConversation } = await import('@/lib/utils/pdf-export');
+
+      // Convert chat messages to export format
+      const exportMessages = chat.messages.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: msg.timestamp?.toISOString(),
+      }));
+
+      await exportAndDownloadConversation(exportMessages, {
+        title: chat.title,
+        userName: user?.name || 'User',
+        userRole: user?.role || 'Athlete',
+        sessionId: chat.id,
+        includeTimestamps: true,
+        includeHeader: true,
+        includeFooter: true,
+      });
+    } catch (error) {
+      console.error('Failed to export PDF:', error);
+      alert('Failed to export conversation. Please try again.');
+    }
+  }, [user]);
+
+  // Handle email summary
+  const handleEmailSummary = useCallback(async (chat: Chat) => {
+    // Prompt for email address
+    const email = prompt('Enter email address to send the summary:');
+    if (!email) return;
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+
+    try {
+      // Convert chat messages to API format
+      const messages = chat.messages.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: msg.timestamp?.toISOString(),
+      }));
+
+      const response = await fetch('/api/email/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: email,
+          userName: user?.name || 'User',
+          conversationTitle: chat.title,
+          messages,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to send email');
+      }
+
+      alert(`Summary sent to ${email}!`);
+    } catch (error: any) {
+      console.error('Failed to send email summary:', error);
+      alert(error.message || 'Failed to send email summary. Please try again.');
+    }
+  }, [user]);
+
   // Handle resize start
   const handleResizeStart = (e: React.MouseEvent) => {
     if (sidebarCollapsed) return;
@@ -172,6 +244,8 @@ export default function Sidebar({ className = '', isNonAuth = false }: SidebarPr
           onTogglePin={handleTogglePin}
           onRenameChat={handleRenameChat}
           onDeleteChat={handleDeleteChat}
+          onExportPDF={handleExportPDF}
+          onEmailSummary={handleEmailSummary}
         />
 
         {/* Resize Handle - Only show when sidebar is expanded */}

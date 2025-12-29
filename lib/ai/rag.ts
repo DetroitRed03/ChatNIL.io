@@ -6,6 +6,26 @@
  */
 
 import { supabaseAdmin } from '../supabase';
+import { generateEmbedding } from './embeddings';
+import {
+  searchMemories,
+  searchSessionSummaries,
+  formatMemoriesForContext,
+  formatSessionSummariesForContext,
+  seedMemoriesFromProfile,
+  type MemorySearchResult,
+  type SessionSummary,
+} from './memory';
+import {
+  getRealTimeContext,
+  shouldUseRealTimeSearch,
+  isPerplexityAvailable,
+  searchPerplexity,
+  searchRecentDeals,
+  searchRegulatoryUpdates,
+  searchMarketTrends,
+  type PerplexitySearchResult,
+} from './perplexity';
 import type { UserContext } from './system-prompts';
 
 export interface KnowledgeEntry {
@@ -16,6 +36,9 @@ export interface KnowledgeEntry {
   category: string | null;
   metadata: Record<string, any>;
   similarity?: number;
+  source?: string;
+  source_url?: string;
+  updated_at?: string;
 }
 
 export interface RAGContext {
@@ -26,15 +49,11 @@ export interface RAGContext {
 }
 
 /**
- * Search the knowledge base for relevant content
- *
- * Note: This currently uses basic text matching. In production, you would:
- * 1. Generate an embedding for the query using OpenAI's embedding API
- * 2. Use pgvector's similarity search with the embedding
- * 3. Return the most relevant matches
+ * Search the knowledge base for relevant content using vector similarity
+ * Falls back to text search if embedding generation fails
  */
 export async function searchKnowledgeBase(params: RAGContext): Promise<KnowledgeEntry[]> {
-  const { query, userContext, maxResults = 5, minSimilarity = 0.7 } = params;
+  const { query, userContext, maxResults = 5, minSimilarity = 0.65 } = params;
 
   if (!supabaseAdmin) {
     console.error('Supabase admin client not available for RAG');
@@ -42,34 +61,124 @@ export async function searchKnowledgeBase(params: RAGContext): Promise<Knowledge
   }
 
   try {
-    // For now, use full-text search until we add embedding generation
-    // This is a temporary solution - see Phase 2 for embedding integration
+    // Try vector similarity search first
+    const queryEmbedding = await generateEmbedding(query);
+
+    const { data, error } = await supabaseAdmin.rpc('search_knowledge_base', {
+      query_embedding: queryEmbedding,
+      match_threshold: minSimilarity,
+      match_count: maxResults,
+      filter_roles: userContext.role ? [userContext.role] : null
+    });
+
+    if (error) {
+      console.error('Vector search error, falling back to text search:', error);
+      return textFallbackSearch(params);
+    }
+
+    if (data && data.length > 0) {
+      // Filter out quiz study material from general searches (they have question-style titles)
+      // Quiz content should only be returned when specifically requested via getQuizStudyMaterial()
+      const filteredData = (data as KnowledgeEntry[]).filter(entry => {
+        const category = entry.category || '';
+        return !category.startsWith('quiz_');
+      });
+
+      console.log(`✅ Vector search found ${data.length} results (${filteredData.length} after filtering quiz content) for: "${query.substring(0, 50)}..."`);
+      return filteredData;
+    }
+
+    // If no vector results, try text fallback
+    console.log('No vector results, trying text fallback...');
+    return textFallbackSearch(params);
+
+  } catch (error: any) {
+    // If embedding generation fails, fall back to text search
+    console.error('Embedding generation failed, using text fallback:', error.message);
+    return textFallbackSearch(params);
+  }
+}
+
+/**
+ * Text-based fallback search using ilike matching
+ * Used when vector search is unavailable
+ */
+async function textFallbackSearch(params: RAGContext): Promise<KnowledgeEntry[]> {
+  const { query, userContext, maxResults = 5 } = params;
+
+  if (!supabaseAdmin) return [];
+
+  try {
     const { data, error } = await supabaseAdmin
       .from('knowledge_base')
-      .select('id, title, content, content_type, category, metadata')
+      .select('id, title, content, content_type, category, metadata, source, source_url, updated_at')
       .eq('is_published', true)
       .or(`title.ilike.%${query}%,content.ilike.%${query}%`)
       .limit(maxResults);
 
     if (error) {
-      console.error('Error searching knowledge base:', error);
+      console.error('Text fallback search error:', error);
       return [];
     }
 
     // Filter by user role if specified in target_roles
+    // Also filter out quiz content from general searches
     const filteredResults = (data || []).filter(entry => {
+      // Exclude quiz study material
+      const category = entry.category || '';
+      if (category.startsWith('quiz_')) return false;
+
+      // Filter by role if specified
       if (!entry.metadata?.target_roles) return true;
       return entry.metadata.target_roles.includes(userContext.role);
     });
 
-    // TODO: Add state filtering for state-specific content
-    // if (userContext.state && entry.category === userContext.state) { ... }
-
     return filteredResults;
 
   } catch (error: any) {
-    console.error('Unexpected error in searchKnowledgeBase:', error);
+    console.error('Unexpected error in textFallbackSearch:', error);
     return [];
+  }
+}
+
+/**
+ * Hybrid search combining vector similarity and keyword matching
+ */
+export async function hybridSearchKnowledgeBase(params: RAGContext): Promise<KnowledgeEntry[]> {
+  const { query, userContext, maxResults = 5 } = params;
+
+  if (!supabaseAdmin) {
+    console.error('Supabase admin client not available for RAG');
+    return [];
+  }
+
+  try {
+    const queryEmbedding = await generateEmbedding(query);
+
+    const { data, error } = await supabaseAdmin.rpc('hybrid_search_knowledge_base', {
+      query_embedding: queryEmbedding,
+      search_query: query,
+      match_count: maxResults,
+      vector_weight: 0.7,
+      text_weight: 0.3
+    });
+
+    if (error) {
+      console.error('Hybrid search error:', error);
+      return textFallbackSearch(params);
+    }
+
+    // Filter out quiz study material from general searches
+    const filteredData = ((data || []) as KnowledgeEntry[]).filter(entry => {
+      const category = entry.category || '';
+      return !category.startsWith('quiz_');
+    });
+
+    return filteredData;
+
+  } catch (error: any) {
+    console.error('Hybrid search failed:', error.message);
+    return textFallbackSearch(params);
   }
 }
 
@@ -88,7 +197,7 @@ function extractKeywords(query: string): string[] {
 }
 
 /**
- * Format knowledge entries into context for the LLM
+ * Format knowledge entries into context for the LLM with source attribution
  */
 export function formatKnowledgeContext(entries: KnowledgeEntry[]): string {
   if (entries.length === 0) {
@@ -96,10 +205,18 @@ export function formatKnowledgeContext(entries: KnowledgeEntry[]): string {
   }
 
   const sections = entries.map((entry, index) => {
+    const sourceInfo = entry.source ? `Source: ${entry.source}` : '';
+    const lastUpdated = entry.updated_at
+      ? `Last verified: ${new Date(entry.updated_at).toLocaleDateString()}`
+      : '';
+    const similarity = entry.similarity
+      ? `(${Math.round(entry.similarity * 100)}% match)`
+      : '';
+
     return `
-[Source ${index + 1}]: ${entry.title}
-Category: ${entry.content_type}
-${entry.category ? `State/Topic: ${entry.category}` : ''}
+[${index + 1}] ${entry.title} ${similarity}
+Type: ${entry.content_type}${entry.category ? ` | Topic: ${entry.category}` : ''}
+${sourceInfo}${lastUpdated ? ` | ${lastUpdated}` : ''}
 
 ${entry.content}
 
@@ -109,11 +226,9 @@ ${entry.content}
   return `
 # Relevant NIL Information
 
-The following information from our knowledge base may help answer the user's question:
+The following verified information from ChatNIL's knowledge base is relevant to your question:
 
-${sections.join('\n\n')}
-
-Please use this information to provide an accurate, helpful response. Cite sources when referencing specific information.
+${sections.join('\n')}
 `;
 }
 
@@ -246,3 +361,147 @@ export function detectQuizTopicInQuery(query: string): string | null {
 
   return null;
 }
+
+/**
+ * Extended RAG context including conversation memory and real-time search
+ */
+export interface EnhancedRAGParams extends RAGContext {
+  userId?: string;
+  includeMemories?: boolean;
+  includeSessionSummaries?: boolean;
+  includeRealTimeSearch?: boolean;
+}
+
+export interface EnhancedRAGResult {
+  knowledgeContext: string;
+  memoryContext: string;
+  sessionContext: string;
+  realTimeContext: string;
+  combinedContext: string;
+  sources: {
+    knowledge: KnowledgeEntry[];
+    memories: MemorySearchResult[];
+    sessions: SessionSummary[];
+    hasRealTimeData: boolean;
+  };
+}
+
+/**
+ * Get comprehensive RAG context including knowledge base, conversation memory, and real-time search
+ */
+export async function getEnhancedRAGContext(params: EnhancedRAGParams): Promise<EnhancedRAGResult> {
+  const {
+    query,
+    userContext,
+    userId,
+    maxResults = 5,
+    minSimilarity = 0.65,
+    includeMemories = true,
+    includeSessionSummaries = true,
+    includeRealTimeSearch = true,
+  } = params;
+
+  // Seed profile memories on first use (runs in background, doesn't block)
+  if (userId && includeMemories) {
+    seedMemoriesFromProfile(userId).catch(err => {
+      console.error('Error seeding profile memories:', err);
+    });
+  }
+
+  // Determine if we should fetch real-time data
+  const shouldFetchRealTime = includeRealTimeSearch &&
+    isPerplexityAvailable() &&
+    shouldUseRealTimeSearch(query);
+
+  // Run all searches in parallel for better performance
+  const [knowledgeEntries, memories, sessions, realTimeData] = await Promise.all([
+    // Knowledge base search
+    searchKnowledgeBase({ query, userContext, maxResults, minSimilarity }),
+
+    // Memory search (if user ID provided)
+    userId && includeMemories
+      ? searchMemories({ userId, query, maxResults: 5, matchThreshold: 0.7 })
+      : Promise.resolve([]),
+
+    // Session summary search (if user ID provided)
+    userId && includeSessionSummaries
+      ? searchSessionSummaries({ userId, query, maxResults: 3, matchThreshold: 0.6 })
+      : Promise.resolve([]),
+
+    // Real-time search (if query needs current information)
+    shouldFetchRealTime
+      ? getRealTimeContext(query)
+      : Promise.resolve(''),
+  ]);
+
+  // Format each context type
+  const knowledgeContext = formatKnowledgeContext(knowledgeEntries);
+  const memoryContext = formatMemoriesForContext(memories);
+  const sessionContext = formatSessionSummariesForContext(sessions);
+  const realTimeContext = realTimeData || '';
+
+  // Combine all contexts
+  const contextParts: string[] = [];
+
+  if (memoryContext) {
+    contextParts.push(`# What I Know About You\n\n${memoryContext}`);
+  }
+
+  if (sessionContext) {
+    contextParts.push(`# Relevant Past Conversations\n\n${sessionContext}`);
+  }
+
+  // Real-time info comes before static knowledge base
+  if (realTimeContext) {
+    contextParts.push(realTimeContext);
+  }
+
+  if (knowledgeContext) {
+    contextParts.push(knowledgeContext);
+  }
+
+  return {
+    knowledgeContext,
+    memoryContext,
+    sessionContext,
+    realTimeContext,
+    combinedContext: contextParts.join('\n\n'),
+    sources: {
+      knowledge: knowledgeEntries,
+      memories,
+      sessions,
+      hasRealTimeData: !!realTimeContext,
+    },
+  };
+}
+
+/**
+ * Simplified function for chat endpoint - returns combined context string
+ */
+export async function getChatContext(params: {
+  query: string;
+  userContext: UserContext;
+  userId?: string;
+  includeRealTimeSearch?: boolean;
+}): Promise<string> {
+  const result = await getEnhancedRAGContext({
+    ...params,
+    maxResults: 5,
+    minSimilarity: 0.65,
+    includeMemories: !!params.userId,
+    includeSessionSummaries: !!params.userId,
+    includeRealTimeSearch: params.includeRealTimeSearch ?? true,
+  });
+
+  return result.combinedContext;
+}
+
+// Re-export Perplexity functions for direct use
+export {
+  searchPerplexity,
+  searchRecentDeals,
+  searchRegulatoryUpdates,
+  searchMarketTrends,
+  isPerplexityAvailable,
+  shouldUseRealTimeSearch,
+} from './perplexity';

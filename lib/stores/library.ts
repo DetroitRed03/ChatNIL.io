@@ -5,6 +5,8 @@ export type FileType = 'contract' | 'image' | 'document' | 'other';
 export type ViewMode = 'grid' | 'list';
 export type SortBy = 'name' | 'date' | 'size' | 'type';
 
+export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
 export interface LibraryFile {
   id: string;
   name: string;
@@ -17,6 +19,14 @@ export interface LibraryFile {
   lastModified: Date;
   description?: string;
   tags?: string[];
+
+  // Server-side document processing
+  serverDocumentId?: string;
+  processingStatus?: ProcessingStatus;
+  processingError?: string;
+  extractedText?: string;
+  wordCount?: number;
+  documentType?: string;
 }
 
 export interface LibraryState {
@@ -238,7 +248,7 @@ export const useLibraryStore = create<LibraryState>()(
 );
 
 // Helper function to create and add file to store
-export const addFileToLibrary = async (file: File): Promise<LibraryFile> => {
+export const addFileToLibrary = async (file: File, authToken?: string): Promise<LibraryFile> => {
   const libraryFile = createLibraryFile(file);
 
   // Generate preview for images
@@ -251,9 +261,81 @@ export const addFileToLibrary = async (file: File): Promise<LibraryFile> => {
     }
   }
 
+  // Add file to store immediately (with pending status)
+  libraryFile.processingStatus = 'pending';
   useLibraryStore.getState().addFile(libraryFile);
+
+  // If we have an auth token, upload to server for processing
+  if (authToken && isProcessableFile(file)) {
+    processFileOnServer(libraryFile.id, file, authToken);
+  }
+
   return libraryFile;
 };
+
+// Check if file can be processed for text extraction
+function isProcessableFile(file: File): boolean {
+  const supportedTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'text/plain',
+  ];
+  return supportedTypes.includes(file.type);
+}
+
+// Process file on server (runs in background)
+async function processFileOnServer(localId: string, file: File, authToken: string): Promise<void> {
+  const store = useLibraryStore.getState();
+
+  try {
+    // Update status to processing
+    store.updateFile(localId, { processingStatus: 'processing' });
+
+    // Upload to server
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('source', 'library');
+
+    const response = await fetch('/api/documents/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Upload failed');
+    }
+
+    const result = await response.json();
+
+    if (result.success && result.document) {
+      store.updateFile(localId, {
+        serverDocumentId: result.documentId,
+        processingStatus: 'completed',
+        extractedText: result.document.extracted_text?.substring(0, 500),
+        wordCount: result.document.word_count,
+        documentType: result.document.document_type,
+      });
+      console.log(`✅ Document processed: ${file.name}`);
+    } else {
+      throw new Error(result.error || 'Processing failed');
+    }
+
+  } catch (error: any) {
+    console.error(`❌ Document processing failed for ${file.name}:`, error);
+    store.updateFile(localId, {
+      processingStatus: 'failed',
+      processingError: error.message,
+    });
+  }
+}
 
 // Generate image preview
 function generateImagePreview(file: File): Promise<string> {

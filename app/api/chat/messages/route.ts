@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   const supabaseAdmin = getSupabaseAdmin();
   try {
     const body = await request.json();
-    const { userId, session_id, content, role } = body;
+    const { userId, session_id, content, role, sources, metadata } = body;
 
     if (!userId || !session_id || !content || !role) {
       return NextResponse.json(
@@ -90,12 +90,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Create new chat message
+    // Create new chat message with optional sources in metadata
+    // Support both direct sources field and metadata object
+    const messageMetadata = metadata || (sources ? { sources } : null);
     const messageData: ChatMessageInsert = {
       session_id,
       user_id: userId,
       content,
-      role
+      role,
+      metadata: messageMetadata
     };
 
     const { data: newMessage, error } = await supabaseAdmin
@@ -113,6 +116,111 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: newMessage });
   } catch (error) {
     console.error('Chat messages API error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// PATCH - Update message metadata (e.g., add sources after streaming)
+// Supports two modes:
+// 1. By messageId (UUID) - direct update if we have the database ID
+// 2. By sessionId - finds the most recent assistant message in the session
+export async function PATCH(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
+  try {
+    const body = await request.json();
+    const { userId, messageId, sessionId, sources } = body;
+
+    console.log('📥 PATCH /api/chat/messages - Received:', {
+      userId: userId?.substring(0, 8) + '...',
+      messageId: messageId?.substring(0, 20) + '...',
+      sessionId: sessionId?.substring(0, 20) + '...',
+      hasSources: !!sources
+    });
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'userId is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!messageId && !sessionId) {
+      return NextResponse.json(
+        { error: 'Either messageId or sessionId is required' },
+        { status: 400 }
+      );
+    }
+
+    let existingMessage: any = null;
+
+    if (messageId) {
+      // Try to find by messageId first (works if it's a UUID)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId);
+
+      if (isUUID) {
+        const { data, error } = await supabaseAdmin
+          .from('chat_messages')
+          .select('id, user_id, metadata')
+          .eq('id', messageId)
+          .eq('user_id', userId)
+          .single();
+
+        if (!error && data) {
+          existingMessage = data;
+        }
+      }
+    }
+
+    // If not found by messageId, try by sessionId (find most recent assistant message)
+    if (!existingMessage && sessionId) {
+      const isSessionUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
+
+      if (isSessionUUID) {
+        const { data, error } = await supabaseAdmin
+          .from('chat_messages')
+          .select('id, user_id, metadata')
+          .eq('session_id', sessionId)
+          .eq('user_id', userId)
+          .eq('role', 'assistant')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!error && data) {
+          existingMessage = data;
+          console.log('📍 Found message by sessionId:', data.id);
+        }
+      }
+    }
+
+    if (!existingMessage) {
+      console.error('Message not found - messageId:', messageId, 'sessionId:', sessionId);
+      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+    }
+
+    // Merge sources into existing metadata
+    const updatedMetadata = {
+      ...(existingMessage.metadata || {}),
+      sources: sources || undefined
+    };
+
+    const { data: updatedMessage, error } = await supabaseAdmin
+      .from('chat_messages')
+      .update({ metadata: updatedMetadata })
+      .eq('id', existingMessage.id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating message:', error);
+      return NextResponse.json({ error: 'Failed to update message' }, { status: 500 });
+    }
+
+    console.log('✅ Updated message metadata:', existingMessage.id);
+    return NextResponse.json({ message: updatedMessage });
+  } catch (error) {
+    console.error('Chat messages PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

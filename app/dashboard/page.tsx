@@ -25,6 +25,7 @@ import { QuizProgressWidget } from '@/components/dashboard/QuizProgressWidget';
 import { RecentChatsWidget } from '@/components/dashboard/RecentChatsWidget';
 import { LiveMatchUpdatesWidget } from '@/components/dashboard/LiveMatchUpdatesWidget';
 import { AthleteMatchOpportunitiesWidget } from '@/components/dashboard/AthleteMatchOpportunitiesWidget';
+import { CoreTraitsWidget } from '@/components/dashboard/CoreTraitsWidget';
 import { motion } from 'framer-motion';
 
 export default function DashboardPage() {
@@ -122,11 +123,20 @@ export default function DashboardPage() {
 
           {/* Right Column - 1/3 width */}
           <div className="space-y-6">
-            {/* FMV Score Card */}
+            {/* Core Traits / Brand Identity */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.4, delay: 0.1 }}
+            >
+              <CoreTraitsWidget userId={user?.id} />
+            </motion.div>
+
+            {/* FMV Score Card */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.15 }}
             >
               <FMVScoreCard showDetails={true} />
             </motion.div>
@@ -135,7 +145,7 @@ export default function DashboardPage() {
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, delay: 0.15 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
             >
               <LiveMatchUpdatesWidget limit={3} />
             </motion.div>
@@ -144,7 +154,7 @@ export default function DashboardPage() {
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
+              transition={{ duration: 0.4, delay: 0.25 }}
             >
               <QuizProgressWidget userId={user?.id} />
             </motion.div>
@@ -153,7 +163,7 @@ export default function DashboardPage() {
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, delay: 0.25 }}
+              transition={{ duration: 0.4, delay: 0.3 }}
             >
               <UpcomingEventsWidget />
             </motion.div>
@@ -162,7 +172,7 @@ export default function DashboardPage() {
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, delay: 0.3 }}
+              transition={{ duration: 0.4, delay: 0.35 }}
             >
               <NotificationsWidget />
             </motion.div>

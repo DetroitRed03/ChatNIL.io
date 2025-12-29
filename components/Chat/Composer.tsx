@@ -1,16 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Plus, X, FileText, Image, File, Mic, MicOff, AlertTriangle } from 'lucide-react';
-
-interface UploadedFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  file: File;
-  preview?: string;
-}
+import { Send, Plus, X, FileText, Image, File, Mic, MicOff, AlertTriangle, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import type { UploadedFile, FileProcessingStatus } from '@/lib/stores/chat';
 
 interface ComposerProps {
   inputValue: string;
@@ -85,6 +77,19 @@ export default function Composer({
     if (type.startsWith('image/')) return Image;
     if (type.includes('pdf') || type.includes('document') || type.includes('text')) return FileText;
     return File;
+  };
+
+  const getProcessingStatusIcon = (status?: FileProcessingStatus) => {
+    switch (status) {
+      case 'processing':
+        return <Loader2 className="h-3 w-3 text-blue-500 animate-spin" />;
+      case 'ready':
+        return <CheckCircle className="h-3 w-3 text-green-500" />;
+      case 'failed':
+        return <XCircle className="h-3 w-3 text-red-500" />;
+      default:
+        return null;
+    }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -231,18 +236,76 @@ export default function Composer({
         <div className="mb-3 flex flex-wrap gap-2">
           {attachedFiles.map((file) => {
             const IconComponent = getFileIcon(file.type);
+            const statusIcon = getProcessingStatusIcon(file.processingStatus);
+            const isProcessing = file.processingStatus === 'processing';
+
             return (
-              <div key={file.id} className="flex items-center bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 max-w-xs">
-                <IconComponent className="h-4 w-4 text-orange-600 mr-2 flex-shrink-0" />
+              <div
+                key={file.id}
+                className={`flex items-center rounded-lg px-3 py-2 max-w-xs ${
+                  file.processingStatus === 'failed'
+                    ? 'bg-red-50 border border-red-200'
+                    : file.processingStatus === 'ready'
+                    ? 'bg-green-50 border border-green-200'
+                    : isProcessing
+                    ? 'bg-blue-50 border border-blue-200'
+                    : 'bg-orange-50 border border-orange-200'
+                }`}
+              >
+                <IconComponent className={`h-4 w-4 mr-2 flex-shrink-0 ${
+                  file.processingStatus === 'failed'
+                    ? 'text-red-600'
+                    : file.processingStatus === 'ready'
+                    ? 'text-green-600'
+                    : isProcessing
+                    ? 'text-blue-600'
+                    : 'text-orange-600'
+                }`} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-orange-900 truncate">{file.name}</p>
-                  <p className="text-xs text-orange-600">{formatFileSize(file.size)}</p>
+                  <div className="flex items-center gap-1">
+                    <p className={`text-xs font-medium truncate ${
+                      file.processingStatus === 'failed'
+                        ? 'text-red-900'
+                        : file.processingStatus === 'ready'
+                        ? 'text-green-900'
+                        : isProcessing
+                        ? 'text-blue-900'
+                        : 'text-orange-900'
+                    }`}>{file.name}</p>
+                    {statusIcon}
+                  </div>
+                  <p className={`text-xs ${
+                    file.processingStatus === 'failed'
+                      ? 'text-red-600'
+                      : file.processingStatus === 'ready'
+                      ? 'text-green-600'
+                      : isProcessing
+                      ? 'text-blue-600'
+                      : 'text-orange-600'
+                  }`}>
+                    {isProcessing ? 'Processing...' : formatFileSize(file.size)}
+                  </p>
                 </div>
                 <button
                   onClick={() => removeFile(file.id)}
-                  className="ml-2 p-1 hover:bg-orange-100 rounded transition-colors"
+                  disabled={isProcessing}
+                  className={`ml-2 p-1 rounded transition-colors ${
+                    isProcessing
+                      ? 'opacity-50 cursor-not-allowed'
+                      : file.processingStatus === 'failed'
+                      ? 'hover:bg-red-100'
+                      : file.processingStatus === 'ready'
+                      ? 'hover:bg-green-100'
+                      : 'hover:bg-orange-100'
+                  }`}
                 >
-                  <X className="h-3 w-3 text-orange-500" />
+                  <X className={`h-3 w-3 ${
+                    file.processingStatus === 'failed'
+                      ? 'text-red-500'
+                      : file.processingStatus === 'ready'
+                      ? 'text-green-500'
+                      : 'text-orange-500'
+                  }`} />
                 </button>
               </div>
             );

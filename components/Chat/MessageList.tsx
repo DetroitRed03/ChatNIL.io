@@ -1,10 +1,10 @@
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
-import { User, Bot, FileText, Image, File, Edit2, Trash2, Check, X, RefreshCw, AlertTriangle } from 'lucide-react';
+import { User, Bot, FileText, Image, File, Edit2, Trash2, Check, X, RefreshCw, AlertTriangle, BookOpen, Brain, FileCheck, Globe } from 'lucide-react';
 import MessageFeedback from './MessageFeedback';
 import { useAuth } from '@/contexts/AuthContext';
-import { useChatHistoryStore } from '@/lib/chat-history-store';
+import { useChatHistoryStore, type MessageSources } from '@/lib/chat-history-store';
 
 // Simplified attachment type compatible with chat-history-store
 interface MessageAttachment {
@@ -21,12 +21,14 @@ interface Message {
   timestamp: Date;
   attachments?: MessageAttachment[];
   isStreaming?: boolean;
+  sources?: MessageSources;
 }
 
 interface MessageListProps {
   messages: Message[];
   isTyping: boolean;
   typingText: string;
+  typingStatus?: string; // Status message to show (e.g., "Searching knowledge base...")
   isAnimatingResponse: boolean;
   canAutoScroll?: boolean;
   setCanAutoScroll?: (canScroll: boolean) => void;
@@ -42,10 +44,101 @@ const formatTimestamp = (timestamp: Date | string | undefined): string => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+// Component to display message sources with numbered references matching [1], [2], etc. in the text
+function SourcesDisplay({ sources }: { sources: MessageSources }) {
+  const hasKnowledge = sources.knowledge && sources.knowledge.length > 0;
+  const hasMemories = sources.memories && sources.memories.length > 0;
+  const hasDocuments = sources.documents && sources.documents.length > 0;
+  const hasRealTime = sources.hasRealTimeData;
+
+  // Don't render if no sources
+  if (!hasKnowledge && !hasMemories && !hasDocuments && !hasRealTime) {
+    return null;
+  }
+
+  // Combine all sources into a numbered list for citations
+  const allSources: { title: string; category: string; type: 'knowledge' | 'memory' | 'document' | 'realtime' }[] = [];
+
+  if (hasKnowledge) {
+    sources.knowledge.forEach(source => {
+      allSources.push({ title: source.title, category: source.category, type: 'knowledge' });
+    });
+  }
+  if (hasDocuments) {
+    sources.documents.forEach(doc => {
+      allSources.push({ title: doc.fileName, category: doc.documentType || 'Document', type: 'document' });
+    });
+  }
+  if (hasMemories) {
+    sources.memories.forEach(memory => {
+      const memoryTitle = memory.type === 'fact' ? 'Remembered fact' :
+                          memory.type === 'preference' ? 'Your preference' :
+                          memory.type === 'context' ? 'Previous context' : memory.type;
+      allSources.push({ title: memoryTitle, category: 'Personal Memory', type: 'memory' });
+    });
+  }
+  if (hasRealTime) {
+    allSources.push({ title: 'Live web search results', category: 'Real-time', type: 'realtime' });
+  }
+
+  const getSourceStyle = (type: string) => {
+    switch (type) {
+      case 'knowledge':
+        return 'bg-blue-50 text-blue-800 border-blue-200';
+      case 'document':
+        return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+      case 'memory':
+        return 'bg-violet-50 text-violet-800 border-violet-200';
+      case 'realtime':
+        return 'bg-orange-50 text-orange-800 border-orange-200';
+      default:
+        return 'bg-gray-50 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getNumberStyle = (type: string) => {
+    switch (type) {
+      case 'knowledge':
+        return 'bg-blue-600 text-white';
+      case 'document':
+        return 'bg-emerald-600 text-white';
+      case 'memory':
+        return 'bg-violet-600 text-white';
+      case 'realtime':
+        return 'bg-orange-600 text-white';
+      default:
+        return 'bg-gray-600 text-white';
+    }
+  };
+
+  return (
+    <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+      <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
+        <div className="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200">
+          <BookOpen className="h-4 w-4 text-gray-500" />
+        </div>
+        <span className="font-semibold">Sources Used</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {allSources.map((source, idx) => (
+          <div
+            key={`source-${idx}`}
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium shadow-sm border ${getSourceStyle(source.type)}`}
+          >
+            <span>{source.title}</span>
+            <span className="text-xs opacity-60">({source.category})</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function MessageList({
   messages,
   isTyping,
   typingText,
+  typingStatus,
   isAnimatingResponse,
   canAutoScroll = true,
   setCanAutoScroll,
@@ -357,6 +450,11 @@ export default function MessageList({
                           </>
                         )}
                       </div>
+
+                      {/* Sources Display - Show after message completes */}
+                      {!message.isStreaming && message.sources && (
+                        <SourcesDisplay sources={message.sources} />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -364,8 +462,8 @@ export default function MessageList({
             </div>
           ))}
 
-          {/* Typing Indicator */}
-          {isTyping && (
+          {/* Typing Indicator - only show when no message is streaming yet */}
+          {isTyping && !messages.some(m => m.isStreaming) && (
             <div className="group py-2">
               <div className="flex items-start space-x-3 sm:space-x-4">
                 <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shadow-sm flex-shrink-0">
@@ -373,10 +471,15 @@ export default function MessageList({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-gray-900 text-sm mb-2">ChatNIL</div>
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  <div className="flex items-center space-x-3">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
+                    {typingStatus && (
+                      <span className="text-sm text-gray-500 animate-pulse">{typingStatus}</span>
+                    )}
                   </div>
                 </div>
               </div>

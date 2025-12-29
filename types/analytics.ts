@@ -252,6 +252,16 @@ export interface AIFeedbackEvent {
   };
 }
 
+export interface AICacheHitEvent {
+  event: 'ai_cache_hit';
+  properties: {
+    user_id: string;
+    role: UserRole;
+    query_hash: string;
+    session_id: string;
+  };
+}
+
 // ============================================================================
 // Union type of all events
 // ============================================================================
@@ -276,7 +286,8 @@ export type AnalyticsEvent =
   | AIPromptSentEvent
   | AIResponseGeneratedEvent
   | AIErrorEvent
-  | AIFeedbackEvent;
+  | AIFeedbackEvent
+  | AICacheHitEvent;
 
 // ============================================================================
 // Helper Types

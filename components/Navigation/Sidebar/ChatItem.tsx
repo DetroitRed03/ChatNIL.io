@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquare, MoreVertical, Pin, Edit2, Trash2 } from 'lucide-react';
+import { MessageSquare, MoreVertical, Pin, Edit2, Trash2, Download, Mail } from 'lucide-react';
 import { type Chat } from '@/lib/chat-history-store';
 
 /**
@@ -18,6 +18,8 @@ interface ChatItemProps {
   onPin: () => void;
   onRename: (newTitle: string) => void;
   onDelete: () => void;
+  onExportPDF?: () => void;
+  onEmailSummary?: () => void;
 }
 
 export default function ChatItem({
@@ -26,7 +28,9 @@ export default function ChatItem({
   onClick,
   onPin,
   onRename,
-  onDelete
+  onDelete,
+  onExportPDF,
+  onEmailSummary
 }: ChatItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(chat.title);
@@ -124,6 +128,30 @@ export default function ChatItem({
             <Edit2 className="w-3 h-3" />
             Rename
           </button>
+          {onExportPDF && (
+            <button
+              onClick={() => {
+                onExportPDF();
+                setShowMenu(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
+            >
+              <Download className="w-3 h-3" />
+              Export PDF
+            </button>
+          )}
+          {onEmailSummary && (
+            <button
+              onClick={() => {
+                onEmailSummary();
+                setShowMenu(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
+            >
+              <Mail className="w-3 h-3" />
+              Email Summary
+            </button>
+          )}
           <button
             onClick={() => {
               onDelete();

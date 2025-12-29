@@ -12,7 +12,7 @@
  * 3. School Division (5 points)
  * 4. Follower Count (10 points)
  * 5. Engagement Rate (15 points)
- * 6. Audience Demographics (5 points)
+ * 6. Trait Alignment (5 points) - Matches athlete personality traits with agency brand values
  * 7. Hobby Overlap (15 points)
  * 8. Brand Affinity (10 points)
  * 9. Past NIL Success (10 points)
@@ -28,7 +28,7 @@ export interface MatchScore {
   school_division: number;
   follower_count: number;
   engagement_rate: number;
-  audience_demographics: number;
+  trait_alignment: number;
   hobby_overlap: number;
   brand_affinity: number;
   past_nil_success: number;
@@ -36,11 +36,98 @@ export interface MatchScore {
   response_rate: number;
 }
 
+// Maps agency brand values to relevant athlete traits
+const BRAND_VALUE_TRAIT_MAP: Record<string, string[]> = {
+  innovation: ['innovation', 'creativity', 'ambition'],
+  creative: ['creativity', 'innovation', 'charisma'],
+  creativity: ['creativity', 'innovation', 'charisma'],
+  community: ['community_focus', 'teamwork', 'loyalty'],
+  performance: ['competition', 'discipline', 'resilience'],
+  excellence: ['competition', 'discipline', 'ambition'],
+  authenticity: ['authenticity', 'charisma', 'resilience'],
+  authentic: ['authenticity', 'charisma', 'resilience'],
+  leadership: ['leadership', 'ambition', 'teamwork'],
+  fun: ['charisma', 'creativity', 'authenticity'],
+  entertainment: ['charisma', 'creativity', 'authenticity'],
+  sports: ['competition', 'discipline', 'teamwork'],
+  fitness: ['discipline', 'resilience', 'competition'],
+  health: ['discipline', 'resilience', 'community_focus'],
+  lifestyle: ['authenticity', 'creativity', 'charisma'],
+  family: ['loyalty', 'community_focus', 'teamwork'],
+  youth: ['leadership', 'community_focus', 'charisma'],
+  education: ['leadership', 'discipline', 'ambition'],
+};
+
+/**
+ * Calculate trait alignment score between athlete and agency
+ * @param athleteTraits - Athlete's trait results from assessment
+ * @param agencyBrandValues - Agency's brand values/campaign interests
+ * @returns Score from 0-5
+ */
+function calculateTraitAlignment(
+  athleteTraits: { topTraits?: string[]; traitScores?: Record<string, number> } | null,
+  agencyBrandValues: string[]
+): { score: number; matchingTraits: string[] } {
+  if (!athleteTraits || !athleteTraits.topTraits || athleteTraits.topTraits.length === 0) {
+    return { score: 2, matchingTraits: [] }; // Default score for incomplete profiles
+  }
+
+  if (!agencyBrandValues || agencyBrandValues.length === 0) {
+    // No agency preferences - give credit for having completed assessment
+    return { score: 3, matchingTraits: [] };
+  }
+
+  const matchingTraits: string[] = [];
+
+  // Check each agency brand value against athlete's top traits
+  for (const brandValue of agencyBrandValues) {
+    const normalizedValue = brandValue.toLowerCase().trim();
+    const relevantTraits = BRAND_VALUE_TRAIT_MAP[normalizedValue] || [];
+
+    for (const trait of relevantTraits) {
+      if (athleteTraits.topTraits.includes(trait) && !matchingTraits.includes(trait)) {
+        matchingTraits.push(trait);
+      }
+    }
+  }
+
+  // Calculate score: 0-5 points based on number of matching traits
+  let score: number;
+  if (matchingTraits.length >= 4) {
+    score = 5;
+  } else if (matchingTraits.length >= 3) {
+    score = 4;
+  } else if (matchingTraits.length >= 2) {
+    score = 3;
+  } else if (matchingTraits.length >= 1) {
+    score = 2;
+  } else {
+    score = 1; // No matches but assessment completed
+  }
+
+  return { score, matchingTraits };
+}
+
 export interface MatchResult {
   score: number;
   breakdown: MatchScore;
   reasons: string[];
   tier: 'excellent' | 'good' | 'potential' | 'poor';
+  traitAlignment?: {
+    matchingTraits: string[];
+    alignmentScore: number;
+  };
+}
+
+export interface AthleteWithTraits {
+  // All athlete fields plus optional trait results
+  [key: string]: any;
+  traitResults?: {
+    topTraits?: string[];
+    traitScores?: Record<string, number>;
+    archetypeCode?: string;
+    archetypeName?: string;
+  } | null;
 }
 
 /**
@@ -48,7 +135,7 @@ export interface MatchResult {
  */
 export function calculateMatchScore(
   agency: any,
-  athlete: any
+  athlete: AthleteWithTraits
 ): MatchResult {
   const breakdown: MatchScore = {
     sport_alignment: 0,
@@ -56,7 +143,7 @@ export function calculateMatchScore(
     school_division: 0,
     follower_count: 0,
     engagement_rate: 0,
-    audience_demographics: 0,
+    trait_alignment: 0,
     hobby_overlap: 0,
     brand_affinity: 0,
     past_nil_success: 0,
@@ -158,10 +245,23 @@ export function calculateMatchScore(
     breakdown.engagement_rate = 3;
   }
 
-  // 6. Audience Demographics (5 points) - placeholder for future demographic analysis
-  // Would analyze athlete's audience age, gender, location from social stats
-  // Give better score for completed profiles
-  breakdown.audience_demographics = athlete.onboarding_completed ? 4 : 3;
+  // 6. Trait Alignment (5 points) - Match athlete personality traits with agency brand values
+  // Uses Core Traits Assessment results to determine brand fit
+  const agencyBrandValues = [
+    ...(agency.brand_values || []),
+    ...(agency.campaign_interests || [])
+  ];
+  const traitAlignmentResult = calculateTraitAlignment(athlete.traitResults || null, agencyBrandValues);
+  breakdown.trait_alignment = traitAlignmentResult.score;
+  if (traitAlignmentResult.matchingTraits.length > 0) {
+    const traitNames = traitAlignmentResult.matchingTraits
+      .slice(0, 3)
+      .map(t => t.replace('_', ' '))
+      .map(t => t.charAt(0).toUpperCase() + t.slice(1));
+    reasons.push(`Personality match: ${traitNames.join(', ')}`);
+  } else if (athlete.traitResults?.archetypeName) {
+    reasons.push(`${athlete.traitResults.archetypeName} personality type`);
+  }
 
   // 7. Hobby Overlap (15 points)
   const athleteHobbies = athlete.hobbies || [];
@@ -264,7 +364,11 @@ export function calculateMatchScore(
     score: Math.round(totalScore),
     breakdown,
     reasons,
-    tier
+    tier,
+    traitAlignment: {
+      matchingTraits: traitAlignmentResult.matchingTraits,
+      alignmentScore: traitAlignmentResult.score,
+    }
   };
 }
 

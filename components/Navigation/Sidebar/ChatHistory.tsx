@@ -21,6 +21,8 @@ interface ChatHistoryProps {
   onTogglePin: (chatId: string) => void;
   onRenameChat: (chatId: string, newTitle: string) => void;
   onDeleteChat: (chatId: string) => void;
+  onExportPDF?: (chat: Chat) => void;
+  onEmailSummary?: (chat: Chat) => void;
 }
 
 const groupChatsByTime = (chats: Chat[]) => {
@@ -47,7 +49,9 @@ export default function ChatHistory({
   onChatClick,
   onTogglePin,
   onRenameChat,
-  onDeleteChat
+  onDeleteChat,
+  onExportPDF,
+  onEmailSummary
 }: ChatHistoryProps) {
   const { user } = useAuth();
   const { isReady } = useChatSync();
@@ -93,6 +97,8 @@ export default function ChatHistory({
                 onPin={() => onTogglePin(chat.id)}
                 onRename={(newTitle) => onRenameChat(chat.id, newTitle)}
                 onDelete={() => onDeleteChat(chat.id)}
+                onExportPDF={onExportPDF ? () => onExportPDF(chat) : undefined}
+                onEmailSummary={onEmailSummary ? () => onEmailSummary(chat) : undefined}
               />
             ))}
           </>
@@ -112,6 +118,8 @@ export default function ChatHistory({
                 onPin={() => onTogglePin(chat.id)}
                 onRename={(newTitle) => onRenameChat(chat.id, newTitle)}
                 onDelete={() => onDeleteChat(chat.id)}
+                onExportPDF={onExportPDF ? () => onExportPDF(chat) : undefined}
+                onEmailSummary={onEmailSummary ? () => onEmailSummary(chat) : undefined}
               />
             ))}
           </>
@@ -131,6 +139,8 @@ export default function ChatHistory({
                 onPin={() => onTogglePin(chat.id)}
                 onRename={(newTitle) => onRenameChat(chat.id, newTitle)}
                 onDelete={() => onDeleteChat(chat.id)}
+                onExportPDF={onExportPDF ? () => onExportPDF(chat) : undefined}
+                onEmailSummary={onEmailSummary ? () => onEmailSummary(chat) : undefined}
               />
             ))}
           </>

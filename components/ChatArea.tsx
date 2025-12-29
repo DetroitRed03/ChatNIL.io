@@ -4,6 +4,7 @@ import { MessageSquare } from 'lucide-react';
 import { useChatStore } from '@/lib/stores/chat';
 import { useChatHistoryStore } from '@/lib/chat-history-store';
 import { streamCompletion } from '@/lib/streaming';
+import { supabase } from '@/lib/supabase';
 import MessageList from './Chat/MessageList';
 import Composer from './Chat/Composer';
 import SuggestionChips from './Chat/SuggestionChips';
@@ -26,6 +27,7 @@ export default function ChatArea() {
     attachedFiles,
     addAttachedFile,
     removeAttachedFile,
+    updateAttachedFile,
     clearAttachedFiles,
     streamingState,
     setStreamingState,
@@ -37,6 +39,8 @@ export default function ChatArea() {
     setIsAnimatingResponse,
     typingText,
     setTypingText,
+    typingStatus,
+    setTypingStatus,
     showSuggestions,
     setShowSuggestions,
     canAutoScroll,
@@ -51,11 +55,95 @@ export default function ChatArea() {
   const activeChat = getActiveChat();
   const messages = activeChat?.messages || [];
 
+  // Helper to get auth token
+  const getAuthToken = async (): Promise<string | undefined> => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token;
+  };
+
+  // Process attached files by uploading to server for text extraction
+  const processAttachedFiles = async (files: typeof attachedFiles): Promise<string[]> => {
+    const authToken = await getAuthToken();
+    if (!authToken) {
+      console.warn('No auth token - files will not be processed for AI');
+      return [];
+    }
+
+    const documentIds: string[] = [];
+    const supportedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'text/plain',
+    ];
+
+    for (const file of files) {
+      // Skip unsupported file types
+      if (!supportedTypes.includes(file.type)) {
+        continue;
+      }
+
+      try {
+        // Update status to processing
+        updateAttachedFile(file.id, { processingStatus: 'processing' });
+
+        // Upload to server
+        const formData = new FormData();
+        formData.append('file', file.file);
+        formData.append('source', 'chat_attachment');
+
+        const response = await fetch('/api/documents/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Upload failed');
+        }
+
+        const result = await response.json();
+
+        if (result.success && result.documentId) {
+          documentIds.push(result.documentId);
+          updateAttachedFile(file.id, {
+            processingStatus: 'ready',
+            documentId: result.documentId,
+          });
+          console.log(`✅ Processed attachment: ${file.name} → ${result.documentId}`);
+        } else {
+          throw new Error(result.error || 'Processing failed');
+        }
+      } catch (error: any) {
+        console.error(`❌ Failed to process ${file.name}:`, error);
+        updateAttachedFile(file.id, {
+          processingStatus: 'failed',
+          processingError: error.message,
+        });
+      }
+    }
+
+    return documentIds;
+  };
+
   const handleSendMessage = async () => {
     if (!draft.trim() && attachedFiles.length === 0) return;
-    if (streamingState === 'streaming' || streamingState === 'submitting') return;
+    if (streamingState === 'streaming' || streamingState === 'submitting' || streamingState === 'processing_attachments') return;
 
     let chatId = activeChatId;
+
+    // Process attached files first (extract text, generate embeddings)
+    let documentIds: string[] = [];
+    if (attachedFiles.length > 0) {
+      setStreamingState('processing_attachments');
+      documentIds = await processAttachedFiles(attachedFiles);
+    }
 
     // If no active chat, create one with the first message (ChatGPT-style)
     if (!activeChatId) {
@@ -69,6 +157,7 @@ export default function ChatArea() {
             url: file.preview || '',
             name: file.name,
             mimeType: file.type,
+            documentId: file.documentId, // Include the server document ID
           }))
         : undefined;
       const newMessage = {
@@ -77,6 +166,7 @@ export default function ChatArea() {
         role: 'user' as const,
         timestamp: new Date(),
         attachments: transformedAttachments,
+        documentIds, // Include document IDs for the AI to fetch
       };
       addMessageToChat(activeChatId, newMessage);
     }
@@ -98,6 +188,15 @@ export default function ChatArea() {
     try {
       await streamCompletion({
         messageId: aiResponse.id,
+        onStatus: (status, message) => {
+          // Update typing status for UI feedback
+          console.log('📊 Status update:', status, message);
+          setTypingStatus(message);
+        },
+        onSources: (sources) => {
+          // Sources are automatically stored in message by streaming.ts
+          console.log('📚 Sources received:', sources);
+        },
         onError: (error) => {
           console.error('Streaming error:', error);
           updateChatMessage(chatId!, aiResponse.id, {
@@ -105,9 +204,11 @@ export default function ChatArea() {
             isStreaming: false
           });
           setStreamingState('error');
+          setTypingStatus(''); // Clear status on error
         },
         onComplete: () => {
           setStreamingState('complete');
+          setTypingStatus(''); // Clear status when complete
         }
       });
     } catch (error) {
@@ -157,7 +258,7 @@ export default function ChatArea() {
               inputValue={draft}
               setInputValue={setDraft}
               onSendMessage={handleSendMessage}
-              disabled={streamingState === 'streaming' || streamingState === 'submitting'}
+              disabled={streamingState === 'streaming' || streamingState === 'submitting' || streamingState === 'processing_attachments'}
               attachedFiles={attachedFiles}
               onAddFile={addAttachedFile}
               onRemoveFile={removeAttachedFile}
@@ -179,6 +280,7 @@ export default function ChatArea() {
             messages={messages}
             isTyping={isTyping}
             typingText={typingText}
+            typingStatus={typingStatus}
             isAnimatingResponse={isAnimatingResponse}
             canAutoScroll={canAutoScroll}
             setCanAutoScroll={setCanAutoScroll}
@@ -192,7 +294,7 @@ export default function ChatArea() {
                 inputValue={draft}
                 setInputValue={setDraft}
                 onSendMessage={handleSendMessage}
-                disabled={streamingState === 'streaming' || streamingState === 'submitting'}
+                disabled={streamingState === 'streaming' || streamingState === 'submitting' || streamingState === 'processing_attachments'}
                 attachedFiles={attachedFiles}
                 onAddFile={addAttachedFile}
                 onRemoveFile={removeAttachedFile}

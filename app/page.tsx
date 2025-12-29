@@ -3,7 +3,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import SignupRedirectHandler from '@/components/SignupRedirectHandler';
 import { Logo } from '@/components/brand/Logo';
-import { Sparkles, Lightbulb, Shield, TrendingUp, ArrowRight, MessageSquare, Loader2, Square } from 'lucide-react';
+import { Sparkles, Lightbulb, Shield, TrendingUp, ArrowRight, MessageSquare, Loader2, Square, Search, Brain, Newspaper, BookOpen } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AuthModal from '@/components/AuthModal';
@@ -53,6 +53,50 @@ const CAPABILITIES = [
     description: "Tailored guidance for athletes, parents, and coaches"
   }
 ];
+
+// Types for streaming events from API
+interface StreamingStatus {
+  type: 'status';
+  status: 'thinking' | 'searching_knowledge' | 'searching_memory' | 'searching_news' | 'generating';
+  message: string;
+}
+
+interface StreamingSources {
+  type: 'sources';
+  sources: {
+    knowledge: { title: string; category: string }[];
+    memories: { content: string; type: string }[];
+    documents: { fileName: string; documentType: string }[];
+    hasRealTimeData: boolean;
+  };
+}
+
+// Status indicator component
+function StatusIndicator({ status, message }: { status: string; message: string }) {
+  const getIcon = () => {
+    switch (status) {
+      case 'thinking':
+        return <Brain className="w-4 h-4 animate-pulse" />;
+      case 'searching_knowledge':
+        return <BookOpen className="w-4 h-4 animate-pulse" />;
+      case 'searching_memory':
+        return <Search className="w-4 h-4 animate-pulse" />;
+      case 'searching_news':
+        return <Newspaper className="w-4 h-4 animate-pulse" />;
+      case 'generating':
+        return <Sparkles className="w-4 h-4 animate-pulse" />;
+      default:
+        return <Loader2 className="w-4 h-4 animate-spin" />;
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-gray-500 animate-in fade-in duration-200">
+      {getIcon()}
+      <span>{message}</span>
+    </div>
+  );
+}
 
 function SplashPage() {
   const { user, login, signup } = useAuth();
@@ -263,6 +307,7 @@ function ChatInterface() {
   const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [typingText, setTypingText] = useState('');
+  const [statusMessage, setStatusMessage] = useState<{ status: string; message: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -379,6 +424,7 @@ function ChatInterface() {
     }
     setIsTyping(true);
     setErrorMessage(null);
+    setStatusMessage(null);
 
     // Create AbortController for cancellation
     abortControllerRef.current = new AbortController();
@@ -417,6 +463,7 @@ function ChatInterface() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
+      let capturedSources: StreamingSources['sources'] | null = null;
 
       if (reader) {
         while (true) {
@@ -434,10 +481,27 @@ function ChatInterface() {
 
               try {
                 const parsed = JSON.parse(data);
+
+                // Handle status events
+                if (parsed.type === 'status') {
+                  setStatusMessage({ status: parsed.status, message: parsed.message });
+                  continue;
+                }
+
+                // Handle sources events
+                if (parsed.type === 'sources') {
+                  capturedSources = parsed.sources;
+                  continue;
+                }
+
                 // Support both 'token' (from API) and 'content' (backward compatibility)
                 const contentChunk = parsed.token || parsed.content;
 
                 if (contentChunk) {
+                  // Clear status when we start getting content
+                  if (accumulatedContent === '') {
+                    setStatusMessage(null);
+                  }
                   accumulatedContent += contentChunk;
 
                   // Update the message with accumulated content
@@ -477,10 +541,12 @@ function ChatInterface() {
       if (chatIdToUpdate) {
         updateChatMessage(chatIdToUpdate, assistantMessageId, {
           content: accumulatedContent,
-          isStreaming: false
+          isStreaming: false,
+          sources: capturedSources || undefined
         });
       }
       setIsTyping(false);
+      setStatusMessage(null);
       abortControllerRef.current = null;
 
       // Save AI response to database for UUID sessions only
@@ -496,7 +562,8 @@ function ChatInterface() {
               userId: user.id,
               session_id: dbChatId,
               content: accumulatedContent,
-              role: 'assistant'
+              role: 'assistant',
+              metadata: capturedSources ? { sources: capturedSources } : undefined
             })
           });
 
@@ -539,6 +606,7 @@ function ChatInterface() {
         }
       }
       setIsTyping(false);
+      setStatusMessage(null);
       abortControllerRef.current = null;
     }
   };
@@ -674,6 +742,7 @@ function ChatInterface() {
               messages={activeChat?.messages || []}
               isTyping={isTyping}
               typingText={typingText}
+              typingStatus={statusMessage?.message}
               isAnimatingResponse={false}
             />
           </div>
@@ -696,16 +765,23 @@ function ChatInterface() {
               </div>
             )}
 
-            {/* Stop button during streaming */}
+            {/* Status indicator and Stop button during streaming */}
             {isTyping && (
               <div className="bg-orange-50 border-b border-orange-200">
-                <div className="max-w-3xl mx-auto px-4 py-2 flex items-center justify-center">
+                <div className="max-w-3xl mx-auto px-4 py-2 flex items-center justify-between gap-4">
+                  {/* Status indicator */}
+                  <div className="flex-1">
+                    {statusMessage && (
+                      <StatusIndicator status={statusMessage.status} message={statusMessage.message} />
+                    )}
+                  </div>
+                  {/* Stop button */}
                   <button
                     onClick={handleStopStreaming}
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-orange-300 text-orange-700 hover:bg-orange-100 rounded-lg transition-colors font-medium text-sm"
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-orange-300 text-orange-700 hover:bg-orange-100 rounded-lg transition-colors font-medium text-sm flex-shrink-0"
                   >
                     <Square className="w-4 h-4" />
-                    Stop generating
+                    Stop
                   </button>
                 </div>
               </div>

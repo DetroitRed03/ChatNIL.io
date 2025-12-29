@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { chatPersistence } from './chat-persistence';
 
+// Source types for AI responses
+export interface MessageSources {
+  knowledge: Array<{ title: string; category: string }>;
+  memories: Array<{ content: string; type: string }>;
+  documents: Array<{ fileName: string; documentType: string }>;
+  hasRealTimeData: boolean;
+}
+
 // Message type definition (previously in chat-store.ts)
 export interface Message {
   id: string;
@@ -15,11 +23,37 @@ export interface Message {
     mimeType?: string;
   }>;
   isStreaming?: boolean;
+  sources?: MessageSources; // Sources used to generate the response
 }
 
 // Debounce helper for localStorage saves during streaming
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 let pendingSave: { name: string; value: any } | null = null;
+
+// Force flush any pending save immediately
+const flushPendingSave = () => {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  if (pendingSave) {
+    try {
+      const stringValue = typeof pendingSave.value === 'string'
+        ? pendingSave.value
+        : JSON.stringify(pendingSave.value);
+      localStorage.setItem(pendingSave.name, stringValue);
+      console.log('💾 ChatStore: Flushed pending save');
+    } catch (error) {
+      console.error('❌ ChatStore: Error flushing save:', error);
+    }
+    pendingSave = null;
+  }
+};
+
+// Add beforeunload handler to flush saves when page is about to unload
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', flushPendingSave);
+}
 
 const debouncedSave = (name: string, value: any) => {
   pendingSave = { name, value };
@@ -45,6 +79,9 @@ const debouncedSave = (name: string, value: any) => {
     saveTimeout = null;
   }, 500); // 500ms debounce - saves at most twice per second
 };
+
+// Export flush function for use when streaming completes
+export { flushPendingSave };
 
 export type RoleContext = 'athlete' | 'parent' | 'coach';
 
@@ -242,7 +279,9 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
                           userId: currentUserId,
                           session_id: session.id,
                           content: msg.content,
-                          role: msg.role
+                          role: msg.role,
+                          // Include sources in metadata if they exist
+                          metadata: msg.sources ? { sources: msg.sources } : undefined
                         })
                       });
                     } catch (msgErr) {
@@ -305,7 +344,9 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
                 userId: currentUserId,
                 session_id: chatId,
                 role: message.role,
-                content: message.content
+                content: message.content,
+                // Include sources in metadata if they exist
+                metadata: message.sources ? { sources: message.sources } : undefined
               })
             }).catch(() => {
               // Silent fail - localStorage has the data
@@ -924,7 +965,9 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
                 id: msg.id,
                 role: msg.role,
                 content: msg.content,
-                timestamp: msg.created_at ? new Date(msg.created_at) : new Date()
+                timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
+                // Extract sources from metadata if present
+                sources: msg.metadata?.sources || undefined
               })),
               roleContext: 'athlete' as RoleContext,
               isPinned: false,
@@ -996,7 +1039,9 @@ export const useChatHistoryStore = create<ChatHistoryState>()(
                 userId,
                 session_id: session.id,
                 role: message.role,
-                content: message.content
+                content: message.content,
+                // Include sources in metadata if they exist
+                metadata: message.sources ? { sources: message.sources } : undefined
               })
             });
           }

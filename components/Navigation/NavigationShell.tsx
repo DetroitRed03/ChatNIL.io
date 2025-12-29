@@ -35,7 +35,8 @@ const PUBLIC_ROUTES = [
 const HEADER_ONLY_ROUTES = [
   '/onboarding',
   '/welcome',
-  '/athletes'  // Public athlete profiles - show header for navigation, but no sidebar
+  '/athletes',  // Public athlete profiles - show header for navigation, but no sidebar
+  '/assessment' // Assessment pages - cleaner layout without sidebar
 ];
 
 // Routes that should NOT show navigation (they have their own layout)
