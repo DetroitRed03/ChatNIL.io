@@ -17,9 +17,12 @@ interface RouteParams {
 
 type AnalysisType = 'contract_review' | 'red_flags' | 'summary' | 'key_terms';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client at runtime to avoid build-time errors
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
@@ -173,7 +176,7 @@ async function performFullContractReview(text: string): Promise<Record<string, a
     // Truncate text if too long for API
     const truncatedText = text.length > 15000 ? text.substring(0, 15000) + '...' : text;
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-4',
       messages: [
         {
@@ -229,7 +232,7 @@ async function generateDocumentSummary(
   try {
     const truncatedText = text.length > 12000 ? text.substring(0, 12000) + '...' : text;
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-4',
       messages: [
         {
