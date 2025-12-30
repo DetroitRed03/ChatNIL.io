@@ -133,10 +133,10 @@ export default function AthletePublicProfilePage() {
             message_text: "Hi! I'd like to discuss a potential partnership opportunity with you."
           })
         });
-        router.push('/agencies/messages');
+        router.push('/agency/messages');
       } catch (error) {
         console.error('Error creating message thread:', error);
-        router.push('/agencies/messages');
+        router.push('/agency/messages');
       }
     } else {
       // For athletes and other users, use the athlete messaging page

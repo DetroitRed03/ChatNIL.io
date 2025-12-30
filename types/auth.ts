@@ -4,6 +4,7 @@
  */
 
 import type { UserRole } from './common';
+import type { AgencyProfile } from './agency';
 
 // Extended User interface for application use
 export interface User {
@@ -61,25 +62,8 @@ export interface CoachProfile {
   onboarding_completed?: boolean;
 }
 
-export interface AgencyProfile {
-  user_id: string;
-  company_name: string;
-  industry: string;
-  company_size?: string;
-  website_url?: string;
-  target_demographics?: {
-    age_range?: { min: number; max: number };
-    gender?: string[];
-    interests?: string[];
-  };
-  campaign_interests?: string[];
-  budget_range?: string;
-  geographic_focus?: string[];
-  brand_values?: string[];
-  verification_status?: 'pending' | 'verified' | 'rejected';
-  verified_at?: string;
-  onboarding_completed?: boolean;
-}
+// AgencyProfile is now defined in types/agency.ts with the comprehensive Migration 020 schema
+// Re-export from there for backwards compatibility is handled by types/index.ts
 
 // Relationship interfaces
 export interface ParentAthleteRelationship {

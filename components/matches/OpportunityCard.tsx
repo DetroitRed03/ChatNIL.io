@@ -76,10 +76,10 @@ export function OpportunityCard({ opportunity, onViewDetails, onRespond, onRecon
       emoji: '🌟'
     },
     strong: {
-      bgColor: 'bg-blue-50',
-      borderColor: 'border-blue-300',
-      textColor: 'text-blue-800',
-      badgeBg: 'bg-blue-100',
+      bgColor: 'bg-orange-50',
+      borderColor: 'border-orange-300',
+      textColor: 'text-orange-800',
+      badgeBg: 'bg-orange-100',
       emoji: '⭐'
     },
     good: {
@@ -104,7 +104,7 @@ export function OpportunityCard({ opportunity, onViewDetails, onRespond, onRecon
   // Get match score color
   const getMatchScoreColor = (score: number) => {
     if (score >= 85) return 'text-purple-600';
-    if (score >= 75) return 'text-blue-600';
+    if (score >= 75) return 'text-orange-600';
     if (score >= 65) return 'text-green-600';
     return 'text-yellow-600';
   };
@@ -115,7 +115,7 @@ export function OpportunityCard({ opportunity, onViewDetails, onRespond, onRecon
       case 'pending':
         return 'bg-gray-100 text-gray-800 border-gray-200';
       case 'contacted':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'interested':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'partnered':
@@ -134,7 +134,7 @@ export function OpportunityCard({ opportunity, onViewDetails, onRespond, onRecon
       {/* Header: Agency & Match Score */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center flex-shrink-0">
             <Building className="h-5 w-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">

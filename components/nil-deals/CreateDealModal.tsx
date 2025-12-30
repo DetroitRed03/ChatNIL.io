@@ -98,7 +98,7 @@ export function CreateDealModal({ onClose, onSuccess }: CreateDealModalProps) {
                 required
                 value={formData.deal_title}
                 onChange={e => setFormData({ ...formData, deal_title: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="e.g., Nike Summer Campaign 2024"
               />
             </div>
@@ -112,7 +112,7 @@ export function CreateDealModal({ onClose, onSuccess }: CreateDealModalProps) {
                 required
                 value={formData.brand_name}
                 onChange={e => setFormData({ ...formData, brand_name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Nike, Gatorade, etc."
               />
             </div>
@@ -125,7 +125,7 @@ export function CreateDealModal({ onClose, onSuccess }: CreateDealModalProps) {
                 type="url"
                 value={formData.brand_logo_url}
                 onChange={e => setFormData({ ...formData, brand_logo_url: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="https://..."
               />
             </div>
@@ -138,7 +138,7 @@ export function CreateDealModal({ onClose, onSuccess }: CreateDealModalProps) {
                 required
                 value={formData.deal_type}
                 onChange={e => setFormData({ ...formData, deal_type: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 {dealTypes.map(type => (
                   <option key={type.value} value={type.value}>
@@ -159,7 +159,7 @@ export function CreateDealModal({ onClose, onSuccess }: CreateDealModalProps) {
                   step="0.01"
                   value={formData.compensation_amount}
                   onChange={e => setFormData({ ...formData, compensation_amount: e.target.value })}
-                  className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   placeholder="5000.00"
                 />
               </div>
@@ -174,7 +174,7 @@ export function CreateDealModal({ onClose, onSuccess }: CreateDealModalProps) {
                 required
                 value={formData.start_date}
                 onChange={e => setFormData({ ...formData, start_date: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
 
@@ -186,7 +186,7 @@ export function CreateDealModal({ onClose, onSuccess }: CreateDealModalProps) {
                 type="date"
                 value={formData.end_date}
                 onChange={e => setFormData({ ...formData, end_date: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
 
@@ -197,7 +197,7 @@ export function CreateDealModal({ onClose, onSuccess }: CreateDealModalProps) {
               <textarea
                 value={formData.description}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 rows={4}
                 placeholder="Brief description of the deal, deliverables, and expectations..."
               />
@@ -216,7 +216,7 @@ export function CreateDealModal({ onClose, onSuccess }: CreateDealModalProps) {
             </button>
             <button
               type="submit"
-              className="flex-1 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:bg-gray-300"
+              className="flex-1 px-6 py-3 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors disabled:bg-gray-300"
               disabled={loading}
             >
               {loading ? 'Creating...' : 'Create Deal'}

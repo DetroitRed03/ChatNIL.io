@@ -87,7 +87,7 @@ export function BudgetTracker() {
 
   // Handle campaign card click
   const handleCampaignClick = (campaignId: string) => {
-    router.push(`/agencies/campaigns/${campaignId}`);
+    router.push(`/agency/campaigns/${campaignId}`);
   };
 
   useEffect(() => {

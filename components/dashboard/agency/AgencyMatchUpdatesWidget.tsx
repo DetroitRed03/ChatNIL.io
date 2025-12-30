@@ -330,7 +330,7 @@ export function AgencyMatchUpdatesWidget({
           )}
 
           <button
-            onClick={() => router.push('/agencies/discover')}
+            onClick={() => router.push('/agency/discover')}
             className="text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors ml-auto"
           >
             Discover Athletes →

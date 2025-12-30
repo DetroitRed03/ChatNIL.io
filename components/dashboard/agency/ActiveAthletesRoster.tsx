@@ -165,7 +165,7 @@ export function ActiveAthletesRoster() {
           message_text: "Hi! I'd like to discuss a potential partnership opportunity with you."
         })
       });
-      router.push('/agencies/messages');
+      router.push('/agency/messages');
     } catch (error) {
       console.error('Error creating message thread:', error);
     } finally {
@@ -232,7 +232,7 @@ export function ActiveAthletesRoster() {
             </p>
           </div>
           <a
-            href="/agencies/athletes"
+            href="/agency/athletes"
             className="px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/20 rounded-lg text-white font-semibold text-sm transition-all inline-block"
           >
             View All

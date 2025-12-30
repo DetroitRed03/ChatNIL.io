@@ -120,7 +120,7 @@ function formatTimestamp(date: Date): string {
 const getEventDestination = (event: ActivityEvent): string => {
   switch (event.type) {
     case 'athlete_signed':
-      return event.metadata?.athleteName ? '/agencies/athletes' : '/agencies/campaigns';
+      return event.metadata?.athleteName ? '/agency/athletes' : '/agency/campaigns';
     case 'campaign_created':
     case 'campaign_launch':
     case 'content_submitted':
@@ -128,7 +128,7 @@ const getEventDestination = (event: ActivityEvent): string => {
     case 'contract_signed':
     case 'milestone_reached':
     default:
-      return '/agencies/campaigns';
+      return '/agency/campaigns';
   }
 };
 
@@ -187,12 +187,12 @@ export function AgencyActivityFeed() {
   // Handle campaign tag click
   const handleCampaignTagClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push('/agencies/campaigns');
+    router.push('/agency/campaigns');
   };
 
   // Handle "View full activity log" click
   const handleViewActivityLog = () => {
-    router.push('/agencies/campaigns');
+    router.push('/agency/campaigns');
   };
 
   return (

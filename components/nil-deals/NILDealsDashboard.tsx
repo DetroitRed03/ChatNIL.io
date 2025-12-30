@@ -42,7 +42,7 @@ export function NILDealsDashboard() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading deals...</p>
         </div>
       </div>
@@ -64,7 +64,7 @@ export function NILDealsDashboard() {
           </div>
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="text-sm text-gray-600 mb-1">Active Deals</div>
-            <div className="text-2xl font-bold text-blue-600">{activeCount}</div>
+            <div className="text-2xl font-bold text-orange-600">{activeCount}</div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="text-sm text-gray-600 mb-1">Completed</div>
@@ -82,7 +82,7 @@ export function NILDealsDashboard() {
               onClick={() => setFilter('all')}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 filter === 'all'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-orange-500 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -92,7 +92,7 @@ export function NILDealsDashboard() {
               onClick={() => setFilter('active')}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 filter === 'active'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-orange-500 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -102,7 +102,7 @@ export function NILDealsDashboard() {
               onClick={() => setFilter('completed')}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 filter === 'completed'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-orange-500 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -112,7 +112,7 @@ export function NILDealsDashboard() {
               onClick={() => setFilter('pending')}
               className={`px-4 py-2 rounded-lg transition-colors ${
                 filter === 'pending'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-orange-500 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -137,7 +137,7 @@ export function NILDealsDashboard() {
           <p className="text-gray-600 mb-4 text-lg">No NIL deals yet</p>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="text-blue-500 hover:underline font-medium"
+            className="text-orange-500 hover:underline font-medium"
           >
             Create your first deal →
           </button>

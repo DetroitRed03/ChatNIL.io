@@ -120,7 +120,7 @@ function SplashPage() {
     // If logged in, redirect based on role
     // TODO: Add more role types when implemented (brand, school_admin, etc.)
     if (user.role === 'agency') {
-      router.push('/agencies/dashboard');
+      router.push('/agency/dashboard');
     } else {
       router.push('/dashboard');
     }
@@ -134,7 +134,7 @@ function SplashPage() {
       setAuthModal({ isOpen: false, mode: 'login' });
       // Redirect directly to the correct dashboard based on role
       if (result.user?.role === 'agency') {
-        router.push('/agencies/dashboard');
+        router.push('/agency/dashboard');
       } else {
         router.push('/dashboard');
       }
@@ -814,8 +814,8 @@ export default function Home() {
   useEffect(() => {
     if (!isLoading && user) {
       if (user.role === 'agency') {
-        console.log('🔀 Redirecting agency user to /agencies/dashboard');
-        router.push('/agencies/dashboard');
+        console.log('🔀 Redirecting agency user to /agency/dashboard');
+        router.push('/agency/dashboard');
       }
     }
   }, [user, isLoading, router]);

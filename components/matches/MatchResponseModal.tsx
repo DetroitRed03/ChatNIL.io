@@ -38,7 +38,7 @@ export function MatchResponseModal({ opportunity, userId, onClose, onSuccess }: 
       emoji: '🌟'
     },
     strong: {
-      textColor: 'text-blue-600',
+      textColor: 'text-orange-600',
       emoji: '⭐'
     },
     good: {
@@ -118,7 +118,7 @@ export function MatchResponseModal({ opportunity, userId, onClose, onSuccess }: 
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center">
               <Building className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -138,8 +138,8 @@ export function MatchResponseModal({ opportunity, userId, onClose, onSuccess }: 
         {/* Content */}
         <div className="px-6 py-6 space-y-6">
           {/* Match Score */}
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 text-center">
-            <div className="text-5xl font-bold text-blue-600 mb-2">
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-6 text-center">
+            <div className="text-5xl font-bold text-orange-600 mb-2">
               {opportunity.match_score}
             </div>
             <div className="text-gray-600 mb-3">Match Score</div>
@@ -204,19 +204,19 @@ export function MatchResponseModal({ opportunity, userId, onClose, onSuccess }: 
           )}
 
           {/* Next Steps */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <h4 className="text-sm font-semibold text-blue-900 mb-2">What happens next?</h4>
-            <ul className="space-y-2 text-sm text-blue-800">
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+            <h4 className="text-sm font-semibold text-orange-900 mb-2">What happens next?</h4>
+            <ul className="space-y-2 text-sm text-orange-800">
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 mt-0.5">•</span>
+                <span className="text-orange-600 mt-0.5">•</span>
                 <span>If you're interested, {agencyName} will be notified and can reach out directly</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 mt-0.5">•</span>
+                <span className="text-orange-600 mt-0.5">•</span>
                 <span>You can discuss potential partnership opportunities and compensation</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 mt-0.5">•</span>
+                <span className="text-orange-600 mt-0.5">•</span>
                 <span>If you're not interested, this opportunity will be moved to your declined list</span>
               </li>
             </ul>

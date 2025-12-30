@@ -16,7 +16,7 @@ export function DealCard({ deal, onUpdate }: DealCardProps) {
     draft: 'bg-gray-100 text-gray-800',
     pending: 'bg-yellow-100 text-yellow-800',
     active: 'bg-green-100 text-green-800',
-    completed: 'bg-blue-100 text-blue-800',
+    completed: 'bg-purple-100 text-purple-800',
     cancelled: 'bg-red-100 text-red-800',
     expired: 'bg-gray-100 text-gray-800',
     on_hold: 'bg-orange-100 text-orange-800'
@@ -63,7 +63,7 @@ export function DealCard({ deal, onUpdate }: DealCardProps) {
               className="h-12 w-12 object-contain rounded"
             />
           ) : (
-            <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded flex items-center justify-center">
+            <div className="h-12 w-12 bg-gradient-to-br from-orange-500 to-amber-500 rounded flex items-center justify-center">
               <span className="text-xl font-bold text-white">
                 {((deal as any).brand_name || deal.deal_title || 'D')[0].toUpperCase()}
               </span>
@@ -146,7 +146,7 @@ export function DealCard({ deal, onUpdate }: DealCardProps) {
           <button
             onClick={() => updateStatus('completed')}
             disabled={updating}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors disabled:bg-gray-300"
+            className="px-4 py-2 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition-colors disabled:bg-gray-300"
           >
             {updating ? '...' : 'Complete'}
           </button>
@@ -190,7 +190,7 @@ export function DealCard({ deal, onUpdate }: DealCardProps) {
                 href={deal.contract_file_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
+                className="text-orange-500 hover:underline"
               >
                 View Contract →
               </a>

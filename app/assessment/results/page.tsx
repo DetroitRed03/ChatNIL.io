@@ -67,7 +67,7 @@ export default function AssessmentResultsPage() {
     }
 
     if (user.role !== 'athlete') {
-      const redirectPath = user.role === 'agency' ? '/agencies/dashboard' : '/dashboard';
+      const redirectPath = user.role === 'agency' ? '/agency/dashboard' : '/dashboard';
       router.replace(redirectPath);
     }
   }, [user, authLoading, isLoadingProfile, router]);

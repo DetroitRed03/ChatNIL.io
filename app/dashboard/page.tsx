@@ -37,7 +37,7 @@ export default function DashboardPage() {
     if (!isLoading && !user) {
       router.replace('/?auth=login');
     } else if (!isLoading && user && user.role === 'agency') {
-      router.replace('/agencies/dashboard');
+      router.replace('/agency/dashboard');
     }
   }, [user, isLoading, router]);
 
@@ -59,7 +59,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className="min-h-screen bg-[#FAF6F1]">
       {/* Modern Clean Header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}

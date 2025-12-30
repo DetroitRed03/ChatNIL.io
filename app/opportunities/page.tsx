@@ -96,6 +96,9 @@ function OpportunitiesPageContent() {
   const [invitesLoading, setInvitesLoading] = useState(true);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
 
+  // Success feedback state
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   // Campaign detail modal state
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignOpportunity | null>(null);
 
@@ -164,7 +167,17 @@ function OpportunitiesPageContent() {
 
   // Handle invite response (accept/decline)
   const handleInviteResponse = async (inviteId: string, action: 'accept' | 'decline') => {
-    if (!user?.id) return;
+    console.log('🎯 handleInviteResponse called:', { inviteId, action, userId: user?.id });
+
+    if (!user?.id) {
+      console.log('❌ No user ID, returning early');
+      return;
+    }
+
+    // Find the invite to get campaign name for feedback
+    const invite = invites.find(inv => inv.id === inviteId);
+    const campaignName = invite?.campaign?.name || 'Campaign';
+    console.log('📋 Found invite:', { campaignName, inviteStatus: invite?.status });
 
     setRespondingTo(inviteId);
     try {
@@ -178,9 +191,31 @@ function OpportunitiesPageContent() {
         body: JSON.stringify({ action }),
       });
 
+      console.log('📡 API Response:', { ok: response.ok, status: response.status });
+
       if (response.ok) {
+        console.log('✅ Success! Removing invite and showing toast');
         // Remove the invite from the list
         setInvites(prev => prev.filter(inv => inv.id !== inviteId));
+
+        // Show success feedback
+        const actionText = action === 'accept' ? 'accepted' : 'declined';
+        setSuccessMessage(`Successfully ${actionText} invite from ${campaignName}!`);
+        console.log('🔔 Success message set:', `Successfully ${actionText} invite from ${campaignName}!`);
+
+        // Auto-hide success message after 4 seconds
+        setTimeout(() => setSuccessMessage(null), 4000);
+
+        // Refresh agency matches to update stats (in case status changed)
+        const statusParam = agencyFilterStatus !== 'all' ? `?status=${agencyFilterStatus}` : '';
+        const matchesRes = await fetch(`/api/matches/athlete${statusParam}`, {
+          headers: { 'X-User-ID': user.id },
+          credentials: 'include',
+        });
+        if (matchesRes.ok) {
+          const matchesData = await matchesRes.json();
+          setAgencyMatches(matchesData.opportunities || []);
+        }
       } else {
         const errorData = await response.json().catch(() => ({}));
         alert(errorData.error || 'Failed to respond to invite');
@@ -252,10 +287,26 @@ function OpportunitiesPageContent() {
   return (
     <div className="flex flex-col overflow-y-auto bg-background py-6 sm:py-8 px-4 sm:px-6">
       <div className="max-w-6xl mx-auto w-full">
+        {/* Success Toast */}
+        {successMessage && (
+          <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
+            <div className="flex items-center gap-3 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg">
+              <Check className="h-5 w-5 flex-shrink-0" />
+              <span className="font-medium">{successMessage}</span>
+              <button
+                onClick={() => setSuccessMessage(null)}
+                className="ml-2 text-white/80 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-amber-600 rounded-xl flex items-center justify-center">
               <Target className="h-5 w-5 text-white" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
@@ -274,14 +325,14 @@ function OpportunitiesPageContent() {
               onClick={() => setActiveTab('agency')}
               className={`flex items-center gap-2 px-4 py-3 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'agency'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-orange-600 text-orange-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
               }`}
             >
               <Users className="h-4 w-4" />
               Agency Matches
               {agencyStats.total > 0 && (
-                <span className="ml-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-semibold">
+                <span className="ml-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-semibold">
                   {agencyStats.total}
                 </span>
               )}
@@ -290,14 +341,14 @@ function OpportunitiesPageContent() {
               onClick={() => setActiveTab('campaigns')}
               className={`flex items-center gap-2 px-4 py-3 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'campaigns'
-                  ? 'border-blue-600 text-blue-600'
+                  ? 'border-orange-600 text-orange-600'
                   : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
               }`}
             >
               <Briefcase className="h-4 w-4" />
               Campaign Opportunities
               {data?.total > 0 && (
-                <span className="ml-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-semibold">
+                <span className="ml-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full font-semibold">
                   {data.total}
                 </span>
               )}
@@ -379,17 +430,21 @@ function OpportunitiesPageContent() {
         {activeTab === 'agency' && (
           <>
             {/* Stats Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mb-6">
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="text-2xl font-bold text-gray-900">{agencyStats.total}</div>
                 <div className="text-sm text-gray-600">Total Matches</div>
               </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="text-2xl font-bold text-gray-600">{agencyStats.pending}</div>
-                <div className="text-sm text-gray-600">Pending</div>
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl border-2 border-orange-200 p-4">
+                <div className="text-2xl font-bold text-orange-600">{invites.length}</div>
+                <div className="text-sm text-orange-700 font-medium">Campaign Invites</div>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="text-2xl font-bold text-blue-600">{agencyStats.contacted}</div>
+                <div className="text-2xl font-bold text-gray-600">{agencyStats.pending}</div>
+                <div className="text-sm text-gray-600">Pending Matches</div>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="text-2xl font-bold text-orange-600">{agencyStats.contacted}</div>
                 <div className="text-sm text-gray-600">Contacted</div>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -397,7 +452,7 @@ function OpportunitiesPageContent() {
                 <div className="text-sm text-gray-600">Interested</div>
               </div>
               <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="text-2xl font-bold text-purple-600">{agencyStats.partnered}</div>
+                <div className="text-2xl font-bold text-green-600">{agencyStats.partnered}</div>
                 <div className="text-sm text-gray-600">Partnered</div>
               </div>
             </div>
@@ -416,7 +471,7 @@ function OpportunitiesPageContent() {
                   onClick={() => setAgencyFilterStatus(filter.value)}
                   className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-colors ${
                     agencyFilterStatus === filter.value
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-orange-600 text-white'
                       : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
@@ -458,7 +513,7 @@ function OpportunitiesPageContent() {
               <div className="text-sm text-gray-600">Medium Confidence</div>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="text-2xl font-bold text-blue-600">{data.summary.avgMatchScore}%</div>
+              <div className="text-2xl font-bold text-orange-600">{data.summary.avgMatchScore}%</div>
               <div className="text-sm text-gray-600">Avg Match Score</div>
             </div>
           </div>
@@ -473,7 +528,7 @@ function OpportunitiesPageContent() {
               placeholder="Search campaigns or brands..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -481,7 +536,7 @@ function OpportunitiesPageContent() {
             <select
               value={filterConfidence}
               onChange={(e) => setFilterConfidence(e.target.value)}
-              className="px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+              className="px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white"
             >
               <option value="all">All Confidence</option>
               <option value="high">High Confidence</option>
@@ -494,7 +549,7 @@ function OpportunitiesPageContent() {
         {/* Loading State */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
+            <Loader2 className="h-8 w-8 text-orange-500 animate-spin mb-4" />
             <p className="text-gray-600">Finding opportunities for you...</p>
           </div>
         )}
@@ -511,8 +566,8 @@ function OpportunitiesPageContent() {
         {/* Empty State */}
         {!isLoading && !error && filteredCampaigns.length === 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Sparkles className="h-8 w-8 text-blue-600" />
+            <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Sparkles className="h-8 w-8 text-orange-600" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
               {searchQuery || filterConfidence !== 'all'
@@ -527,7 +582,7 @@ function OpportunitiesPageContent() {
             {!searchQuery && filterConfidence === 'all' && (
               <button
                 onClick={() => window.location.href = '/profile/edit'}
-                className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-colors"
+                className="bg-orange-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-orange-700 transition-colors"
               >
                 Complete Your Profile
               </button>
@@ -547,7 +602,7 @@ function OpportunitiesPageContent() {
                   {/* Left: Campaign Info */}
                   <div className="flex-1">
                     <div className="flex items-start gap-3 mb-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center flex-shrink-0">
                         <Building className="h-6 w-6 text-white" />
                       </div>
                       <div>
@@ -602,7 +657,7 @@ function OpportunitiesPageContent() {
                     {/* View Details Button */}
                     <button
                       onClick={() => setSelectedCampaign(campaign)}
-                      className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                      className="flex items-center gap-1 text-orange-600 hover:text-orange-700 text-sm font-medium"
                     >
                       View Details
                       <ChevronRight className="h-4 w-4" />
@@ -631,7 +686,7 @@ function OpportunitiesPageContent() {
           <div className="mt-6 text-center text-sm text-gray-600">
             Showing {Math.min(data.pagination.offset + data.pagination.limit, data.pagination.total)} of {data.pagination.total} opportunities
             {data.pagination.hasMore && (
-              <button className="ml-4 text-blue-600 hover:text-blue-700 font-medium">
+              <button className="ml-4 text-orange-600 hover:text-orange-700 font-medium">
                 Load More
               </button>
             )}
@@ -658,7 +713,7 @@ function OpportunitiesPageContent() {
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center flex-shrink-0">
                       <Building className="h-7 w-7 text-white" />
                     </div>
                     <div>
@@ -678,7 +733,7 @@ function OpportunitiesPageContent() {
               {/* Modal Body */}
               <div className="p-6 space-y-6">
                 {/* Match Score Section */}
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl">
                   <div>
                     <p className="text-sm text-gray-600 mb-1">Your Match Score</p>
                     <div className={`text-4xl font-bold ${getMatchScoreColor(selectedCampaign.match_score)}`}>
@@ -740,7 +795,7 @@ function OpportunitiesPageContent() {
                 {/* Match Breakdown */}
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-blue-500" />
+                    <TrendingUp className="h-5 w-5 text-orange-500" />
                     Match Breakdown
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -769,7 +824,7 @@ function OpportunitiesPageContent() {
                         // TODO: Implement express interest functionality
                         alert('Express Interest feature coming soon! This will notify the brand of your interest.');
                       }}
-                      className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-medium hover:from-blue-600 hover:to-purple-700 transition-all shadow-md"
+                      className="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl font-medium hover:from-orange-600 hover:to-amber-700 transition-all shadow-md"
                     >
                       Express Interest
                     </button>

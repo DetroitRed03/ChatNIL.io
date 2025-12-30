@@ -105,7 +105,7 @@ export function CampaignCreateForm() {
       const result = await response.json();
 
       // Success - redirect to dashboard or campaign detail
-      router.push('/agencies/dashboard');
+      router.push('/agency/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {

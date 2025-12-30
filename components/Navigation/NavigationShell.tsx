@@ -41,7 +41,8 @@ const HEADER_ONLY_ROUTES = [
 
 // Routes that should NOT show navigation (they have their own layout)
 const NO_NAV_ROUTES = [
-  '/agencies' // Agency routes have their own AgencyTopNav
+  '/agencies', // Agency routes have their own AgencyTopNav (legacy plural)
+  '/agency'    // Agency routes have their own AgencyTopNav (singular)
 ];
 
 interface NavigationShellProps {
@@ -83,7 +84,7 @@ export default function NavigationShell({ children }: NavigationShellProps) {
       createShortcut('b', () => toggleSidebar(), 'Toggle sidebar'),
       createShortcut('n', () => router.push('/'), 'New chat'),
       createShortcut('/', () => setShowShortcutsHelp(prev => !prev), 'Show keyboard shortcuts'),
-      { key: '1', meta: true, description: 'Go to Dashboard', category: 'navigation' as const, action: () => router.push(user?.role === 'agency' ? '/agencies/dashboard' : '/dashboard') },
+      { key: '1', meta: true, description: 'Go to Dashboard', category: 'navigation' as const, action: () => router.push(user?.role === 'agency' ? '/agency/dashboard' : '/dashboard') },
       { key: '2', meta: true, description: 'Go to Profile', category: 'navigation' as const, action: () => router.push('/profile') },
       { key: 'Escape', description: 'Close search', category: 'general' as const, action: () => setShowSearch(false), disabled: !showSearch },
     ];
@@ -104,10 +105,10 @@ export default function NavigationShell({ children }: NavigationShellProps) {
     if (user?.role === 'agency') {
       return [
         ...baseShortcuts,
-        { key: '3', meta: true, description: 'Go to Discover', category: 'navigation' as const, action: () => router.push('/agencies/discover') },
-        { key: '4', meta: true, description: 'Go to Campaigns', category: 'navigation' as const, action: () => router.push('/agencies/campaigns') },
-        { key: '5', meta: true, description: 'Go to Athletes', category: 'navigation' as const, action: () => router.push('/agencies/athletes') },
-        { key: '6', meta: true, description: 'Go to Messages', category: 'navigation' as const, action: () => router.push('/agencies/messages') },
+        { key: '3', meta: true, description: 'Go to Discover', category: 'navigation' as const, action: () => router.push('/agency/discover') },
+        { key: '4', meta: true, description: 'Go to Campaigns', category: 'navigation' as const, action: () => router.push('/agency/campaigns') },
+        { key: '5', meta: true, description: 'Go to Athletes', category: 'navigation' as const, action: () => router.push('/agency/athletes') },
+        { key: '6', meta: true, description: 'Go to Messages', category: 'navigation' as const, action: () => router.push('/agency/messages') },
         { key: '7', meta: true, description: 'Go to Settings', category: 'navigation' as const, action: () => router.push('/settings') },
       ];
     }

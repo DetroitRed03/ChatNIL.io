@@ -4,6 +4,465 @@
  */
 
 // ============================================================================
+// ENUMS & CONSTANTS (Migration 020)
+// ============================================================================
+
+export type CompanySize = 'startup' | 'small' | 'medium' | 'large' | 'enterprise';
+
+export type InteractionStatus =
+  | 'suggested'
+  | 'viewed'
+  | 'saved'
+  | 'contacted'
+  | 'interested'
+  | 'in_discussion'
+  | 'deal_proposed'
+  | 'declined'
+  | 'archived';
+
+export const COMPANY_SIZE_LABELS: Record<CompanySize, string> = {
+  startup: '1-10 employees',
+  small: '11-50 employees',
+  medium: '51-200 employees',
+  large: '201-1000 employees',
+  enterprise: '1000+ employees',
+};
+
+export const INTERACTION_STATUS_LABELS: Record<InteractionStatus, string> = {
+  suggested: 'Suggested',
+  viewed: 'Viewed',
+  saved: 'Saved',
+  contacted: 'Contacted',
+  interested: 'Interested',
+  in_discussion: 'In Discussion',
+  deal_proposed: 'Deal Proposed',
+  declined: 'Declined',
+  archived: 'Archived',
+};
+
+// ============================================================================
+// INDUSTRY OPTIONS (Migration 020)
+// ============================================================================
+
+export interface IndustryOption {
+  id: string;
+  name: string;
+  display_name: string;
+  icon: string;
+  sort_order: number;
+}
+
+export const INDUSTRIES: IndustryOption[] = [
+  { id: '1', name: 'apparel', display_name: 'Apparel & Fashion', icon: 'shirt', sort_order: 1 },
+  { id: '2', name: 'sports_equipment', display_name: 'Sports Equipment', icon: 'dumbbell', sort_order: 2 },
+  { id: '3', name: 'food_beverage', display_name: 'Food & Beverage', icon: 'utensils', sort_order: 3 },
+  { id: '4', name: 'technology', display_name: 'Technology', icon: 'laptop', sort_order: 4 },
+  { id: '5', name: 'automotive', display_name: 'Automotive', icon: 'car', sort_order: 5 },
+  { id: '6', name: 'finance', display_name: 'Finance & Banking', icon: 'landmark', sort_order: 6 },
+  { id: '7', name: 'health_fitness', display_name: 'Health & Fitness', icon: 'heart-pulse', sort_order: 7 },
+  { id: '8', name: 'entertainment', display_name: 'Entertainment & Media', icon: 'tv', sort_order: 8 },
+  { id: '9', name: 'gaming', display_name: 'Gaming & Esports', icon: 'gamepad-2', sort_order: 9 },
+  { id: '10', name: 'travel', display_name: 'Travel & Hospitality', icon: 'plane', sort_order: 10 },
+  { id: '11', name: 'education', display_name: 'Education', icon: 'graduation-cap', sort_order: 11 },
+  { id: '12', name: 'real_estate', display_name: 'Real Estate', icon: 'building', sort_order: 12 },
+  { id: '13', name: 'retail', display_name: 'Retail', icon: 'shopping-bag', sort_order: 13 },
+  { id: '14', name: 'crypto_web3', display_name: 'Crypto & Web3', icon: 'bitcoin', sort_order: 14 },
+  { id: '15', name: 'other', display_name: 'Other', icon: 'briefcase', sort_order: 99 },
+];
+
+// ============================================================================
+// AGENCY PROFILE (Migration 020)
+// ============================================================================
+
+export interface AgencyProfile {
+  id: string;
+  user_id: string;
+
+  // Company Information
+  company_name: string;
+  slug: string;
+  logo_url?: string;
+  website?: string;
+  industry: string;
+  description?: string;
+  tagline?: string;
+
+  // Company Details
+  company_size?: CompanySize;
+  founded_year?: number;
+  headquarters_city?: string;
+  headquarters_state?: string;
+
+  // Contact Information
+  contact_name?: string;
+  contact_email?: string;
+  contact_phone?: string;
+
+  // Social Links
+  linkedin_url?: string;
+  instagram_url?: string;
+  twitter_url?: string;
+
+  // Onboarding Status
+  onboarding_completed: boolean;
+  onboarding_completed_at?: string;
+  onboarding_step: number;
+
+  // Profile Status
+  is_verified: boolean;
+  is_active: boolean;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgencyProfileInsert {
+  user_id: string;
+  company_name: string;
+  slug?: string;
+  logo_url?: string;
+  website?: string;
+  industry: string;
+  description?: string;
+  tagline?: string;
+  company_size?: CompanySize;
+  founded_year?: number;
+  headquarters_city?: string;
+  headquarters_state?: string;
+  contact_name?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  linkedin_url?: string;
+  instagram_url?: string;
+  twitter_url?: string;
+  onboarding_completed?: boolean;
+  onboarding_step?: number;
+}
+
+export interface AgencyProfileUpdate {
+  company_name?: string;
+  logo_url?: string;
+  website?: string;
+  industry?: string;
+  description?: string;
+  tagline?: string;
+  company_size?: CompanySize;
+  founded_year?: number;
+  headquarters_city?: string;
+  headquarters_state?: string;
+  contact_name?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  linkedin_url?: string;
+  instagram_url?: string;
+  twitter_url?: string;
+  onboarding_completed?: boolean;
+  onboarding_completed_at?: string;
+  onboarding_step?: number;
+  is_verified?: boolean;
+  is_active?: boolean;
+}
+
+// ============================================================================
+// BRAND VALUES (Migration 020)
+// ============================================================================
+
+export interface AgencyBrandValue {
+  id: string;
+  agency_profile_id: string;
+  trait_id: string;
+
+  // Priority: 1 = highest, 5 = lowest
+  priority: number;
+
+  // Importance weight for matching (0.0-1.0)
+  importance_weight: number;
+
+  // Notes on why this value matters
+  notes?: string;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+
+  // Joined data
+  trait?: {
+    id: string;
+    name: string;
+    display_name: string;
+    category: string;
+    description?: string;
+  };
+}
+
+export interface AgencyBrandValueInsert {
+  agency_profile_id: string;
+  trait_id: string;
+  priority: number;
+  importance_weight?: number;
+  notes?: string;
+}
+
+export interface AgencyBrandValueUpdate {
+  priority?: number;
+  importance_weight?: number;
+  notes?: string;
+}
+
+// ============================================================================
+// TARGET CRITERIA (Migration 020)
+// ============================================================================
+
+export interface AgencyTargetCriteria {
+  id: string;
+  agency_profile_id: string;
+
+  // Sports Interest
+  target_sports: string[];
+
+  // Follower Requirements
+  min_followers: number;
+  max_followers?: number;
+
+  // Geographic Targeting
+  target_states: string[];
+  target_regions: string[];
+
+  // School Level Targeting
+  target_school_levels: string[];
+
+  // FMV Targeting
+  min_fmv?: number;
+  max_fmv?: number;
+
+  // Engagement Requirements
+  min_engagement_rate?: number;
+
+  // Archetype Preferences
+  preferred_archetypes: string[];
+
+  // Additional Preferences (flexible)
+  additional_criteria: Record<string, unknown>;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgencyTargetCriteriaInsert {
+  agency_profile_id: string;
+  target_sports?: string[];
+  min_followers?: number;
+  max_followers?: number;
+  target_states?: string[];
+  target_regions?: string[];
+  target_school_levels?: string[];
+  min_fmv?: number;
+  max_fmv?: number;
+  min_engagement_rate?: number;
+  preferred_archetypes?: string[];
+  additional_criteria?: Record<string, unknown>;
+}
+
+export interface AgencyTargetCriteriaUpdate {
+  target_sports?: string[];
+  min_followers?: number;
+  max_followers?: number;
+  target_states?: string[];
+  target_regions?: string[];
+  target_school_levels?: string[];
+  min_fmv?: number;
+  max_fmv?: number;
+  min_engagement_rate?: number;
+  preferred_archetypes?: string[];
+  additional_criteria?: Record<string, unknown>;
+}
+
+// ============================================================================
+// AGENCY-ATHLETE INTERACTIONS (Migration 020)
+// ============================================================================
+
+export interface AgencyAthleteInteraction {
+  id: string;
+  agency_profile_id: string;
+  athlete_user_id: string;
+
+  // Current Status
+  status: InteractionStatus;
+
+  // Match Information (cached)
+  match_score?: number;
+  trait_alignment_score?: number;
+  criteria_match_score?: number;
+
+  // Interaction History
+  first_viewed_at?: string;
+  first_contacted_at?: string;
+  last_interaction_at?: string;
+
+  // Agency Notes
+  agency_notes?: string;
+
+  // Match Breakdown (for UI)
+  match_breakdown: MatchBreakdown;
+
+  // Tracking
+  view_count: number;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+
+  // Joined data
+  athlete?: AthletePreview;
+  agency?: AgencyProfile;
+}
+
+export interface MatchBreakdown {
+  trait_scores?: {
+    trait_id: string;
+    trait_name: string;
+    athlete_score: number;
+    agency_importance: number;
+    weighted_match: number;
+  }[];
+  criteria_matches?: {
+    criterion: string;
+    matched: boolean;
+    details?: string;
+  }[];
+  overall_explanation?: string;
+}
+
+export interface AthletePreview {
+  id: string;
+  first_name: string;
+  last_name: string;
+  primary_sport?: string;
+  school_name?: string;
+  graduation_year?: number;
+  total_followers?: number;
+  avg_engagement_rate?: number;
+  profile_completion_score?: number;
+  archetype_name?: string;
+}
+
+export interface AgencyAthleteInteractionInsert {
+  agency_profile_id: string;
+  athlete_user_id: string;
+  status?: InteractionStatus;
+  match_score?: number;
+  trait_alignment_score?: number;
+  criteria_match_score?: number;
+  agency_notes?: string;
+  match_breakdown?: MatchBreakdown;
+}
+
+export interface AgencyAthleteInteractionUpdate {
+  status?: InteractionStatus;
+  match_score?: number;
+  trait_alignment_score?: number;
+  criteria_match_score?: number;
+  first_viewed_at?: string;
+  first_contacted_at?: string;
+  last_interaction_at?: string;
+  agency_notes?: string;
+  match_breakdown?: MatchBreakdown;
+  view_count?: number;
+}
+
+// ============================================================================
+// ONBOARDING TYPES (Migration 020)
+// ============================================================================
+
+export interface AgencyOnboardingStep {
+  id: number;
+  title: string;
+  description: string;
+  isComplete: boolean;
+}
+
+export interface AgencyOnboardingState {
+  currentStep: number;
+  steps: AgencyOnboardingStep[];
+  profile: Partial<AgencyProfileInsert>;
+  brandValues: AgencyBrandValueInsert[];
+  targetCriteria: Partial<AgencyTargetCriteriaInsert>;
+}
+
+export const AGENCY_ONBOARDING_STEPS: Omit<AgencyOnboardingStep, 'isComplete'>[] = [
+  {
+    id: 0,
+    title: 'Company Information',
+    description: 'Tell us about your company',
+  },
+  {
+    id: 1,
+    title: 'Brand Values',
+    description: 'Select the values that define your brand',
+  },
+  {
+    id: 2,
+    title: 'Target Athletes',
+    description: 'Define your ideal athlete profile',
+  },
+  {
+    id: 3,
+    title: 'Contact & Social',
+    description: 'Add contact information and social links',
+  },
+];
+
+// ============================================================================
+// SEARCH & FILTER TYPES (Migration 020)
+// ============================================================================
+
+export interface AthleteSearchFilters {
+  query?: string;
+  sports?: string[];
+  states?: string[];
+  school_levels?: string[];
+  min_followers?: number;
+  max_followers?: number;
+  min_fmv?: number;
+  max_fmv?: number;
+  min_engagement_rate?: number;
+  archetypes?: string[];
+  graduation_years?: number[];
+  sort_by?: 'match_score' | 'followers' | 'engagement' | 'fmv' | 'name';
+  sort_order?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
+export interface AthleteSearchResult {
+  athletes: AthletePreview[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
+
+// ============================================================================
+// API RESPONSE TYPES (Migration 020)
+// ============================================================================
+
+export interface AgencyApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface AgencyProfileWithRelations extends AgencyProfile {
+  brand_values: AgencyBrandValue[];
+  target_criteria?: AgencyTargetCriteria;
+  interaction_count: number;
+  saved_athlete_count: number;
+}
+
+// ============================================================================
 // Agency Platform Interfaces (Migration 040)
 // ============================================================================
 

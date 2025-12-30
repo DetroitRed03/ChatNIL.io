@@ -47,7 +47,7 @@ export function OpportunityList({
   if (isLoading && opportunities.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
+        <Loader2 className="h-8 w-8 text-orange-500 animate-spin mb-4" />
         <p className="text-gray-600">Loading opportunities...</p>
       </div>
     );
@@ -70,8 +70,8 @@ export function OpportunityList({
   if (opportunities.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <Sparkles className="h-8 w-8 text-blue-600" />
+        <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <Sparkles className="h-8 w-8 text-orange-600" />
         </div>
         <h3 className="text-xl font-semibold text-gray-900 mb-2">
           No opportunities yet
@@ -81,7 +81,7 @@ export function OpportunityList({
         </p>
         <button
           onClick={() => window.location.href = '/profile/edit'}
-          className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-colors"
+          className="bg-orange-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-orange-700 transition-colors"
         >
           Complete Your Profile
         </button>
@@ -111,7 +111,7 @@ export function OpportunityList({
       {/* Loading More Indicator */}
       {isLoading && opportunities.length > 0 && (
         <div className="flex justify-center items-center py-8">
-          <Loader2 className="h-6 w-6 text-blue-500 animate-spin mr-2" />
+          <Loader2 className="h-6 w-6 text-orange-500 animate-spin mr-2" />
           <span className="text-gray-600">Loading more...</span>
         </div>
       )}

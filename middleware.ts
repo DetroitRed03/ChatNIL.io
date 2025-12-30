@@ -77,7 +77,7 @@ export async function middleware(request: NextRequest) {
   const isOwnProfileRoute = pathname === '/profile' || pathname === '/profile/edit';
 
   // Define agency routes
-  const isAgencyRoute = pathname.startsWith('/agencies');
+  const isAgencyRoute = pathname.startsWith('/agency');
   const isAthleteOnlyRoute = athleteOnlyRoutes.some(route => pathname.startsWith(route)) || isOwnProfileRoute;
 
   // If user is logged in, enforce role-based routing
@@ -105,8 +105,8 @@ export async function middleware(request: NextRequest) {
       // Agency users: redirect from athlete-only routes and root to agency dashboard
       if (profile.role === 'agency') {
         if (isAthleteOnlyRoute || pathname === '/') {
-          console.log('🔒 Middleware: Redirecting agency from', pathname, 'to /agencies/dashboard');
-          return NextResponse.redirect(new URL('/agencies/dashboard', request.url));
+          console.log('🔒 Middleware: Redirecting agency from', pathname, 'to /agency/dashboard');
+          return NextResponse.redirect(new URL('/agency/dashboard', request.url));
         }
       }
       // Non-agency users: redirect from agency routes to athlete dashboard

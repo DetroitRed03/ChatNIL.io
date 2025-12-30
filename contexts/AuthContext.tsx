@@ -510,7 +510,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.role === 'agency' && typeof window !== 'undefined') {
           console.log('🎯 Redirecting new agency to agency dashboard...');
           setIsLoading(false);
-          window.location.href = '/agencies/dashboard';
+          window.location.href = '/agency/dashboard';
           return {};
         }
       }

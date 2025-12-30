@@ -23,7 +23,7 @@ export default function AthletesPublicLayout({
       {showBackButton && (
         <div className="fixed top-4 left-4 z-50">
           <button
-            onClick={() => router.push('/agencies/dashboard')}
+            onClick={() => router.push('/agency/dashboard')}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
           >
             <svg

@@ -17,7 +17,7 @@ export default function OnboardingPage() {
   // Determine redirect path based on user role
   const getRedirectPath = () => {
     if (user?.role === 'agency') {
-      return '/agencies/dashboard';
+      return '/agency/dashboard';
     }
     return '/dashboard';
   };

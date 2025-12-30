@@ -61,7 +61,7 @@ export default function AssessmentLandingPage() {
 
     // Auth loaded, user is not an athlete - redirect to appropriate dashboard
     if (user.role !== 'athlete') {
-      const redirectPath = user.role === 'agency' ? '/agencies/dashboard' : '/dashboard';
+      const redirectPath = user.role === 'agency' ? '/agency/dashboard' : '/dashboard';
       console.log(`🔒 Assessment: User is ${user.role}, redirecting to ${redirectPath}...`);
       router.replace(redirectPath);
       return;

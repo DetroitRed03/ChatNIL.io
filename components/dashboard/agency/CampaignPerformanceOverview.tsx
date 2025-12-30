@@ -116,7 +116,7 @@ export function CampaignPerformanceOverview() {
 
   // Handle metric card click
   const handleMetricClick = () => {
-    router.push('/agencies/campaigns');
+    router.push('/agency/campaigns');
   };
 
   useEffect(() => {

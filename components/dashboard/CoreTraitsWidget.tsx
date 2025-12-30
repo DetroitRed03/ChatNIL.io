@@ -8,7 +8,7 @@
  * - CTA to take/retake assessment
  *
  * Features:
- * - Purple/violet gradient header (brand identity theme)
+ * - Orange/amber gradient header (brand identity theme)
  * - Loading, error, and empty states
  * - Smooth animations with Framer Motion
  * - Responsive design
@@ -71,13 +71,13 @@ const TRAIT_NAMES: Record<string, string> = {
 // Archetype icons and colors
 const ARCHETYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; gradient: string }> = {
   captain: { icon: Crown, color: 'text-amber-600', gradient: 'from-amber-400 to-orange-500' },
-  trailblazer: { icon: Rocket, color: 'text-purple-600', gradient: 'from-purple-400 to-pink-500' },
+  trailblazer: { icon: Rocket, color: 'text-orange-600', gradient: 'from-orange-400 to-amber-500' },
   champion: { icon: Trophy, color: 'text-yellow-600', gradient: 'from-yellow-400 to-amber-500' },
   ambassador: { icon: Heart, color: 'text-red-600', gradient: 'from-red-400 to-rose-500' },
-  entertainer: { icon: Sparkles, color: 'text-pink-600', gradient: 'from-pink-400 to-purple-500' },
-  purist: { icon: Target, color: 'text-blue-600', gradient: 'from-blue-400 to-cyan-500' },
+  entertainer: { icon: Sparkles, color: 'text-amber-600', gradient: 'from-amber-400 to-orange-500' },
+  purist: { icon: Target, color: 'text-gray-600', gradient: 'from-gray-500 to-gray-600' },
   connector: { icon: Users, color: 'text-green-600', gradient: 'from-green-400 to-emerald-500' },
-  builder: { icon: Lightbulb, color: 'text-indigo-600', gradient: 'from-indigo-400 to-blue-500' },
+  builder: { icon: Lightbulb, color: 'text-orange-600', gradient: 'from-orange-500 to-orange-600' },
 };
 
 // Fetcher for SWR
@@ -129,7 +129,7 @@ function EmptyState() {
       className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
     >
       {/* Gradient Header */}
-      <div className="bg-gradient-to-r from-violet-500/90 via-purple-500/90 to-indigo-500/90 px-6 py-6">
+      <div className="bg-gradient-to-r from-orange-500/90 via-orange-600/90 to-amber-500/90 px-6 py-6">
         <h3 className="text-white font-bold text-lg flex items-center gap-2">
           <Sparkles className="h-6 w-6" />
           Brand Identity
@@ -139,15 +139,15 @@ function EmptyState() {
 
       {/* Empty Content */}
       <div className="p-8 text-center">
-        <div className="inline-flex items-center justify-center w-20 h-20 bg-violet-100 rounded-full mb-4">
-          <User className="h-10 w-10 text-violet-600" />
+        <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-100 rounded-full mb-4">
+          <User className="h-10 w-10 text-orange-600" />
         </div>
         <h4 className="text-xl font-bold text-gray-900 mb-2">Discover Your Brand Identity!</h4>
         <p className="text-gray-600 mb-6 max-w-sm mx-auto">
           Take our 5-minute assessment to uncover your athlete archetype and find brand partnerships that align with who you truly are.
         </p>
         <Link href="/assessment">
-          <button className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500 hover:from-violet-600 hover:via-purple-600 hover:to-indigo-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
+          <button className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:via-orange-700 hover:to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300">
             Take Assessment
             <ArrowRight className="h-5 w-5" />
           </button>
@@ -229,7 +229,7 @@ export function CoreTraitsWidget({ userId, className = '' }: CoreTraitsWidgetPro
         {/* Top Traits */}
         <div className="mb-6">
           <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-600" />
+            <Sparkles className="h-4 w-4 text-orange-600" />
             Top Traits
           </h4>
           <div className="space-y-2">

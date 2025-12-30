@@ -44,7 +44,7 @@ export function AthleteOnlyGuard({ children }: AthleteOnlyGuardProps) {
     // If user is not an athlete, redirect to appropriate dashboard
     if (user.role !== 'athlete') {
       const redirectPath = user.role === 'agency'
-        ? '/agencies/dashboard'
+        ? '/agency/dashboard'
         : '/dashboard';
       router.replace(redirectPath);
     }

@@ -13,7 +13,7 @@ export default function MessagesPage() {
   // Redirect agency/business users to their dedicated messaging page
   useEffect(() => {
     if (user?.role === 'agency' || user?.role === 'business') {
-      router.replace('/agencies/messages');
+      router.replace('/agency/messages');
     }
   }, [user, router]);
 

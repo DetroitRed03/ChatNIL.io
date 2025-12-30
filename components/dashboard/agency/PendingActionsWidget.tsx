@@ -108,12 +108,12 @@ function formatDueDate(date?: Date): string {
 const getActionDestination = (action: PendingAction): string => {
   switch (action.type) {
     case 'message':
-      return '/agencies/messages';
+      return '/agency/messages';
     case 'approval':
     case 'contract':
     case 'review':
     default:
-      return '/agencies/campaigns';
+      return '/agency/campaigns';
   }
 };
 
@@ -169,7 +169,7 @@ export function PendingActionsWidget() {
 
   // Handle "View all actions" click
   const handleViewAllActions = () => {
-    router.push('/agencies/campaigns');
+    router.push('/agency/campaigns');
   };
 
   return (
