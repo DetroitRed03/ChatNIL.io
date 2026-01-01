@@ -241,16 +241,16 @@ export default function AssessmentResultsPage() {
           className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
         >
           {/* Radar Chart */}
-          <Card variant="default">
+          <Card variant="default" className="overflow-hidden">
             <CardContent className="p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Trait Overview
               </h3>
               {/* Hide radar on mobile, show bar chart instead */}
-              <div className="hidden sm:block">
+              <div className="hidden sm:flex justify-center items-center">
                 <TraitRadar
                   data={traitData.slice(0, 8)}
-                  size={300}
+                  size={220}
                   className="mx-auto"
                 />
               </div>

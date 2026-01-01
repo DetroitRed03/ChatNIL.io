@@ -69,12 +69,12 @@ export default function Sidebar({ className = '', isNonAuth = false }: SidebarPr
 
   const handleNewChat = () => {
     beginDraft();
-    router.push('/');
+    router.push('/chat');
   };
 
   const handleChatClick = (chatId: string) => {
     setActiveChat(chatId);
-    router.push('/');
+    router.push('/chat');
   };
 
   const handleDeleteChat = async (chatId: string) => {

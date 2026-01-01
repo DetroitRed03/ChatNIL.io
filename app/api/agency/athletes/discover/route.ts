@@ -158,12 +158,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch FMV data and usernames for all athletes to enrich profiles
+    // Fetch FMV data and user details for all athletes to enrich profiles
     const athleteIds = athletes?.map(a => a.user_id).filter(Boolean) || [];
     let enrichedAthletes = athletes || [];
 
     if (athleteIds.length > 0) {
-      // Fetch FMV data and usernames in parallel
+      // Fetch FMV data and user details (including avatar) in parallel
       const [fmvResult, usersResult] = await Promise.all([
         supabase
           .from('athlete_fmv_data')
@@ -171,20 +171,23 @@ export async function GET(request: NextRequest) {
           .in('athlete_id', athleteIds),
         supabase
           .from('users')
-          .select('id, username')
+          .select('id, username, profile_photo, avatar_url, full_name')
           .in('id', athleteIds)
       ]);
 
       const fmvData = fmvResult.data;
       const usersData = usersResult.data;
 
-      // Enrich athletes with FMV data and username
+      // Enrich athletes with FMV data, username, and avatar
       enrichedAthletes = (athletes || []).map(athlete => {
         const athleteFmv = fmvData?.find(f => f.athlete_id === athlete.user_id && f.is_public_score);
         const userData = usersData?.find(u => u.id === athlete.user_id);
         return {
           ...athlete,
           username: userData?.username || null,
+          full_name: userData?.full_name || athlete.display_name || null,
+          avatar_url: userData?.avatar_url || userData?.profile_photo || athlete.profile_image_url || null,
+          profile_photo: userData?.profile_photo || null,
           fmv_score: athleteFmv?.fmv_score || null,
           fmv_tier: athleteFmv?.fmv_tier || null,
           percentile_rank: athleteFmv?.percentile_rank || null
@@ -330,12 +333,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch FMV data and usernames for all athletes to enrich profiles
+    // Fetch FMV data and user details for all athletes to enrich profiles
     const athleteIds = athletes?.map(a => a.user_id).filter(Boolean) || [];
     let enrichedAthletes = athletes || [];
 
     if (athleteIds.length > 0) {
-      // Fetch FMV data and usernames in parallel
+      // Fetch FMV data and user details (including avatar) in parallel
       const [fmvResult, usersResult] = await Promise.all([
         supabase
           .from('athlete_fmv_data')
@@ -343,20 +346,23 @@ export async function POST(request: NextRequest) {
           .in('athlete_id', athleteIds),
         supabase
           .from('users')
-          .select('id, username')
+          .select('id, username, profile_photo, avatar_url, full_name')
           .in('id', athleteIds)
       ]);
 
       const fmvData = fmvResult.data;
       const usersData = usersResult.data;
 
-      // Enrich athletes with FMV data and username
+      // Enrich athletes with FMV data, username, and avatar
       enrichedAthletes = (athletes || []).map(athlete => {
         const athleteFmv = fmvData?.find(f => f.athlete_id === athlete.user_id && f.is_public_score);
         const userData = usersData?.find(u => u.id === athlete.user_id);
         return {
           ...athlete,
           username: userData?.username || null,
+          full_name: userData?.full_name || athlete.display_name || null,
+          avatar_url: userData?.avatar_url || userData?.profile_photo || athlete.profile_image_url || null,
+          profile_photo: userData?.profile_photo || null,
           fmv_score: athleteFmv?.fmv_score || null,
           fmv_tier: athleteFmv?.fmv_tier || null,
           percentile_rank: athleteFmv?.percentile_rank || null

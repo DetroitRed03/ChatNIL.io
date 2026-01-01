@@ -25,6 +25,7 @@ interface AthleteDiscoveryCardProps {
   athlete: AthletePublicProfile;
   matchScore?: number;
   matchTier?: 'excellent' | 'good' | 'potential';
+  rank?: number; // Optional rank indicator (#2, #3, etc.)
   onSave?: () => void;
   onMessage?: () => void;
   isSaved?: boolean;
@@ -34,6 +35,7 @@ export function AthleteDiscoveryCard({
   athlete,
   matchScore,
   matchTier,
+  rank,
   onSave,
   onMessage,
   isSaved = false
@@ -59,20 +61,34 @@ export function AthleteDiscoveryCard({
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const getTierConfig = (tier?: string) => {
-    switch (tier) {
-      case 'excellent':
-        return { bg: 'bg-gradient-to-r from-orange-500 to-amber-500', text: 'text-white', emoji: '🌟' };
-      case 'good':
-        return { bg: 'bg-green-500', text: 'text-white', emoji: '✅' };
-      case 'potential':
-        return { bg: 'bg-amber-500', text: 'text-white', emoji: '💡' };
-      default:
-        return null;
+  const getTierConfig = (tier?: string, score?: number) => {
+    // If tier is explicitly provided, use it
+    if (tier) {
+      switch (tier) {
+        case 'excellent':
+          return { bg: 'bg-gradient-to-r from-orange-500 to-amber-500', text: 'text-white', emoji: '🌟' };
+        case 'good':
+          return { bg: 'bg-green-500', text: 'text-white', emoji: '✅' };
+        case 'potential':
+          return { bg: 'bg-amber-500', text: 'text-white', emoji: '💡' };
+      }
     }
+    // Otherwise, calculate tier from score
+    if (score !== undefined) {
+      if (score >= 90) {
+        return { bg: 'bg-gradient-to-r from-orange-500 to-amber-500', text: 'text-white', emoji: '🌟' };
+      } else if (score >= 80) {
+        return { bg: 'bg-green-500', text: 'text-white', emoji: '✅' };
+      } else if (score >= 60) {
+        return { bg: 'bg-amber-500', text: 'text-white', emoji: '💡' };
+      } else {
+        return { bg: 'bg-gray-500', text: 'text-white', emoji: '' };
+      }
+    }
+    return null;
   };
 
-  const tierConfig = matchTier ? getTierConfig(matchTier) : null;
+  const tierConfig = getTierConfig(matchTier, matchScore);
 
   const handleCardClick = () => {
     const profileIdentifier = athlete.username || athlete.user_id || (athlete as any).user_id;
@@ -131,8 +147,23 @@ export function AthleteDiscoveryCard({
               transition={{ type: 'spring', stiffness: 400, delay: 0.1 }}
             >
               <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full ${tierConfig.bg} ${tierConfig.text} text-sm font-bold shadow-lg backdrop-blur-sm`}>
-                <span>{tierConfig.emoji}</span>
-                <span>{matchScore}%</span>
+                {tierConfig.emoji && <span>{tierConfig.emoji}</span>}
+                <span>{Math.round(matchScore)}%</span>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Rank badge */}
+          {rank !== undefined && rank > 1 && (
+            <motion.div
+              className="absolute top-3 left-3"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 400, delay: 0.1 }}
+              style={{ left: matchScore !== undefined && tierConfig ? '5.5rem' : '0.75rem' }}
+            >
+              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 backdrop-blur-sm text-gray-700 text-xs font-semibold shadow">
+                #{rank}
               </div>
             </motion.div>
           )}

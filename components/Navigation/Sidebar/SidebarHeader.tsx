@@ -27,14 +27,14 @@ export default function SidebarHeader({ onNewChat, onSearchClick }: SidebarHeade
     return (
       <div className="sticky top-0 bg-gray-50 border-b border-gray-200 flex-shrink-0">
         <div className="flex flex-col items-center py-3 space-y-2">
-          {/* Logo Icon */}
-          <Link href="/" title="Go to homepage">
+          {/* Logo Icon - Starts new chat */}
+          <button onClick={onNewChat} title="Start new chat">
             <div className="p-2 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer">
               <div className="w-6 h-6 bg-orange-500 rounded-md flex items-center justify-center">
                 <MessageSquare className="h-4 w-4 text-white" />
               </div>
             </div>
-          </Link>
+          </button>
 
           <button
             onClick={toggleSidebar}
@@ -88,16 +88,16 @@ export default function SidebarHeader({ onNewChat, onSearchClick }: SidebarHeade
   return (
     <div className="sticky top-0 bg-gray-50 border-b border-gray-200 flex-shrink-0">
       <div className="p-3">
-        {/* Logo Section */}
+        {/* Logo Section - Starts new chat */}
         <div className="flex items-center mb-3">
-          <Link href="/" className="flex-1">
+          <button onClick={onNewChat} className="flex-1">
             <div className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
               <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
                 <MessageSquare className="h-5 w-5 text-white" />
               </div>
               <span className="text-lg font-semibold text-gray-900">ChatNIL</span>
             </div>
-          </Link>
+          </button>
           <button
             onClick={toggleSidebar}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"

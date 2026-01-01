@@ -177,6 +177,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       campaigns: campaigns?.map(c => ({
         id: c.id,
+        slug: c.slug,
         name: c.name,
         description: c.description,
         budget: c.budget,

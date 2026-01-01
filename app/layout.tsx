@@ -8,6 +8,8 @@ import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext'
 import { UserPreferencesProvider } from '@/contexts/UserPreferencesContext'
 import { SWRProvider } from '@/components/providers/SWRProvider'
 import NavigationShell from '@/components/Navigation/NavigationShell'
+import { MessageDrawerProvider } from '@/contexts/MessageDrawerContext'
+import { MessageDrawer } from '@/components/messaging/MessageDrawer'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -30,9 +32,12 @@ export default function RootLayout({
               <UserPreferencesProvider>
                 <AnalyticsProvider>
                   <KeyboardShortcutsProvider>
-                    <NavigationShell>
-                      {children}
-                    </NavigationShell>
+                    <MessageDrawerProvider>
+                      <NavigationShell>
+                        {children}
+                      </NavigationShell>
+                      <MessageDrawer />
+                    </MessageDrawerProvider>
                   </KeyboardShortcutsProvider>
                 </AnalyticsProvider>
               </UserPreferencesProvider>

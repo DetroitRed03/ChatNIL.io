@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Edit2, Save, X, Trash2, Users, TrendingUp, DollarSign, Calendar, Target } from 'lucide-react';
+import { ArrowLeft, Edit2, Save, X, Trash2, Users, TrendingUp, DollarSign, Calendar, Target, ChevronRight, Home } from 'lucide-react';
 import Link from 'next/link';
 import { ProtectedRoute } from '@/components/AuthGuard';
 import { Card } from '@/components/ui/Card';
@@ -18,10 +18,13 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/Skeleton';
 import MatchedAthletes from '@/components/campaigns/MatchedAthletes';
 import { CampaignAthletes } from '@/components/campaigns/CampaignAthletes';
+import { CreateDealModal } from '@/components/campaigns/CreateDealModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMessageDrawer } from '@/contexts/MessageDrawerContext';
 
 interface Campaign {
   id: string;
+  slug?: string;
   name: string;
   description: string;
   campaignType?: 'social_media' | 'endorsement' | 'event' | 'product_launch';
@@ -32,6 +35,12 @@ interface Campaign {
   spent: number;
   targetSports: string[];
   createdAt: string;
+}
+
+// Helper to check if a string is a valid UUID
+function isUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
 }
 
 const statusConfig = {
@@ -69,6 +78,7 @@ function CampaignDetailContent() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { openDrawer } = useMessageDrawer();
   const campaignId = params.id as string;
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -77,6 +87,10 @@ function CampaignDetailContent() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editData, setEditData] = useState<Partial<Campaign>>({});
+
+  // Deal modal state
+  const [showDealModal, setShowDealModal] = useState(false);
+  const [selectedAthlete, setSelectedAthlete] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     async function fetchCampaign() {
@@ -87,21 +101,33 @@ function CampaignDetailContent() {
       try {
         setIsLoading(true);
         setError(null);
-        // Fetch campaign from dashboard API and find the matching one
-        const response = await fetch('/api/agency/dashboard', {
+
+        // Use the new GET endpoint that supports both ID and slug
+        const response = await fetch(`/api/agency/campaigns/${campaignId}`, {
           credentials: 'include',
           headers: {
             'X-User-ID': user.id,
           },
         });
-        if (!response.ok) throw new Error('Failed to fetch campaign');
-        const result = await response.json();
 
-        // Find the campaign in the flat campaigns array
-        const foundCampaign = result.campaigns?.find((c: Campaign) => c.id === campaignId);
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error('Campaign not found');
+          }
+          throw new Error('Failed to fetch campaign');
+        }
+
+        const result = await response.json();
+        const foundCampaign = result.campaign;
 
         if (!foundCampaign) {
           throw new Error('Campaign not found');
+        }
+
+        // If currently on UUID URL but campaign has a slug, redirect to slug URL
+        if (isUUID(campaignId) && foundCampaign.slug) {
+          router.replace(`/agency/campaigns/${foundCampaign.slug}`);
+          return;
         }
 
         setCampaign(foundCampaign);
@@ -113,7 +139,7 @@ function CampaignDetailContent() {
       }
     }
     fetchCampaign();
-  }, [campaignId, user?.id]);
+  }, [campaignId, user?.id, router]);
 
   const handleSave = async () => {
     if (!campaign) return;
@@ -145,6 +171,91 @@ function CampaignDetailContent() {
   const handleCancel = () => {
     setEditData(campaign || {});
     setIsEditing(false);
+  };
+
+  // Handle starting a deal with an athlete
+  const handleStartDeal = async (athleteId: string) => {
+    if (!campaign) return;
+
+    // Fetch athlete name for the modal
+    try {
+      const response = await fetch(`/api/agency/dashboard`, {
+        credentials: 'include',
+        headers: user?.id ? { 'X-User-ID': user.id } : {},
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Try to find athlete in invites from this campaign - use campaign.id (UUID)
+        const invitesResponse = await fetch(`/api/agency/campaigns/${campaign.id}/invites`, {
+          credentials: 'include',
+          headers: user?.id ? { 'X-User-ID': user.id } : {},
+        });
+        if (invitesResponse.ok) {
+          const invitesData = await invitesResponse.json();
+          const invite = invitesData.invites?.find((i: any) => i.athlete_id === athleteId);
+          if (invite?.athlete) {
+            setSelectedAthlete({
+              id: athleteId,
+              name: invite.athlete.full_name || `${invite.athlete.first_name || ''} ${invite.athlete.last_name || ''}`.trim() || 'Athlete',
+            });
+            setShowDealModal(true);
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching athlete details:', err);
+    }
+
+    // Fallback if we couldn't get the name
+    setSelectedAthlete({ id: athleteId, name: 'Athlete' });
+    setShowDealModal(true);
+  };
+
+  // Handle sending a message to an athlete - opens the drawer
+  const handleSendMessage = async (athleteId: string) => {
+    if (!user?.id || !campaign) return;
+
+    // Try to get athlete details from invites - use campaign.id (UUID)
+    try {
+      const invitesResponse = await fetch(`/api/agency/campaigns/${campaign.id}/invites`, {
+        credentials: 'include',
+        headers: user?.id ? { 'X-User-ID': user.id } : {},
+      });
+
+      if (invitesResponse.ok) {
+        const invitesData = await invitesResponse.json();
+        const invite = invitesData.invites?.find((i: any) => i.athlete_id === athleteId);
+
+        if (invite?.athlete) {
+          // Use avatar_url with fallbacks to profile_photo
+          const avatarUrl = invite.athlete.avatar_url || invite.athlete.profile_photo || undefined;
+          openDrawer({
+            id: athleteId,
+            name: invite.athlete.full_name || `${invite.athlete.first_name || ''} ${invite.athlete.last_name || ''}`.trim() || 'Athlete',
+            handle: invite.athlete.username,
+            avatar: avatarUrl,
+            meta: [invite.athlete.sport, invite.athlete.school].filter(Boolean).join(' • '),
+            profileUrl: invite.athlete.username ? `/athletes/${invite.athlete.username}` : undefined,
+          });
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching athlete details:', err);
+    }
+
+    // Fallback: open drawer with minimal info
+    openDrawer({
+      id: athleteId,
+      name: 'Athlete',
+    });
+  };
+
+  // Handle deal creation success
+  const handleDealCreated = (deal: any) => {
+    console.log('Deal created:', deal);
+    // Could refresh the page or update UI to show "View Deal" instead of "Start Deal"
   };
 
   if (isLoading) {
@@ -197,14 +308,27 @@ function CampaignDetailContent() {
           transition={{ duration: 0.5 }}
           className="max-w-7xl mx-auto"
         >
-          {/* Back Link */}
-          <Link
-            href="/agency/campaigns"
-            className="inline-flex items-center gap-2 text-white/90 hover:text-white font-semibold text-sm mb-6 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Campaigns
-          </Link>
+          {/* Breadcrumb Navigation */}
+          <nav className="flex items-center gap-2 text-sm mb-6">
+            <Link
+              href="/agency"
+              className="inline-flex items-center gap-1 text-white/70 hover:text-white transition-colors"
+            >
+              <Home className="w-4 h-4" />
+              <span className="font-medium">Dashboard</span>
+            </Link>
+            <ChevronRight className="w-4 h-4 text-white/50" />
+            <Link
+              href="/agency/campaigns"
+              className="text-white/70 hover:text-white font-medium transition-colors"
+            >
+              Campaigns
+            </Link>
+            <ChevronRight className="w-4 h-4 text-white/50" />
+            <span className="text-white font-semibold truncate max-w-[200px]">
+              {campaign.name}
+            </span>
+          </nav>
 
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -396,7 +520,7 @@ function CampaignDetailContent() {
                   <span className="text-sm font-bold text-gray-700 block mb-2">Campaign Type</span>
                   <div className="px-3 py-1.5 bg-orange-50 border border-orange-200/50 rounded-lg inline-block">
                     <span className="text-sm font-bold text-orange-700">
-                      {campaign.campaignType ? campaignTypeLabels[campaign.campaignType] || campaign.campaignType : 'N/A'}
+                      {campaign.campaignType ? campaignTypeLabels[campaign.campaignType] || campaign.campaignType : 'General Campaign'}
                     </span>
                   </div>
                 </div>
@@ -414,15 +538,9 @@ function CampaignDetailContent() {
           className="mt-6"
         >
           <CampaignAthletes
-            campaignId={campaignId}
-            onStartDeal={(athleteId) => {
-              // Navigate to deal creation or open modal
-              console.log('Start deal with athlete:', athleteId);
-            }}
-            onSendMessage={(athleteId) => {
-              // Navigate to messaging or open chat
-              console.log('Send message to athlete:', athleteId);
-            }}
+            campaignId={campaign.id}
+            onStartDeal={handleStartDeal}
+            onSendMessage={handleSendMessage}
           />
         </motion.div>
 
@@ -434,7 +552,7 @@ function CampaignDetailContent() {
           className="mt-6"
         >
           <MatchedAthletes
-            campaignId={campaignId}
+            campaignId={campaign.id}
             campaignBudgetPerAthlete={campaign.budget}
           />
         </motion.div>
@@ -461,6 +579,22 @@ function CampaignDetailContent() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Create Deal Modal */}
+      {selectedAthlete && (
+        <CreateDealModal
+          isOpen={showDealModal}
+          onClose={() => {
+            setShowDealModal(false);
+            setSelectedAthlete(null);
+          }}
+          onSuccess={handleDealCreated}
+          athleteId={selectedAthlete.id}
+          athleteName={selectedAthlete.name}
+          campaignId={campaign.id}
+          campaignName={campaign.name}
+        />
+      )}
     </div>
   );
 }

@@ -29,6 +29,7 @@ interface CampaignInvite {
 
 interface CampaignOpportunity {
   campaign_id: string;
+  agency_id: string;
   campaign_name: string;
   brand_name: string;
   match_score: number;
@@ -101,6 +102,9 @@ function OpportunitiesPageContent() {
 
   // Campaign detail modal state
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignOpportunity | null>(null);
+
+  // Express interest loading state
+  const [expressingInterest, setExpressingInterest] = useState(false);
 
   // Fetch agency matches
   useEffect(() => {
@@ -239,6 +243,56 @@ function OpportunitiesPageContent() {
     if (res.ok) {
       const data = await res.json();
       setAgencyMatches(data.opportunities || []);
+    }
+  };
+
+  // Handle expressing interest in a campaign opportunity
+  const handleExpressInterest = async (campaign: CampaignOpportunity) => {
+    if (!user?.id) return;
+
+    try {
+      setExpressingInterest(true);
+
+      const response = await fetch(`/api/campaigns/${campaign.campaign_id}/express-interest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': user.id,
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Show success message
+        setSuccessMessage(data.message || `You've expressed interest in ${campaign.campaign_name}!`);
+
+        // Close the modal
+        setSelectedCampaign(null);
+
+        // Auto-hide success message after 4 seconds
+        setTimeout(() => setSuccessMessage(null), 4000);
+
+        // Refresh agency matches to show the new interest
+        const statusParam = agencyFilterStatus !== 'all' ? `?status=${agencyFilterStatus}` : '';
+        const matchesRes = await fetch(`/api/matches/athlete${statusParam}`, {
+          headers: { 'X-User-ID': user.id },
+          credentials: 'include',
+        });
+        if (matchesRes.ok) {
+          const matchesData = await matchesRes.json();
+          setAgencyMatches(matchesData.opportunities || []);
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || 'Failed to express interest. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error expressing interest:', err);
+      alert('Failed to express interest. Please try again.');
+    } finally {
+      setExpressingInterest(false);
     }
   };
 
@@ -820,13 +874,12 @@ function OpportunitiesPageContent() {
                   </button>
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => {
-                        // TODO: Implement express interest functionality
-                        alert('Express Interest feature coming soon! This will notify the brand of your interest.');
-                      }}
-                      className="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl font-medium hover:from-orange-600 hover:to-amber-700 transition-all shadow-md"
+                      onClick={() => selectedCampaign && handleExpressInterest(selectedCampaign)}
+                      disabled={expressingInterest}
+                      className="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl font-medium hover:from-orange-600 hover:to-amber-700 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                      Express Interest
+                      {expressingInterest && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {expressingInterest ? 'Expressing Interest...' : 'Express Interest'}
                     </button>
                   </div>
                 </div>

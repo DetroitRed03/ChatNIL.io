@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMessageDrawer } from '@/contexts/MessageDrawerContext';
 import {
   ArrowLeft,
   Bookmark,
@@ -63,6 +64,7 @@ export default function AgencyAthleteDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { user } = useAuth();
+  const { openDrawer } = useMessageDrawer();
   const athleteId = params?.id as string;
 
   const [athlete, setAthlete] = useState<AthleteProfile | null>(null);
@@ -196,30 +198,17 @@ export default function AgencyAthleteDetailPage() {
     }
   }
 
-  async function handleMessage() {
-    if (!athleteId) return;
+  function handleMessage() {
+    if (!athleteId || !athlete) return;
 
-    try {
-      // Create a thread with a welcome message
-      const res = await fetch('/api/agency/messages/threads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          athlete_user_id: athleteId,
-          message_text: "Hi! I'd like to discuss a potential partnership opportunity with you."
-        })
-      });
-
-      if (res.ok) {
-        // Navigate to messages page
-        router.push('/agency/messages');
-      } else {
-        alert('❌ Failed to start conversation');
-      }
-    } catch (error) {
-      console.error('Error starting conversation:', error);
-      alert('❌ Failed to start conversation');
-    }
+    openDrawer({
+      id: athleteId,
+      name: athlete.display_name,
+      handle: athlete.username,
+      avatar: athlete.profile_photo_url,
+      meta: [athlete.sport, athlete.school_name].filter(Boolean).join(' • '),
+      profileUrl: athlete.username ? `/athletes/${athlete.username}` : `/athletes/${athleteId}`,
+    });
   }
 
   async function handleSaveNotes() {

@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface Campaign {
   id: string;
+  slug?: string;
   name: string;
   description: string;
   campaignType?: 'social_media' | 'endorsement' | 'event' | 'product_launch';
@@ -383,7 +384,7 @@ function CampaignsContent() {
                       {/* Actions */}
                       <div className="flex gap-3">
                         <Link
-                          href={`/agency/campaigns/${campaign.id}`}
+                          href={`/agency/campaigns/${campaign.slug || campaign.id}`}
                           className="flex-1 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold rounded-xl text-sm text-center transition-all shadow-md shadow-orange-200/50"
                         >
                           View Details

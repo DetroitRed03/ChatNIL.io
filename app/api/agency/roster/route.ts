@@ -7,8 +7,10 @@ export const dynamic = 'force-dynamic';
 /**
  * Agency Roster API
  *
+ * Uses simple schema: agency_athlete_lists table with direct agency_id -> athlete_id mapping
+ *
  * GET /api/agency/roster - Returns full list of saved athletes
- * POST /api/agency/roster - Add athlete to roster
+ * POST /api/agency/roster - Add/toggle athlete in roster (saves if not saved, unsaves if saved)
  * DELETE /api/agency/roster - Remove athlete from roster
  *
  * GET Query params:
@@ -18,8 +20,8 @@ export const dynamic = 'force-dynamic';
  * - sortOrder: asc or desc
  *
  * POST Body:
- * - athleteId: UUID of athlete to add
- * - listName: (optional) Name of list, defaults to "Saved Athletes"
+ * - athleteId: UUID of athlete to add/toggle
+ * - notes: (optional) Notes about the athlete
  *
  * DELETE Query params:
  * - athleteId: UUID of athlete to remove
@@ -252,12 +254,14 @@ export async function GET(request: Request) {
  * POST /api/agency/roster
  * Add or toggle (unsave) an athlete from the agency's roster
  * Toggle behavior: If athlete already saved, unsave them; otherwise save them
+ *
+ * Uses simple schema: agency_athlete_lists table with agency_id and athlete_id columns
  */
 export async function POST(request: Request) {
   try {
     const supabase = createServiceRoleClient();
     const body = await request.json();
-    const { athleteId, listName = 'Saved Athletes' } = body;
+    const { athleteId, notes } = body;
 
     if (!athleteId) {
       return NextResponse.json(
@@ -307,66 +311,21 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get the athlete_public_profiles record ID (not user_id)
-    const { data: athleteProfile, error: profileError } = await supabase
-      .from('athlete_public_profiles')
-      .select('id')
-      .eq('user_id', athleteId)
-      .single();
-
-    if (profileError || !athleteProfile) {
-      console.error('Error finding athlete profile:', profileError);
-      return NextResponse.json(
-        { error: 'Athlete profile not found' },
-        { status: 404 }
-      );
-    }
-
-    // Find or create the default list for this agency
-    let { data: list, error: listError } = await supabase
+    // Check if athlete is already saved - toggle behavior
+    // Simple schema: agency_athlete_lists has agency_id and athlete_id directly
+    const { data: existingEntry } = await supabase
       .from('agency_athlete_lists')
       .select('id')
-      .eq('agency_user_id', agencyId)
-      .eq('list_name', listName)
+      .eq('agency_id', agencyId)
+      .eq('athlete_id', athleteId)
       .single();
 
-    if (listError || !list) {
-      // Create the list if it doesn't exist
-      const { data: newList, error: createError } = await supabase
-        .from('agency_athlete_lists')
-        .insert({
-          agency_user_id: agencyId,
-          list_name: listName,
-          description: 'Saved athletes from discovery'
-        })
-        .select('id')
-        .single();
-
-      if (createError || !newList) {
-        console.error('Error creating list:', createError);
-        return NextResponse.json(
-          { error: 'Failed to create athlete list' },
-          { status: 500 }
-        );
-      }
-
-      list = newList;
-    }
-
-    // Check if athlete is already saved - toggle behavior
-    const { data: existingItem, error: checkError } = await supabase
-      .from('agency_athlete_list_items')
-      .select('id')
-      .eq('list_id', list.id)
-      .eq('athlete_profile_id', athleteProfile.id)
-      .single();
-
-    if (existingItem) {
+    if (existingEntry) {
       // Athlete is already saved - UNSAVE them (toggle off)
       const { error: deleteError } = await supabase
-        .from('agency_athlete_list_items')
+        .from('agency_athlete_lists')
         .delete()
-        .eq('id', existingItem.id);
+        .eq('id', existingEntry.id);
 
       if (deleteError) {
         console.error('Error removing athlete from list:', deleteError);
@@ -385,18 +344,18 @@ export async function POST(request: Request) {
     }
 
     // Athlete not saved - SAVE them (toggle on)
-    const { data: listItem, error: itemError } = await supabase
-      .from('agency_athlete_list_items')
+    const { data: newEntry, error: insertError } = await supabase
+      .from('agency_athlete_lists')
       .insert({
-        list_id: list.id,
-        athlete_profile_id: athleteProfile.id,
-        tags: ['saved']
+        agency_id: agencyId,
+        athlete_id: athleteId,
+        notes: notes || null
       })
       .select()
       .single();
 
-    if (itemError) {
-      console.error('Error adding athlete to list:', itemError);
+    if (insertError) {
+      console.error('Error adding athlete to list:', insertError);
       return NextResponse.json(
         { error: 'Failed to save athlete' },
         { status: 500 }
@@ -408,7 +367,7 @@ export async function POST(request: Request) {
       action: 'saved',
       message: 'Athlete saved to roster',
       isSaved: true,
-      data: listItem
+      data: newEntry
     });
 
   } catch (error) {
@@ -426,11 +385,12 @@ export async function POST(request: Request) {
 /**
  * DELETE /api/agency/roster
  * Remove an athlete from the agency's roster
+ *
+ * Uses simple schema: agency_athlete_lists table with agency_id and athlete_id columns
  */
 export async function DELETE(request: Request) {
   try {
     const supabase = createServiceRoleClient();
-    const authClient = await createClient();
     const { searchParams } = new URL(request.url);
     const athleteId = searchParams.get('athleteId');
 
@@ -441,54 +401,56 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Get the authenticated user's ID
-    const { data: { user } } = await authClient.auth.getUser();
-    if (!user) {
+    // Try multiple auth methods for compatibility
+    let agencyId: string | null = null;
+
+    // Method 1: Try cookie-based auth (SSR client)
+    try {
+      const authClient = await createClient();
+      const { data: { user }, error } = await authClient.auth.getUser();
+      if (user && !error) {
+        agencyId = user.id;
+      }
+    } catch (e) {
+      console.log('Cookie auth failed, trying fallback...');
+    }
+
+    // Method 2: Check for X-User-ID header (sent by frontend)
+    if (!agencyId) {
+      const userIdHeader = request.headers.get('X-User-ID');
+      if (userIdHeader) {
+        agencyId = userIdHeader;
+      }
+    }
+
+    // Method 3: Check for Authorization header with Bearer token
+    if (!agencyId) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const { data: { user } } = await supabase.auth.getUser(token);
+        if (user) {
+          agencyId = user.id;
+        }
+      }
+    }
+
+    if (!agencyId) {
       return NextResponse.json(
         { error: 'Unauthorized - please log in' },
         { status: 401 }
       );
     }
-    const agencyId = user.id;
 
-    // Get the agency's lists
-    const { data: lists, error: listsError } = await supabase
-      .from('agency_athlete_lists')
-      .select('id')
-      .eq('agency_user_id', agencyId);
-
-    if (listsError || !lists || lists.length === 0) {
-      return NextResponse.json(
-        { error: 'No athlete lists found' },
-        { status: 404 }
-      );
-    }
-
-    const listIds = lists.map(l => l.id);
-
-    // Get the athlete_public_profiles record ID
-    const { data: athleteProfile, error: profileError } = await supabase
-      .from('athlete_public_profiles')
-      .select('id')
-      .eq('user_id', athleteId)
-      .single();
-
-    if (profileError || !athleteProfile) {
-      return NextResponse.json(
-        { error: 'Athlete profile not found' },
-        { status: 404 }
-      );
-    }
-
-    // Remove athlete from all of the agency's lists
+    // Simple schema: delete directly from agency_athlete_lists by agency_id and athlete_id
     const { error: deleteError, count } = await supabase
-      .from('agency_athlete_list_items')
+      .from('agency_athlete_lists')
       .delete()
-      .in('list_id', listIds)
-      .eq('athlete_profile_id', athleteProfile.id);
+      .eq('agency_id', agencyId)
+      .eq('athlete_id', athleteId);
 
     if (deleteError) {
-      console.error('Error removing athlete from lists:', deleteError);
+      console.error('Error removing athlete from roster:', deleteError);
       return NextResponse.json(
         { error: 'Failed to remove athlete' },
         { status: 500 }

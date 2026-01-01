@@ -134,7 +134,7 @@ export async function GET(
       // Query users table with service role client
       const { data: athleteData, error: athleteError } = await supabase
         .from('users')
-        .select('id, first_name, last_name, username, email, profile_photo')
+        .select('id, first_name, last_name, full_name, username, email, profile_photo, avatar_url')
         .in('id', athleteIds);
 
       if (athleteError) {
@@ -172,11 +172,14 @@ export async function GET(
           id: athlete.id,
           first_name: athlete.first_name,
           last_name: athlete.last_name,
-          full_name: `${athlete.first_name || ''} ${athlete.last_name || ''}`.trim() || 'Unknown Athlete',
+          full_name: athlete.full_name || `${athlete.first_name || ''} ${athlete.last_name || ''}`.trim() || 'Unknown Athlete',
           username: athlete.username,
           email: athlete.email,
-          avatar_url: athlete.profile_photo, // Map profile_photo to avatar_url for frontend
+          avatar_url: athlete.avatar_url || athlete.profile_photo || null, // Use avatar_url with fallback to profile_photo
+          profile_photo: athlete.profile_photo,
+          sport: athlete.primary_sport,
           primary_sport: athlete.primary_sport,
+          school: athlete.school_name,
           school_name: athlete.school_name,
           total_followers: athlete.total_followers
         } : null

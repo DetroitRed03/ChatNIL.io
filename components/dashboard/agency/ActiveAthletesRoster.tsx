@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMessageDrawer } from '@/contexts/MessageDrawerContext';
 
 interface Athlete {
   id: string;
@@ -97,10 +98,10 @@ function formatFollowers(count: number): string {
 export function ActiveAthletesRoster() {
   const router = useRouter();
   const { user } = useAuth();
+  const { openDrawer } = useMessageDrawer();
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [messageLoading, setMessageLoading] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchDashboard() {
@@ -152,25 +153,17 @@ export function ActiveAthletesRoster() {
     router.push(`/athletes/${profileIdentifier}`);
   };
 
-  // Handle message button - create thread and navigate to messages
-  const handleMessage = async (athleteId: string, e: React.MouseEvent) => {
+  // Handle message button - open message drawer
+  const handleMessage = (athlete: Athlete, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent row click
-    setMessageLoading(athleteId);
-    try {
-      await fetch('/api/agency/messages/threads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          athlete_user_id: athleteId,
-          message_text: "Hi! I'd like to discuss a potential partnership opportunity with you."
-        })
-      });
-      router.push('/agency/messages');
-    } catch (error) {
-      console.error('Error creating message thread:', error);
-    } finally {
-      setMessageLoading(null);
-    }
+    openDrawer({
+      id: athlete.id,
+      name: athlete.name,
+      handle: athlete.username,
+      avatar: athlete.avatar,
+      meta: [athlete.sport, athlete.school].filter(Boolean).join(' • '),
+      profileUrl: athlete.username ? `/athletes/${athlete.username}` : `/athletes/${athlete.id}`,
+    });
   };
 
   // Handle view profile button using username (preferred) or id fallback
@@ -347,12 +340,11 @@ export function ActiveAthletesRoster() {
                     <td className="py-4 px-2">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={(e) => handleMessage(athlete.id, e)}
-                          disabled={messageLoading === athlete.id}
-                          className="p-2 hover:bg-orange-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                          onClick={(e) => handleMessage(athlete, e)}
+                          className="p-2 hover:bg-orange-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                           title="Message"
                         >
-                          <MessageSquare className={cn("w-4 h-4 text-orange-600", messageLoading === athlete.id && "animate-pulse")} />
+                          <MessageSquare className="w-4 h-4 text-orange-600" />
                         </button>
                         <button
                           onClick={(e) => handleViewProfile(athlete, e)}

@@ -17,9 +17,12 @@ interface TraitRadarProps {
 }
 
 export function TraitRadar({ data, size = 300, className }: TraitRadarProps) {
+  const padding = 60; // Padding for labels
   const center = size / 2;
-  const maxRadius = (size / 2) - 40; // Leave room for labels
+  const maxRadius = (size / 2) - 30; // Radar chart radius
   const angleStep = (2 * Math.PI) / data.length;
+  const containerWidth = size + padding * 2;
+  const containerHeight = size + padding * 2;
 
   // Generate polygon points for the data
   const generatePolygonPoints = (values: number[]): string => {
@@ -45,24 +48,28 @@ export function TraitRadar({ data, size = 300, className }: TraitRadarProps) {
     return { x1: center, y1: center, x2, y2 };
   });
 
-  // Generate labels positions
+  // Generate labels positions (relative to container with padding)
   const labelPositions = data.map((item, index) => {
     const angle = index * angleStep - Math.PI / 2;
-    const labelRadius = maxRadius + 25;
-    const x = center + labelRadius * Math.cos(angle);
-    const y = center + labelRadius * Math.sin(angle);
+    const labelRadius = maxRadius + 20;
+    const x = padding + center + labelRadius * Math.cos(angle);
+    const y = padding + center + labelRadius * Math.sin(angle);
     return { x, y, name: item.traitName, score: item.score };
   });
 
   const dataPoints = generatePolygonPoints(data.map((d) => d.score));
 
   return (
-    <div className={cn('relative', className)}>
+    <div
+      className={cn('relative overflow-hidden', className)}
+      style={{ width: containerWidth, height: containerHeight, maxWidth: '100%' }}
+    >
       <svg
         width={size}
         height={size}
         viewBox={`0 0 ${size} ${size}`}
-        className="mx-auto"
+        className="absolute"
+        style={{ left: padding, top: padding }}
       >
         {/* Background grid circles */}
         {gridCircles.map((value) => {
@@ -144,15 +151,16 @@ export function TraitRadar({ data, size = 300, className }: TraitRadarProps) {
 
       {/* Labels outside SVG for better text rendering */}
       {labelPositions.map((pos, index) => {
-        const isLeft = pos.x < center;
-        const isTop = pos.y < center;
+        const containerCenter = padding + center;
+        const isLeft = pos.x < containerCenter;
+        const isTop = pos.y < containerCenter;
 
         return (
           <div
             key={data[index].trait}
             className={cn(
               'absolute transform text-xs font-medium',
-              isLeft ? '-translate-x-full pr-2' : 'pl-2',
+              isLeft ? '-translate-x-full pr-1' : 'pl-1',
               isTop ? '-translate-y-full' : ''
             )}
             style={{
@@ -161,11 +169,11 @@ export function TraitRadar({ data, size = 300, className }: TraitRadarProps) {
             }}
           >
             <div className="flex flex-col items-center">
-              <span className="text-text-primary whitespace-nowrap">
+              <span className="text-text-primary whitespace-nowrap text-[11px]">
                 {pos.name}
               </span>
               <span
-                className="text-[10px] font-semibold px-1.5 rounded-full"
+                className="text-[9px] font-semibold px-1 rounded-full"
                 style={{
                   backgroundColor: `${data[index].colorHex || '#6366F1'}20`,
                   color: data[index].colorHex || '#6366F1',

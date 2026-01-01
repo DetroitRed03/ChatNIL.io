@@ -3,27 +3,56 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AthletePublicProfile, AthleteDiscoveryFilters } from '@/types';
+import { motion } from 'framer-motion';
+import { AthletePublicProfile, AthleteDiscoveryFilters, AgencyAthleteMatch } from '@/types';
+import { useMessagingStore, setMessagingUserRole, setMessagingUserId } from '@/lib/stores/messaging';
+import { useMessageDrawer } from '@/contexts/MessageDrawerContext';
 import { DiscoveryStats } from '@/components/agency/DiscoveryStats';
-import { FeaturedAthleteHero } from '@/components/agency/FeaturedAthleteHero';
-import { DiscoverFilters } from '@/components/agency/DiscoverFilters';
-import { AthleteDiscoveryCard } from '@/components/agency/AthleteDiscoveryCard';
-import { ArrowUpDown, Loader2, Sparkles, Grid, LayoutGrid, ChevronRight } from 'lucide-react';
+import { DiscoverSidebar } from '@/components/agency/DiscoverSidebar';
+import { DiscoverResults } from '@/components/agency/DiscoverResults';
+import { MobileFilterDrawer } from '@/components/agency/MobileFilterDrawer';
+import { Loader2 } from 'lucide-react';
+
+// Enriched athlete type with match score
+interface EnrichedAthlete extends AthletePublicProfile {
+  match_score?: number;
+  match_tier?: 'excellent' | 'good' | 'potential';
+  match_reasons?: string[];
+  // Additional fields from API enrichment
+  avatar_url?: string;
+  profile_photo?: string;
+  full_name?: string;
+}
 
 export default function DiscoverPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const { fetchThreads } = useMessagingStore();
+  const { openDrawer } = useMessageDrawer();
 
-  const [athletes, setAthletes] = useState<AthletePublicProfile[]>([]);
+  const [athletes, setAthletes] = useState<EnrichedAthlete[]>([]);
   const [filters, setFilters] = useState<AthleteDiscoveryFilters>({});
-  const [sortBy, setSortBy] = useState<'followers' | 'engagement' | 'fmv'>('followers');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [savedAthletes, setSavedAthletes] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [messagingAthleteId, setMessagingAthleteId] = useState<string | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  // Calculate active filter count for mobile badge
+  const activeFilterCount = [
+    filters.sports?.length,
+    filters.states?.length,
+    filters.school_levels?.length,
+    filters.content_categories?.length,
+    filters.min_followers ? 1 : 0,
+    filters.max_followers ? 1 : 0,
+    filters.min_fmv ? 1 : 0,
+    filters.max_fmv ? 1 : 0,
+    filters.min_engagement ? 1 : 0,
+    filters.available_only ? 1 : 0,
+  ].reduce((sum: number, count) => sum + (count || 0), 0);
 
   // Redirect if not an agency
   useEffect(() => {
@@ -34,7 +63,7 @@ export default function DiscoverPage() {
 
   useEffect(() => {
     if (user?.role === 'agency') {
-      fetchAthletes(true);
+      fetchAthletesWithMatches(true);
       fetchSavedAthletes();
     }
   }, [user]);
@@ -61,62 +90,182 @@ export default function DiscoverPage() {
     }
   }
 
-  async function fetchAthletes(reset = false) {
+  // Fetch athletes with match scores from the unified matches endpoint
+  async function fetchAthletesWithMatches(reset = false) {
+    if (reset) {
+      setInitialLoading(true);
+    }
     setLoading(true);
+
     try {
+      // First, try to fetch matches with scores
+      const matchesRes = await fetch(`/api/matches?limit=50&userId=${user?.id}`);
+      const matchesData = await matchesRes.json();
+
+      let enrichedAthletes: EnrichedAthlete[] = [];
+
+      if (matchesData.matches && matchesData.matches.length > 0) {
+        // We have AI-generated matches with scores
+        enrichedAthletes = matchesData.matches.map((match: AgencyAthleteMatch & { athlete: any }) => ({
+          ...match.athlete,
+          user_id: match.athlete.id || match.athlete_id,
+          display_name: match.athlete.display_name || match.athlete.name || `${match.athlete.first_name || ''} ${match.athlete.last_name || ''}`.trim(),
+          sport: match.athlete.primary_sport || match.athlete.sport,
+          school_name: match.athlete.school_name || match.athlete.school,
+          match_score: match.match_score,
+          match_tier: match.match_score >= 90 ? 'excellent' : match.match_score >= 80 ? 'good' : 'potential',
+          match_reasons: match.match_reasons || (match.match_reason ? [match.match_reason] : undefined),
+        }));
+      }
+
+      // Also fetch from discover endpoint to fill in more athletes
       const currentPage = reset ? 1 : page;
       const queryParams = new URLSearchParams();
 
       if (filters.search) queryParams.set('search', filters.search);
-
-      // Array filters - use bracket notation for backend compatibility
       filters.sports?.forEach(s => queryParams.append('sports[]', s));
       filters.states?.forEach(s => queryParams.append('states[]', s));
       filters.school_levels?.forEach(s => queryParams.append('school_levels[]', s));
       filters.content_categories?.forEach(c => queryParams.append('content_categories[]', c));
-
-      // Numeric filters
       if (filters.min_followers) queryParams.set('min_followers', filters.min_followers.toString());
       if (filters.max_followers) queryParams.set('max_followers', filters.max_followers.toString());
       if (filters.min_fmv) queryParams.set('min_fmv', filters.min_fmv.toString());
       if (filters.max_fmv) queryParams.set('max_fmv', filters.max_fmv.toString());
       if (filters.min_engagement) queryParams.set('min_engagement', filters.min_engagement.toString());
       if (filters.available_only) queryParams.set('available_only', 'true');
-
-      // Sort - combine into single parameter for backend compatibility
-      const sortParam = `${sortBy}_${sortOrder}`;
-      queryParams.set('sort', sortParam);
+      queryParams.set('sort', 'followers_desc');
       queryParams.set('page', currentPage.toString());
-      queryParams.set('limit', '12');
+      queryParams.set('limit', '24');
 
-      const res = await fetch(`/api/agency/athletes/discover?${queryParams}`);
-      const response = await res.json();
+      const discoverRes = await fetch(`/api/agency/athletes/discover?${queryParams}`);
+      const discoverResponse = await discoverRes.json();
+      const discoverData = discoverResponse.success ? discoverResponse.data : discoverResponse;
+      const discoverAthletes = discoverData.athletes || [];
 
-      // Handle the nested response structure
-      const data = response.success ? response.data : response;
-      const athletesList = data.athletes || [];
+      // Merge discovered athletes with matches (avoid duplicates)
+      const matchedIds = new Set(enrichedAthletes.map(a => a.user_id));
+      const additionalAthletes: EnrichedAthlete[] = discoverAthletes
+        .filter((a: any) => !matchedIds.has(a.user_id || a.id))
+        .map((a: any) => ({
+          ...a,
+          user_id: a.user_id || a.id,
+          display_name: a.display_name || a.full_name || `${a.first_name || ''} ${a.last_name || ''}`.trim(),
+          // Calculate a default match score based on available metrics
+          match_score: calculateDefaultScore(a),
+          match_tier: undefined,
+        }));
+
+      // Combine and sort by match score
+      const allAthletes = [...enrichedAthletes, ...additionalAthletes];
+      allAthletes.sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
+
+      // Apply filters to the combined list
+      const filteredAthletes = applyLocalFilters(allAthletes, filters);
 
       if (reset) {
-        setAthletes(athletesList);
+        setAthletes(filteredAthletes);
         setPage(1);
       } else {
-        setAthletes([...athletes, ...athletesList]);
+        setAthletes([...athletes, ...filteredAthletes]);
       }
 
       // Check if there are more pages
-      const hasMore = data.pagination
-        ? data.pagination.hasNextPage
-        : (data.has_more || false);
-      setHasMore(hasMore);
+      const hasMorePages = discoverData.pagination
+        ? discoverData.pagination.hasNextPage
+        : (discoverData.has_more || false);
+      setHasMore(hasMorePages);
+
     } catch (error) {
       console.error('Error fetching athletes:', error);
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }
 
+  // Calculate a default match score for athletes without AI-generated scores
+  function calculateDefaultScore(athlete: any): number {
+    let score = 50; // Base score
+
+    // Boost for engagement rate
+    const engagement = athlete.avg_engagement_rate || athlete.engagement_rate || 0;
+    if (engagement >= 8) score += 20;
+    else if (engagement >= 5) score += 15;
+    else if (engagement >= 3) score += 10;
+
+    // Boost for followers
+    const followers = (athlete.instagram_followers || 0) + (athlete.tiktok_followers || 0);
+    if (followers >= 100000) score += 15;
+    else if (followers >= 50000) score += 10;
+    else if (followers >= 10000) score += 5;
+
+    // Boost for availability
+    if (athlete.is_available_for_partnerships) score += 10;
+
+    // Cap at 100
+    return Math.min(score, 100);
+  }
+
+  // Apply local filters to athlete list
+  function applyLocalFilters(athleteList: EnrichedAthlete[], currentFilters: AthleteDiscoveryFilters): EnrichedAthlete[] {
+    return athleteList.filter(athlete => {
+      // Search filter
+      if (currentFilters.search) {
+        const searchLower = currentFilters.search.toLowerCase();
+        const name = (athlete.display_name || '').toLowerCase();
+        const sport = (athlete.sport || '').toLowerCase();
+        const school = (athlete.school_name || '').toLowerCase();
+        if (!name.includes(searchLower) && !sport.includes(searchLower) && !school.includes(searchLower)) {
+          return false;
+        }
+      }
+
+      // Sport filter
+      if (currentFilters.sports && currentFilters.sports.length > 0) {
+        if (!currentFilters.sports.includes(athlete.sport || '')) {
+          return false;
+        }
+      }
+
+      // Followers filter
+      const totalFollowers = (athlete.instagram_followers || 0) + (athlete.tiktok_followers || 0) + (athlete.twitter_followers || 0);
+      if (currentFilters.min_followers && totalFollowers < currentFilters.min_followers) {
+        return false;
+      }
+      if (currentFilters.max_followers && totalFollowers > currentFilters.max_followers) {
+        return false;
+      }
+
+      // Engagement filter
+      const engagementRate = athlete.avg_engagement_rate || 0;
+      if (currentFilters.min_engagement && engagementRate < currentFilters.min_engagement) {
+        return false;
+      }
+
+      // FMV filter
+      const fmv = (athlete as any).fmv_score || athlete.estimated_fmv_min || 0;
+      if (currentFilters.min_fmv && fmv < currentFilters.min_fmv) {
+        return false;
+      }
+      if (currentFilters.max_fmv && fmv > currentFilters.max_fmv) {
+        return false;
+      }
+
+      // Availability filter
+      if (currentFilters.available_only && !athlete.is_available_for_partnerships) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
   const handleSearch = () => {
-    fetchAthletes(true);
+    fetchAthletesWithMatches(true);
+  };
+
+  const handleRefresh = () => {
+    fetchAthletesWithMatches(true);
   };
 
   const handleLoadMore = () => {
@@ -126,8 +275,19 @@ export default function DiscoverPage() {
   const handleSaveAthlete = async (athleteId: string) => {
     if (!user) return;
 
-    // Optimistic update
-    setSavedAthletes(prev => new Set(prev).add(athleteId));
+    // Check current state to determine if we're saving or unsaving
+    const isCurrentlySaved = savedAthletes.has(athleteId);
+
+    // Optimistic update - toggle the state
+    setSavedAthletes(prev => {
+      const newSet = new Set(prev);
+      if (isCurrentlySaved) {
+        newSet.delete(athleteId);
+      } else {
+        newSet.add(athleteId);
+      }
+      return newSet;
+    });
 
     try {
       const res = await fetch('/api/agency/roster', {
@@ -142,304 +302,195 @@ export default function DiscoverPage() {
 
       const data = await res.json();
 
-      if (res.ok) {
-        // Success feedback - subtle toast instead of alert
-      } else {
+      if (!res.ok) {
         // Revert optimistic update on error
         setSavedAthletes(prev => {
           const newSet = new Set(prev);
-          newSet.delete(athleteId);
+          if (isCurrentlySaved) {
+            newSet.add(athleteId); // Re-add if we were trying to unsave
+          } else {
+            newSet.delete(athleteId); // Remove if we were trying to save
+          }
           return newSet;
         });
-
-        // Handle specific error cases
-        if (res.status === 409) {
-          // Already saved - re-add
-          setSavedAthletes(prev => new Set(prev).add(athleteId));
-        }
+      } else {
+        // Sync with server response to ensure consistency
+        setSavedAthletes(prev => {
+          const newSet = new Set(prev);
+          if (data.isSaved) {
+            newSet.add(athleteId);
+          } else {
+            newSet.delete(athleteId);
+          }
+          return newSet;
+        });
       }
     } catch (error) {
-      console.error('Error saving athlete:', error);
-      // Revert optimistic update
+      console.error('Error toggling athlete save:', error);
+      // Revert optimistic update on error
       setSavedAthletes(prev => {
         const newSet = new Set(prev);
-        newSet.delete(athleteId);
+        if (isCurrentlySaved) {
+          newSet.add(athleteId);
+        } else {
+          newSet.delete(athleteId);
+        }
         return newSet;
       });
     }
   };
 
-  const handleMessageAthlete = async (athleteId: string) => {
-    try {
-      // Create a thread with a welcome message
-      const res = await fetch('/api/agency/messages/threads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          athlete_user_id: athleteId,
-          message_text: "Hi! I'd like to discuss a potential partnership opportunity with you."
-        })
+  const handleMessageAthlete = (athleteId: string) => {
+    if (!user?.id) {
+      console.error('User not authenticated');
+      return;
+    }
+
+    // Find the athlete in our loaded data to get their details
+    const athlete = athletes.find(a => a.user_id === athleteId);
+
+    if (athlete) {
+      // Open the message drawer with athlete info
+      // Use avatar_url with fallbacks to profile_photo and profile_image_url
+      const avatarUrl = athlete.avatar_url || athlete.profile_photo || (athlete as Record<string, unknown>).profile_image_url as string || undefined;
+      openDrawer({
+        id: athleteId,
+        name: athlete.full_name || athlete.display_name || 'Athlete',
+        handle: athlete.username,
+        avatar: avatarUrl,
+        meta: [athlete.sport, athlete.school_name].filter(Boolean).join(' • '),
+        profileUrl: athlete.username ? `/athletes/${athlete.username}` : undefined,
       });
-
-      if (res.ok) {
-        // Navigate to messages page
-        router.push('/agency/messages');
-      }
-    } catch (error) {
-      console.error('Error starting conversation:', error);
-    }
-  };
-
-  const handleSortChange = (newSortBy: typeof sortBy) => {
-    if (newSortBy === sortBy) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortBy(newSortBy);
-      setSortOrder('desc');
+      // Fallback: open drawer with minimal info
+      openDrawer({
+        id: athleteId,
+        name: 'Athlete',
+      });
     }
   };
 
+  // Load more when page changes
   useEffect(() => {
     if (page > 1 && user?.role === 'agency') {
-      fetchAthletes(false);
+      fetchAthletesWithMatches(false);
     }
   }, [page]);
-
-  useEffect(() => {
-    if (user?.role === 'agency') {
-      fetchAthletes(true);
-    }
-  }, [sortBy, sortOrder]);
 
   if (user?.role !== 'agency') {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-warm-50 via-white to-warm-50">
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Page Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Discover Athletes</h1>
-          <p className="text-gray-500">Find and connect with high-performing athletes for your campaigns</p>
-        </motion.div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile Filter Drawer */}
+      <MobileFilterDrawer
+        isOpen={mobileFiltersOpen}
+        onClose={() => setMobileFiltersOpen(false)}
+        filters={filters}
+        onFiltersChange={setFilters}
+        onSearch={handleSearch}
+      />
 
-        {/* Section 1: Smart Stats Bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <DiscoveryStats />
-        </motion.div>
+      <div className="max-w-[1600px] mx-auto">
+        {/* Page Header - Full Width */}
+        <div className="px-6 py-6 bg-white border-b border-gray-200">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <h1 className="text-2xl font-bold text-gray-900">Discover Athletes</h1>
+            <p className="text-gray-500 mt-1">Find and connect with high-performing athletes for your campaigns</p>
+          </motion.div>
+        </div>
 
-        {/* Section 2: Featured AI Match - HERO */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <FeaturedAthleteHero
-            onSaveAthlete={handleSaveAthlete}
-            onMessageAthlete={handleMessageAthlete}
-          />
-        </motion.div>
+        {/* Stats Row - Full Width */}
+        <div className="px-6 py-4 bg-white border-b border-gray-100">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <DiscoveryStats />
+          </motion.div>
+        </div>
 
-        {/* Section 3: More Matches Grid + Section 4: Filters */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="grid grid-cols-1 lg:grid-cols-4 gap-6"
-        >
-          {/* Filters Sidebar */}
-          <div className="lg:col-span-1 order-2 lg:order-1">
-            <div className="sticky top-6">
-              <DiscoverFilters
-                filters={filters}
-                onFiltersChange={setFilters}
-                onSearch={handleSearch}
-              />
-            </div>
-          </div>
+        {/* Main Content - Sidebar + Results */}
+        <div className="flex">
+          {/* Left Sidebar - Filters (Hidden on mobile) */}
+          <motion.aside
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            className="hidden lg:block w-[280px] xl:w-[300px] flex-shrink-0 border-r border-gray-200 bg-white h-[calc(100vh-200px)] sticky top-0 overflow-y-auto"
+          >
+            <DiscoverSidebar
+              filters={filters}
+              onFiltersChange={setFilters}
+              onSearch={handleSearch}
+            />
+          </motion.aside>
 
-          {/* Results Grid */}
-          <div className="lg:col-span-3 order-1 lg:order-2">
-            {/* Section Header with Sort Controls */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 bg-white/70 backdrop-blur-sm rounded-xl border border-white/40 px-5 py-4 shadow-sm">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-purple-500" />
-                  More Matches
-                </h2>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  {athletes.length > 0 ? (
-                    <span>
-                      Showing <span className="font-semibold text-gray-700">{athletes.length}</span> athletes
-                    </span>
-                  ) : loading ? (
-                    <span>Finding athletes...</span>
-                  ) : (
-                    <span>No athletes found</span>
-                  )}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3 flex-wrap">
-                {/* Sort buttons */}
-                <div className="flex items-center gap-1 bg-gray-100/80 rounded-lg p-1">
-                  <span className="text-xs text-gray-500 px-2 hidden sm:block">Sort:</span>
-                  {[
-                    { key: 'followers', label: 'Followers' },
-                    { key: 'engagement', label: 'Engagement' },
-                    { key: 'fmv', label: 'Value' }
-                  ].map(({ key, label }) => (
-                    <button
-                      key={key}
-                      onClick={() => handleSortChange(key as typeof sortBy)}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                        sortBy === key
-                          ? 'bg-white text-purple-700 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      {label}
-                      {sortBy === key && (
-                        <ArrowUpDown className="w-3 h-3" />
-                      )}
-                    </button>
-                  ))}
+          {/* Right Content - Results */}
+          <main className="flex-1 min-w-0 p-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              {initialLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="text-center">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                      className="w-16 h-16 rounded-full border-4 border-orange-200 border-t-orange-500 mx-auto mb-4"
+                    />
+                    <p className="text-gray-600 font-medium">Finding your best matches...</p>
+                    <p className="text-sm text-gray-400 mt-1">Analyzing athletes and calculating match scores</p>
+                  </div>
                 </div>
+              ) : (
+                <DiscoverResults
+                  athletes={athletes}
+                  isLoading={loading && athletes.length === 0}
+                  onSaveAthlete={handleSaveAthlete}
+                  onMessageAthlete={handleMessageAthlete}
+                  savedAthleteIds={savedAthletes}
+                  onRefresh={handleRefresh}
+                  onOpenMobileFilters={() => setMobileFiltersOpen(true)}
+                  activeFilterCount={activeFilterCount}
+                />
+              )}
 
-                {/* View mode toggle */}
-                <div className="flex items-center bg-gray-100/80 rounded-lg p-1">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`p-1.5 rounded-md transition-all ${
-                      viewMode === 'grid'
-                        ? 'bg-white text-purple-700 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    <Grid className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={`p-1.5 rounded-md transition-all ${
-                      viewMode === 'list'
-                        ? 'bg-white text-purple-700 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    <LayoutGrid className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Athletes Grid */}
-            {loading && athletes.length === 0 ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="text-center">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                    className="w-16 h-16 rounded-full border-4 border-purple-200 border-t-purple-600 mx-auto mb-4"
-                  />
-                  <p className="text-gray-600 font-medium">Finding athletes...</p>
-                  <p className="text-sm text-gray-400 mt-1">This won't take long</p>
-                </div>
-              </div>
-            ) : athletes.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-20 bg-white/70 backdrop-blur-sm rounded-2xl border border-white/40"
-              >
-                <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-                  <span className="text-4xl">🔍</span>
-                </div>
-                <p className="text-gray-700 mb-2 text-lg font-semibold">No athletes found</p>
-                <p className="text-gray-500 text-sm mb-6">
-                  Try adjusting your filters or search criteria
-                </p>
-                <button
-                  onClick={() => {
-                    setFilters({});
-                    fetchAthletes(true);
-                  }}
-                  className="text-purple-600 hover:text-purple-700 font-medium text-sm"
-                >
-                  Clear all filters
-                </button>
-              </motion.div>
-            ) : (
-              <>
+              {/* Load More Button */}
+              {hasMore && athletes.length > 0 && !initialLoading && (
                 <motion.div
-                  layout
-                  className={`grid gap-5 ${
-                    viewMode === 'grid'
-                      ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
-                      : 'grid-cols-1'
-                  }`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mt-10 text-center"
                 >
-                  <AnimatePresence mode="popLayout">
-                    {athletes.map((athlete, index) => (
-                      <motion.div
-                        key={athlete.user_id}
-                        layout
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ delay: index * 0.03 }}
-                      >
-                        <AthleteDiscoveryCard
-                          athlete={athlete}
-                          onSave={() => handleSaveAthlete(athlete.user_id)}
-                          onMessage={() => handleMessageAthlete(athlete.user_id)}
-                          isSaved={savedAthletes.has(athlete.user_id)}
-                        />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </motion.div>
-
-                {/* Load More Button */}
-                {hasMore && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="mt-10 text-center"
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleLoadMore}
+                    disabled={loading}
+                    className="inline-flex items-center gap-2 px-8 py-4 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-xl border border-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
                   >
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={handleLoadMore}
-                      disabled={loading}
-                      className="inline-flex items-center gap-2 px-8 py-4 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-xl border border-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          <span>Loading...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Load More Athletes</span>
-                          <ChevronRight className="w-5 h-5" />
-                        </>
-                      )}
-                    </motion.button>
-                  </motion.div>
-                )}
-              </>
-            )}
-          </div>
-        </motion.div>
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Loading...</span>
+                      </>
+                    ) : (
+                      <span>Load More Athletes</span>
+                    )}
+                  </motion.button>
+                </motion.div>
+              )}
+            </motion.div>
+          </main>
+        </div>
       </div>
     </div>
   );

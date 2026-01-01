@@ -133,4 +133,54 @@ const Avatar = React.forwardRef<HTMLDivElement, AvatarProps>(
 
 Avatar.displayName = 'Avatar';
 
-export { Avatar, avatarVariants };
+// Sub-components for radix-style usage (AvatarImage, AvatarFallback)
+// These allow composable usage: <Avatar><AvatarImage /><AvatarFallback /></Avatar>
+
+interface AvatarImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+  src: string;
+}
+
+const AvatarImage = React.forwardRef<HTMLImageElement, AvatarImageProps>(
+  ({ className, src, alt, ...props }, ref) => {
+    const [error, setError] = React.useState(false);
+
+    if (error || !src) {
+      return null;
+    }
+
+    return (
+      <img
+        ref={ref}
+        src={src}
+        alt={alt || 'Avatar'}
+        className={cn(avatarImageVariants(), className)}
+        onError={() => setError(true)}
+        {...props}
+      />
+    );
+  }
+);
+
+AvatarImage.displayName = 'AvatarImage';
+
+interface AvatarFallbackProps extends React.HTMLAttributes<HTMLDivElement> {
+  children?: React.ReactNode;
+}
+
+const AvatarFallback = React.forwardRef<HTMLDivElement, AvatarFallbackProps>(
+  ({ className, children, ...props }, ref) => {
+    return (
+      <div
+        ref={ref}
+        className={cn(avatarFallbackVariants(), className)}
+        {...props}
+      >
+        {children}
+      </div>
+    );
+  }
+);
+
+AvatarFallback.displayName = 'AvatarFallback';
+
+export { Avatar, AvatarImage, AvatarFallback, avatarVariants };

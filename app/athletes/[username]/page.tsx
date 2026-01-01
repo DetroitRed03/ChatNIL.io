@@ -39,6 +39,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Progress } from '@/components/ui/Progress';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMessageDrawer } from '@/contexts/MessageDrawerContext';
 import {
   fetchProfileByUsername,
   formatFollowerCount,
@@ -68,6 +69,7 @@ export default function AthletePublicProfilePage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { openDrawer } = useMessageDrawer();
   const username = params.username as string;
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -120,27 +122,22 @@ export default function AthletePublicProfilePage() {
     }
   };
 
-  const handleMessage = async () => {
-    // Route based on viewer's role
+  const handleMessage = () => {
+    if (!profile) return;
+
+    // For agencies/brands, open the message drawer
     if (user?.role === 'agency' || user?.role === 'business') {
-      // For agencies/brands, create thread and go to agency messages
-      try {
-        await fetch('/api/agency/messages/threads', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            athlete_user_id: profile?.id,
-            message_text: "Hi! I'd like to discuss a potential partnership opportunity with you."
-          })
-        });
-        router.push('/agency/messages');
-      } catch (error) {
-        console.error('Error creating message thread:', error);
-        router.push('/agency/messages');
-      }
+      openDrawer({
+        id: profile.id,
+        name: `${profile.first_name} ${profile.last_name}`.trim() || 'Athlete',
+        handle: profile.username || undefined,
+        avatar: profile.profile_photo_url || undefined,
+        meta: [profile.primary_sport, profile.school_name].filter(Boolean).join(' • '),
+        profileUrl: profile.username ? `/athletes/${profile.username}` : undefined,
+      });
     } else {
       // For athletes and other users, use the athlete messaging page
-      router.push(`/messages?athlete=${profile?.id}`);
+      router.push(`/messages?athlete=${profile.id}`);
     }
   };
 

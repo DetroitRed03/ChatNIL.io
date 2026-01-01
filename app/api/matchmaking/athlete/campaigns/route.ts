@@ -98,6 +98,7 @@ export async function GET(request: NextRequest) {
           // Transform to campaign-centric view for athlete
           allMatches.push({
             campaign_id: campaign.id,
+            agency_id: campaign.agency_id, // Include agency_id for express interest
             campaign_name: campaign.name,
             brand_name: brandName,
             match_score: athleteMatch.matchPercentage,

@@ -2,7 +2,8 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { ArrowLeft, Home, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 
 export default function AthletesPublicLayout({
   children,
@@ -15,32 +16,29 @@ export default function AthletesPublicLayout({
   // Public athlete profiles should not have the app sidebar/navigation
   // This is a clean, standalone layout for public viewing
 
-  // If user is logged in as an agency, show a back button to return to their dashboard
-  const showBackButton = user?.role === 'agency';
+  // Show back navigation for all authenticated users
+  const showBackButton = !!user;
+
+  // Determine dashboard route based on role
+  const dashboardRoute = user?.role === 'agency' ? '/agency/dashboard' : '/dashboard';
+  const dashboardLabel = 'Dashboard';
 
   return (
     <div className="min-h-screen bg-background">
       {showBackButton && (
         <div className="fixed top-4 left-4 z-50">
-          <button
-            onClick={() => router.push('/agency/dashboard')}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {/* Breadcrumb-style navigation */}
+          <nav className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <Link
+              href={dashboardRoute}
+              className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900 transition-colors"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-            <span className="text-sm font-medium">Back to Dashboard</span>
-          </button>
+              <Home className="w-4 h-4" />
+              <span className="text-sm font-medium">{dashboardLabel}</span>
+            </Link>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+            <span className="text-sm font-medium text-gray-900">Public Profile</span>
+          </nav>
         </div>
       )}
       {children}

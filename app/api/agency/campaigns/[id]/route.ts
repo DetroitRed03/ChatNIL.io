@@ -6,6 +6,9 @@ export const dynamic = 'force-dynamic';
 /**
  * Campaign Detail and Update API
  *
+ * GET /api/agency/campaigns/[id]
+ * Fetches a single campaign by ID or slug
+ *
  * PATCH /api/agency/campaigns/[id]
  * Updates an existing campaign
  *
@@ -22,6 +25,71 @@ export const dynamic = 'force-dynamic';
  * DELETE /api/agency/campaigns/[id]
  * Deletes a campaign
  */
+
+// Helper to check if a string is a valid UUID
+function isUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = createServiceRoleClient();
+    const identifier = params.id;
+
+    // Query by ID or slug depending on format
+    let query = supabase.from('agency_campaigns').select('*');
+
+    if (isUUID(identifier)) {
+      query = query.eq('id', identifier);
+    } else {
+      query = query.eq('slug', identifier);
+    }
+
+    const { data: campaign, error } = await query.single();
+
+    if (error || !campaign) {
+      return NextResponse.json(
+        { error: 'Campaign not found' },
+        { status: 404 }
+      );
+    }
+
+    // Transform to camelCase format expected by frontend
+    const formattedCampaign = {
+      id: campaign.id,
+      slug: campaign.slug,
+      name: campaign.name,
+      description: campaign.description,
+      campaignType: campaign.campaign_type,
+      status: campaign.status,
+      startDate: campaign.start_date,
+      endDate: campaign.end_date,
+      budget: campaign.budget || 0,
+      spent: campaign.spent || 0,
+      targetSports: campaign.target_sports || [],
+      createdAt: campaign.created_at,
+    };
+
+    return NextResponse.json({
+      success: true,
+      campaign: formattedCampaign,
+    });
+
+  } catch (error) {
+    console.error('Campaign Get API Error:', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to fetch campaign',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
+}
 
 export async function PATCH(
   request: Request,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient, createClient } from '@/lib/supabase/server';
+import type { ThreadListItem, GetThreadsResponse } from '@/types/messaging';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,43 +65,76 @@ export async function GET(request: Request) {
     // Handle empty threads - return empty array
     if (!threads || threads.length === 0) {
       return NextResponse.json({
-        success: true,
         threads: [],
-        total: 0,
-      });
+        total_unread: 0,
+      } satisfies GetThreadsResponse);
     }
 
     // Get unique athlete IDs to fetch their info
     const athleteIds = Array.from(new Set(threads.map(t => t.athlete_id)));
 
     // Fetch athlete info from users table
+    // Note: column is profile_photo (not profile_photo_url), and school_name (not school)
     const { data: athletes } = await supabase
       .from('users')
-      .select('id, first_name, last_name, profile_photo_url')
+      .select('id, first_name, last_name, full_name, profile_photo, avatar_url, sport, school_name')
       .in('id', athleteIds);
 
     // Create athlete lookup map
     const athleteMap = new Map(athletes?.map(a => [a.id, a]) || []);
 
-    // Enrich threads with athlete info
-    const enrichedThreads = threads.map(thread => {
+    // Count unread messages per thread
+    const { data: unreadCounts } = await supabase
+      .from('agency_athlete_messages')
+      .select('thread_id')
+      .in('thread_id', threads.map(t => t.id))
+      .neq('sender_id', agencyId)
+      .eq('is_read', false);
+
+    // Create unread count map
+    const unreadMap = new Map<string, number>();
+    unreadCounts?.forEach(msg => {
+      const count = unreadMap.get(msg.thread_id) || 0;
+      unreadMap.set(msg.thread_id, count + 1);
+    });
+
+    // Calculate total unread
+    let totalUnread = 0;
+    unreadMap.forEach(count => { totalUnread += count; });
+
+    // Enrich threads with athlete info and format for frontend
+    const enrichedThreads: ThreadListItem[] = threads.map(thread => {
       const athlete = athleteMap.get(thread.athlete_id);
+      const unreadCount = unreadMap.get(thread.id) || 0;
+
       return {
-        thread_id: thread.id,
-        athlete_user_id: thread.athlete_id,
-        athlete: athlete || { id: thread.athlete_id, first_name: 'Unknown', last_name: 'Athlete' },
-        latest_message: thread.last_message,
-        latest_message_time: thread.updated_at,
+        id: thread.id,
+        agency_id: thread.agency_id,
+        athlete_id: thread.athlete_id,
         status: thread.status,
-        unread_count: thread.status === 'unread' ? 1 : 0,
+        last_message: thread.last_message,
+        created_at: thread.created_at,
+        updated_at: thread.updated_at,
+        // Display participant info
+        participant: {
+          id: thread.athlete_id,
+          display_name: athlete
+            ? (athlete.full_name || `${athlete.first_name || ''} ${athlete.last_name || ''}`.trim() || 'Unknown Athlete')
+            : 'Unknown Athlete',
+          avatar_url: athlete?.avatar_url || athlete?.profile_photo || null,
+          role: 'athlete' as const,
+          sport: athlete?.sport || undefined,
+          school: athlete?.school_name || undefined,
+        },
+        unread_count: unreadCount,
+        is_own_last_message: thread.status === 'sent',
       };
     });
 
     return NextResponse.json({
-      success: true,
       threads: enrichedThreads,
-      total: enrichedThreads.length,
-    });
+      total_unread: totalUnread,
+    } satisfies GetThreadsResponse);
 
   } catch (error) {
     console.error('Threads API Error:', error);
@@ -117,9 +151,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { athlete_user_id, message_text } = body;
 
-    if (!athlete_user_id || !message_text) {
+    // athlete_user_id is always required, message_text is optional (for just creating/getting thread)
+    if (!athlete_user_id) {
       return NextResponse.json(
-        { error: 'athlete_user_id and message_text are required' },
+        { error: 'athlete_user_id is required' },
         { status: 400 }
       );
     }
@@ -162,18 +197,11 @@ export async function POST(request: Request) {
       .single();
 
     let threadId: string;
+    let isNewThread = false;
 
     if (existingThread) {
-      // Update existing thread with new message
+      // Use existing thread
       threadId = existingThread.id;
-      await supabase
-        .from('agency_message_threads')
-        .update({
-          last_message: message_text,
-          status: 'sent',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', threadId);
     } else {
       // Create new thread
       const { data: newThread, error: threadError } = await supabase
@@ -181,8 +209,7 @@ export async function POST(request: Request) {
         .insert({
           agency_id: agencyId,
           athlete_id: athlete_user_id,
-          last_message: message_text,
-          status: 'sent',
+          status: 'active',
         })
         .select()
         .single();
@@ -196,12 +223,52 @@ export async function POST(request: Request) {
       }
 
       threadId = newThread.id;
+      isNewThread = true;
+    }
+
+    // If message_text provided, insert the message
+    let newMessage = null;
+    if (message_text) {
+      const { data: msgData, error: messageError } = await supabase
+        .from('agency_athlete_messages')
+        .insert({
+          thread_id: threadId,
+          agency_user_id: agencyId,
+          athlete_user_id: athlete_user_id,
+          sender_id: agencyId,
+          message_text: message_text,
+          is_read: false,
+        })
+        .select()
+        .single();
+
+      if (messageError) {
+        console.error('Error creating message:', messageError);
+        return NextResponse.json(
+          { error: 'Failed to send message' },
+          { status: 500 }
+        );
+      }
+
+      newMessage = msgData;
+
+      // Update thread with last message
+      await supabase
+        .from('agency_message_threads')
+        .update({
+          last_message: message_text,
+          status: 'sent',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', threadId);
     }
 
     return NextResponse.json({
       success: true,
+      thread: { id: threadId },
       thread_id: threadId,
-      message: 'Message sent successfully',
+      message_id: newMessage?.id || null,
+      is_new_thread: isNewThread,
     }, { status: 201 });
 
   } catch (error) {

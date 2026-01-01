@@ -1,116 +1,189 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { MessageSquare, Users, Zap, Calendar, Bell, Target, TrendingUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { MessageSquare, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMessagingStore, setMessagingUserRole, setMessagingUserId } from '@/lib/stores/messaging';
+import { ThreadList, ConversationView } from '@/components/messaging';
+import type { ThreadListItem, ThreadParticipant } from '@/types/messaging';
 
 export default function AgencyMessagesPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const {
+    threads,
+    isLoadingThreads,
+    activeThreadId,
+    fetchThreads,
+    setActiveThread,
+    startPolling,
+    stopPolling,
+  } = useMessagingStore();
+
+  const [selectedParticipant, setSelectedParticipant] = useState<ThreadParticipant | null>(null);
+  const [isMobileConversationOpen, setIsMobileConversationOpen] = useState(false);
+  const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
 
   // Redirect non-agencies
   useEffect(() => {
-    if (user && user.role !== 'agency') {
+    if (user && user.role !== 'agency' && user.role !== 'business') {
       router.push('/dashboard');
     }
   }, [user, router]);
 
+  // Set role, user ID and fetch threads on mount
+  useEffect(() => {
+    if (user?.id) {
+      setMessagingUserRole('agency');
+      setMessagingUserId(user.id);
+      fetchThreads();
+      startPolling();
+    }
+
+    return () => {
+      stopPolling();
+    };
+  }, [user?.id, fetchThreads, startPolling, stopPolling]);
+
+  // Handle thread from URL query param (for "Message" button flow)
+  useEffect(() => {
+    const threadId = searchParams.get('thread');
+    if (!threadId) {
+      setPendingThreadId(null);
+      return;
+    }
+
+    // Track that we're waiting for this thread
+    if (pendingThreadId !== threadId) {
+      setPendingThreadId(threadId);
+    }
+
+    // If threads are loaded, try to find and select
+    if (threads.length > 0) {
+      const thread = threads.find(t => t.id === threadId);
+      if (thread) {
+        // Inline thread selection to avoid dependency issues
+        setActiveThread(thread.id);
+        setSelectedParticipant(thread.participant);
+        setIsMobileConversationOpen(true);
+        setPendingThreadId(null);
+        return;
+      }
+    }
+
+    // If thread not found but we have a threadId, and threads finished loading, refetch once
+    // This handles the race condition where navigation happens before store updates
+    if (threadId && !isLoadingThreads && threads.length > 0 && pendingThreadId === threadId) {
+      // Thread should be in the list but isn't - try refetching
+      fetchThreads();
+    }
+  }, [searchParams, threads, isLoadingThreads, pendingThreadId, fetchThreads, setActiveThread]);
+
   // Don't render anything while checking role
-  if (!user || user.role !== 'agency') {
+  if (!user || (user.role !== 'agency' && user.role !== 'business')) {
     return null;
   }
 
+  const handleThreadSelect = (thread: ThreadListItem) => {
+    setActiveThread(thread.id);
+    setSelectedParticipant(thread.participant);
+    setIsMobileConversationOpen(true);
+  };
+
+  const handleBack = () => {
+    setActiveThread(null);
+    setSelectedParticipant(null);
+    setIsMobileConversationOpen(false);
+  };
+
   return (
-    <div className="flex flex-col overflow-y-auto bg-background py-6 sm:py-8 px-4 sm:px-6">
-      <div className="max-w-2xl mx-auto text-center">
-        {/* Coming Soon Icon */}
-        <div className="relative mb-8">
-          <div className="w-24 h-24 bg-gradient-to-br from-orange-500 to-amber-500 rounded-3xl flex items-center justify-center mx-auto shadow-2xl">
-            <MessageSquare className="h-12 w-12 text-white" />
+    <div className="flex h-[calc(100vh-64px)] bg-gray-50">
+      {/* Thread list - hidden on mobile when conversation is open */}
+      <div
+        className={`
+          w-full md:w-[360px] lg:w-[400px] flex-shrink-0 border-r border-gray-200
+          ${isMobileConversationOpen ? 'hidden md:block' : 'block'}
+        `}
+      >
+        <div className="h-full flex flex-col">
+          {/* Header */}
+          <div className="px-4 py-4 border-b border-gray-200 bg-white">
+            <h1 className="text-xl font-semibold text-gray-900">Messages</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {threads.length} conversation{threads.length !== 1 ? 's' : ''}
+            </p>
           </div>
-          <div className="absolute -top-2 -right-2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-            <Zap className="h-4 w-4 text-amber-800" />
-          </div>
+
+          {/* Thread list */}
+          <ThreadList
+            threads={threads}
+            activeThreadId={activeThreadId}
+            onThreadSelect={handleThreadSelect}
+            isLoading={isLoadingThreads}
+            viewerRole="agency"
+            className="flex-1"
+          />
         </div>
+      </div>
 
-        {/* Main Content */}
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          Agency Inbox
-        </h1>
-
-        <div className="inline-flex items-center px-4 py-2 bg-orange-100 border border-orange-200 rounded-full text-orange-800 font-medium mb-6">
-          <Calendar className="h-4 w-4 mr-2" />
-          Coming Soon
-        </div>
-
-        <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-          Connect directly with athletes, negotiate deals, and manage all your conversations in one place.
-          Your centralized hub for athlete outreach and partnership communications.
-        </p>
-
-        {/* Feature Preview */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 mb-8">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-            What's Coming
-          </h2>
-
-          <div className="grid md:grid-cols-2 gap-6 text-left">
-            <div className="flex items-start space-x-4">
-              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Users className="h-5 w-5 text-orange-600" />
+      {/* Conversation view - full screen on mobile */}
+      <div
+        className={`
+          flex-1 flex flex-col
+          ${!isMobileConversationOpen ? 'hidden md:flex' : 'flex'}
+        `}
+      >
+        {activeThreadId && selectedParticipant ? (
+          <ConversationView
+            threadId={activeThreadId}
+            participant={selectedParticipant}
+            currentUserId={user.id}
+            viewerRole="agency"
+            onBack={handleBack}
+            showBackButton={isMobileConversationOpen}
+          />
+        ) : threads.length === 0 ? (
+          // Empty inbox state - no conversations at all
+          <div className="flex-1 flex items-center justify-center bg-gray-50">
+            <div className="text-center px-6">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <MessageSquare className="w-8 h-8 text-gray-400" />
               </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Direct Athlete Messaging</h3>
-                <p className="text-gray-600 text-sm">Reach out to athletes directly from the discover page</p>
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-4">
-              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Target className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Deal Negotiations</h3>
-                <p className="text-gray-600 text-sm">Discuss terms, deliverables, and contracts in-thread</p>
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-4">
-              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Bell className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Smart Notifications</h3>
-                <p className="text-gray-600 text-sm">Get notified when athletes respond to your outreach</p>
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-4">
-              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Response Analytics</h3>
-                <p className="text-gray-600 text-sm">Track response rates and optimize your outreach</p>
-              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                No conversations yet
+              </h3>
+              <p className="text-gray-500 max-w-sm mb-6">
+                Start connecting with athletes on the Discover page to begin conversations.
+              </p>
+              <Link
+                href="/agency/discover"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-orange-500 text-white font-medium rounded-lg hover:bg-orange-600 transition-colors"
+              >
+                <Users className="w-4 h-4" />
+                Discover Athletes
+              </Link>
             </div>
           </div>
-        </div>
-
-        {/* Call to Action */}
-        <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-6 text-white">
-          <h3 className="text-xl font-semibold mb-2">Ready to connect?</h3>
-          <p className="mb-4 opacity-90">
-            While messaging is in development, explore and save athletes from the Discover page!
-          </p>
-          <button
-            onClick={() => router.push('/agency/discover')}
-            className="bg-white text-orange-600 px-6 py-3 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
-          >
-            Discover Athletes
-          </button>
-        </div>
+        ) : (
+          // Conversations exist but none selected
+          <div className="flex-1 flex items-center justify-center bg-gray-50">
+            <div className="text-center px-6">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <MessageSquare className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Select a conversation
+              </h3>
+              <p className="text-gray-500 max-w-sm">
+                Choose a conversation from the list to continue messaging.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

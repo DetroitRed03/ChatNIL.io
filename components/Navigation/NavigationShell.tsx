@@ -5,10 +5,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import HeaderNew from '@/components/Navigation/Header';
 import Sidebar from '@/components/Navigation/Sidebar';
 import SearchModal from '@/components/SearchModal';
+import { AICoachButton } from '@/components/AICoachButton';
 import KeyboardShortcutsModal from '@/components/Navigation/KeyboardShortcutsModal';
+import Breadcrumbs from '@/components/Navigation/Breadcrumbs';
 import { useNavigation } from '@/lib/stores/navigation';
 import { useKeyboardShortcuts, createShortcut } from '@/hooks/useKeyboardShortcuts';
-import { useState } from 'react';
+import { buildBreadcrumbs } from '@/lib/breadcrumb-config';
+import { useState, useMemo } from 'react';
 
 /**
  * NavigationShell Component
@@ -76,6 +79,14 @@ export default function NavigationShell({ children }: NavigationShellProps) {
   // Determine what navigation to show
   const showHeader = !isPublicRoute && (!isHomepage || showHomepageNav);
   const showSidebar = user && !isPublicRoute && !isHeaderOnlyRoute && !isAgencyOnMessagesRoute && (!isHomepage || showHomepageNav);
+
+  // Build breadcrumbs for current route
+  const breadcrumbItems = useMemo(() => {
+    if (!pathname || !user) return [];
+    return buildBreadcrumbs(pathname, user.role);
+  }, [pathname, user]);
+
+  const showBreadcrumbs = user && breadcrumbItems.length > 0 && !isPublicRoute && !isHomepage;
 
   // Role-aware quick navigation shortcuts
   const getRoleSpecificShortcuts = () => {
@@ -182,6 +193,14 @@ export default function NavigationShell({ children }: NavigationShellProps) {
               transition-none
             `}
           >
+            {/* Breadcrumb Navigation */}
+            {showBreadcrumbs && (
+              <div className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-3">
+                <div className="max-w-7xl mx-auto">
+                  <Breadcrumbs items={breadcrumbItems} showHomeIcon={true} />
+                </div>
+              </div>
+            )}
             {children}
           </main>
         </div>
@@ -202,6 +221,9 @@ export default function NavigationShell({ children }: NavigationShellProps) {
         isOpen={showShortcutsHelp}
         onClose={() => setShowShortcutsHelp(false)}
       />
+
+      {/* AI Coach Floating Button - Athletes only */}
+      {user?.role === 'athlete' && <AICoachButton />}
     </>
   );
 }

@@ -31,6 +31,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMessageDrawer } from '@/contexts/MessageDrawerContext';
 
 interface Athlete {
   id: string;
@@ -103,6 +104,7 @@ function formatFollowers(count: number): string {
 
 function AthletesContent() {
   const { user } = useAuth();
+  const { openDrawer } = useMessageDrawer();
   const [data, setData] = useState<RosterData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +115,19 @@ function AthletesContent() {
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Handle message button - open message drawer
+  const handleMessage = (athlete: Athlete, e: React.MouseEvent) => {
+    e.stopPropagation();
+    openDrawer({
+      id: athlete.id,
+      name: athlete.name || `${athlete.firstName} ${athlete.lastName}`,
+      handle: athlete.username || undefined,
+      avatar: (athlete as any).avatar_url || (athlete as any).profile_photo || undefined,
+      meta: [athlete.sport, athlete.school].filter(Boolean).join(' • '),
+      profileUrl: athlete.username ? `/athletes/${athlete.username}` : `/athletes/${athlete.id}`,
+    });
+  };
 
   useEffect(() => {
     async function fetchRoster() {
@@ -437,10 +452,7 @@ function AthletesContent() {
                           {/* Action Buttons */}
                           <div className="flex gap-2 pt-2">
                             <button
-                              onClick={() => {
-                                // Navigate to messages page with this athlete
-                                window.location.href = `/agency/messages?athleteId=${athlete.id}`;
-                              }}
+                              onClick={(e) => handleMessage(athlete, e)}
                               className="flex-1 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
                             >
                               <MessageSquare className="w-4 h-4" />

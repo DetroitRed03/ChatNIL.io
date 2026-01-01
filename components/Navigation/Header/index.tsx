@@ -5,7 +5,6 @@ import HeaderLogo from './HeaderLogo';
 import HeaderAuthButtons from './HeaderAuthButtons';
 import HeaderUserMenu from './HeaderUserMenu';
 import HeaderMobileMenu from './HeaderMobileMenu';
-import ThemeToggle from '@/components/Navigation/ThemeToggle';
 
 /**
  * Header Component
@@ -22,15 +21,9 @@ export default function HeaderNew() {
 
   return (
     <header className="flex-shrink-0 bg-white border-b border-gray-100 px-3 sm:px-4 py-3 sm:py-4 shadow-sm sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Logo/Brand */}
-        <HeaderLogo />
-
-        {/* Right Side - Theme Toggle, Auth Buttons or User Menu */}
+      <div className="max-w-7xl mx-auto flex items-center justify-end">
+        {/* Right Side - Auth Buttons or User Menu */}
         <div className="flex items-center space-x-2 sm:space-x-3">
-          {/* Theme Toggle (always visible) */}
-          <ThemeToggle />
-
           {/* Mobile Menu Button (only show when logged in) */}
           <HeaderMobileMenu />
 
