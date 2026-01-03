@@ -131,6 +131,23 @@ export async function streamCompletion(options: StreamCompletionOptions): Promis
                   hasRealTimeData: messageSources.hasRealTimeData
                 } : 'undefined');
 
+                // Process any remaining content in sseBuffer before completing
+                if (sseBuffer.trim()) {
+                  const remainingMessages = sseBuffer.split('\n\n');
+                  for (const msg of remainingMessages) {
+                    if (msg.startsWith('data: ')) {
+                      const remainingData = msg.slice(6).trim();
+                      if (remainingData && remainingData !== '[DONE]') {
+                        try {
+                          const parsed = JSON.parse(remainingData);
+                          const token = parsed.choices?.[0]?.delta?.content || parsed.token || '';
+                          if (token) fullContent += token;
+                        } catch (e) { /* ignore parse errors */ }
+                      }
+                    }
+                  }
+                }
+
                 // Streaming complete - include sources in the final update
                 historyStore.updateChatMessage(activeChat.id, messageId, {
                   content: fullContent,
@@ -269,6 +286,38 @@ export async function streamCompletion(options: StreamCompletionOptions): Promis
           }
         }
       }
+
+      // Stream ended without [DONE] - process any remaining buffer content
+      // This handles cases where the stream is abruptly terminated (e.g., Vercel timeout)
+      if (sseBuffer.trim()) {
+        console.log('⚠️ Stream ended without [DONE], processing remaining buffer...');
+        const remainingMessages = sseBuffer.split('\n\n');
+        for (const msg of remainingMessages) {
+          if (msg.startsWith('data: ')) {
+            const remainingData = msg.slice(6).trim();
+            if (remainingData && remainingData !== '[DONE]') {
+              try {
+                const parsed = JSON.parse(remainingData);
+                const token = parsed.choices?.[0]?.delta?.content || parsed.token || '';
+                if (token) fullContent += token;
+              } catch (e) { /* ignore parse errors */ }
+            }
+          }
+        }
+      }
+
+      // Ensure message is marked as complete even if [DONE] wasn't received
+      historyStore.updateChatMessage(activeChat.id, messageId, {
+        content: fullContent,
+        isStreaming: false,
+        sources: messageSources
+      });
+      flushPendingSave();
+
+      store.setStreamingState('complete');
+      store.setCurrentStreamingMessageId(null);
+      onComplete?.(fullContent);
+
     } finally {
       reader.releaseLock();
     }

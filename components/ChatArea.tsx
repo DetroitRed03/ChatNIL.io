@@ -185,6 +185,24 @@ export default function ChatArea() {
     };
     addMessageToChat(chatId!, aiResponse);
 
+    // Set a client-side fallback timeout to catch stuck streams
+    // This handles edge cases where the stream silently terminates
+    const streamingTimeoutId = setTimeout(() => {
+      if (streamingState === 'streaming' || streamingState === 'submitting') {
+        console.warn('⚠️ Streaming timeout (60s) - marking as complete');
+        setStreamingState('complete');
+        setTypingStatus('');
+        // Ensure the message is marked as not streaming
+        const currentChat = getActiveChat();
+        if (currentChat) {
+          const lastMsg = currentChat.messages[currentChat.messages.length - 1];
+          if (lastMsg?.isStreaming) {
+            updateChatMessage(chatId!, lastMsg.id, { isStreaming: false });
+          }
+        }
+      }
+    }, 60000); // 60 second fallback timeout
+
     try {
       await streamCompletion({
         messageId: aiResponse.id,
@@ -199,6 +217,7 @@ export default function ChatArea() {
         },
         onError: (error) => {
           console.error('Streaming error:', error);
+          clearTimeout(streamingTimeoutId);
           updateChatMessage(chatId!, aiResponse.id, {
             content: 'Sorry, I encountered an error. Please try again.',
             isStreaming: false
@@ -207,12 +226,14 @@ export default function ChatArea() {
           setTypingStatus(''); // Clear status on error
         },
         onComplete: () => {
+          clearTimeout(streamingTimeoutId);
           setStreamingState('complete');
           setTypingStatus(''); // Clear status when complete
         }
       });
     } catch (error) {
       console.error('Failed to start streaming:', error);
+      clearTimeout(streamingTimeoutId);
       updateChatMessage(chatId!, aiResponse.id, {
         content: 'Sorry, I encountered an error. Please try again.',
         isStreaming: false

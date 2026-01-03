@@ -462,6 +462,10 @@ export async function POST(request: NextRequest) {
             });
 
             // 4. Call OpenAI API with streaming
+            // Add timeout to prevent Vercel function timeout (default is 10-30s)
+            const abortController = new AbortController();
+            const timeoutId = setTimeout(() => abortController.abort(), 55000); // 55 seconds
+
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
               headers: {
@@ -474,8 +478,11 @@ export async function POST(request: NextRequest) {
                 temperature: 0.7,
                 max_tokens: 1000,
                 stream: true
-              })
+              }),
+              signal: abortController.signal
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
               const error = await response.text();
@@ -504,8 +511,29 @@ export async function POST(request: NextRequest) {
               for (const line of lines) {
                 if (line.startsWith('data: ')) {
                   const data = line.slice(6);
-                  if (data === '[DONE]') continue;
+                  if (data === '[DONE]') break; // Exit loop on OpenAI completion signal
 
+                  try {
+                    const parsed = JSON.parse(data);
+                    const token = parsed.choices?.[0]?.delta?.content;
+                    if (token) {
+                      responseText += token;
+                      const chunk = `data: ${JSON.stringify({ token })}\n\n`;
+                      controller.enqueue(encoder.encode(chunk));
+                    }
+                  } catch (e) {
+                    // Skip parsing errors
+                  }
+                }
+              }
+            }
+
+            // Flush any remaining buffer content after stream ends
+            if (buffer.trim()) {
+              const line = buffer.trim();
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data !== '[DONE]') {
                   try {
                     const parsed = JSON.parse(data);
                     const token = parsed.choices?.[0]?.delta?.content;
