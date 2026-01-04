@@ -78,6 +78,7 @@ type TokenEvent = {
 };
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // 60 seconds for Pro plan
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
