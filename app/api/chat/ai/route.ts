@@ -477,7 +477,7 @@ export async function POST(request: NextRequest) {
                 model: 'gpt-4',
                 messages: openAIMessages,
                 temperature: 0.7,
-                max_tokens: 1000,
+                max_tokens: 2000, // Increased from 1000 to prevent cutoff
                 stream: true
               }),
               signal: abortController.signal
@@ -500,8 +500,9 @@ export async function POST(request: NextRequest) {
 
             const decoder = new TextDecoder();
             let buffer = '';
+            let streamComplete = false;
 
-            while (true) {
+            while (!streamComplete) {
               const { done, value } = await reader.read();
               if (done) break;
 
@@ -512,7 +513,10 @@ export async function POST(request: NextRequest) {
               for (const line of lines) {
                 if (line.startsWith('data: ')) {
                   const data = line.slice(6);
-                  if (data === '[DONE]') break; // Exit loop on OpenAI completion signal
+                  if (data === '[DONE]') {
+                    streamComplete = true;
+                    break; // Exit for loop, while loop will exit due to flag
+                  }
 
                   try {
                     const parsed = JSON.parse(data);
