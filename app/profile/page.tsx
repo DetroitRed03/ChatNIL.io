@@ -42,6 +42,17 @@ export default function ProfileEditPage() {
   const { user } = useAuth();
   const router = useRouter();
 
+  // Redirect non-athlete roles away from this page
+  useEffect(() => {
+    if (user && user.role === 'compliance_officer') {
+      router.replace('/compliance/settings');
+    } else if (user && user.role === 'parent') {
+      router.replace('/parent/settings');
+    } else if (user && user.role === 'hs_student') {
+      router.replace('/dashboard/hs-student');
+    }
+  }, [user, router]);
+
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

@@ -19,6 +19,9 @@ export default function OnboardingPage() {
     if (user?.role === 'agency') {
       return '/agency/dashboard';
     }
+    if (user?.role === 'compliance_officer') {
+      return '/compliance/dashboard';
+    }
     return '/dashboard';
   };
 

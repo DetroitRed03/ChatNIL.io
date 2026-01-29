@@ -91,7 +91,8 @@ export async function middleware(request: NextRequest) {
     if (profile) {
       // CRITICAL: Onboarding guard for non-agency users who haven't completed onboarding
       // This ensures athletes/parents are forced to /onboarding if they haven't completed it
-      if (profile.role !== 'agency' && profile.onboarding_completed === false) {
+      // Compliance officers with role already set are excluded (seeded accounts)
+      if (profile.role !== 'agency' && profile.role !== 'compliance_officer' && profile.onboarding_completed === false) {
         // Allow access to onboarding-related paths and API routes
         const allowedPaths = ['/onboarding', '/api/auth', '/auth', '/api/user', '/api/badges'];
         const isAllowedPath = allowedPaths.some(path => pathname.startsWith(path));
@@ -109,7 +110,28 @@ export async function middleware(request: NextRequest) {
           return NextResponse.redirect(new URL('/agency/dashboard', request.url));
         }
       }
-      // Non-agency users: redirect from agency routes to athlete dashboard
+      // Compliance officers: redirect to compliance dashboard
+      else if (profile.role === 'compliance_officer') {
+        // If onboarding is complete, redirect away from onboarding pages
+        if (profile.onboarding_completed === true && pathname.startsWith('/onboarding')) {
+          console.log('🔒 Middleware: Compliance officer already onboarded, redirecting from', pathname, 'to /compliance/dashboard');
+          return NextResponse.redirect(new URL('/compliance/dashboard', request.url));
+        }
+        if (isAgencyRoute) {
+          console.log('🔒 Middleware: Redirecting compliance officer from', pathname, 'to /compliance/dashboard');
+          return NextResponse.redirect(new URL('/compliance/dashboard', request.url));
+        }
+        // Redirect athlete-only routes to compliance dashboard
+        if (isAthleteOnlyRoute) {
+          console.log('🔒 Middleware: Redirecting compliance officer from athlete route', pathname, 'to /compliance/dashboard');
+          return NextResponse.redirect(new URL('/compliance/dashboard', request.url));
+        }
+        // Redirect root to compliance dashboard
+        if (pathname === '/' && profile.onboarding_completed !== false) {
+          return NextResponse.redirect(new URL('/compliance/dashboard', request.url));
+        }
+      }
+      // Non-agency, non-compliance users (athletes, parents): redirect from agency routes to athlete dashboard
       else {
         if (isAgencyRoute) {
           console.log('🔒 Middleware: Redirecting non-agency from', pathname, 'to /dashboard');

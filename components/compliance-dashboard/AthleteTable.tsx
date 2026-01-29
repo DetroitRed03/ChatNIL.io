@@ -1,0 +1,180 @@
+'use client';
+
+import { motion } from 'framer-motion';
+import { ChevronRight, AlertTriangle, AlertCircle, CheckCircle, User, Clock } from 'lucide-react';
+import { ScoreBadge } from '@/components/compliance/ScoreBadge';
+
+interface Athlete {
+  id: string;
+  name: string;
+  sport: string;
+  dealCount: number;
+  worstScore: number | null;
+  worstStatus: string | null;
+  totalEarnings: number;
+  lastDealDate: string | null;
+}
+
+interface AthleteTableProps {
+  athletes: Athlete[];
+  onViewAthlete: (athleteId: string) => void;
+  loading?: boolean;
+}
+
+export function AthleteTable({ athletes, onViewAthlete, loading }: AthleteTableProps) {
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const getStatusBadge = (status: string | null) => {
+    if (!status) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
+          <User className="w-3.5 h-3.5" />
+          No Deals
+        </span>
+      );
+    }
+
+    switch (status) {
+      case 'red':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            RED
+          </span>
+        );
+      case 'yellow':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+            <AlertCircle className="w-3.5 h-3.5" />
+            YELLOW
+          </span>
+        );
+      case 'green':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+            <CheckCircle className="w-3.5 h-3.5" />
+            GREEN
+          </span>
+        );
+      case 'pending':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+            <Clock className="w-3.5 h-3.5" />
+            Pending Review
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div data-testid="athlete-table" className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+        <div className="p-8 text-center">
+          <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="mt-4 text-gray-500">Loading athletes...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (athletes.length === 0) {
+    return (
+      <div data-testid="athlete-table" className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+        <div className="p-8 text-center">
+          <User className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-600 font-medium">No athletes found</p>
+          <p className="text-sm text-gray-500 mt-1">Try adjusting your filters</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-testid="athlete-table" className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Table Header */}
+      <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <div className="col-span-4">Athlete</div>
+        <div className="col-span-2">Sport</div>
+        <div className="col-span-2 text-center">Status</div>
+        <div className="col-span-1 text-center">Deals</div>
+        <div className="col-span-2 text-right">Earnings</div>
+        <div className="col-span-1"></div>
+      </div>
+
+      {/* Table Body */}
+      <div className="divide-y divide-gray-100">
+        {athletes.map((athlete, index) => (
+          <motion.button
+            key={athlete.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: index * 0.02 }}
+            onClick={() => onViewAthlete(athlete.id)}
+            className="w-full grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-gray-50 transition-colors text-left"
+          >
+            {/* Athlete Name */}
+            <div className="col-span-4">
+              <p className="font-medium text-gray-900">{athlete.name}</p>
+              {athlete.worstScore !== null && athlete.worstStatus && (
+                <div className="mt-0.5">
+                  <ScoreBadge
+                    totalScore={athlete.worstScore}
+                    status={athlete.worstStatus as 'green' | 'yellow' | 'red'}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Sport */}
+            <div className="col-span-2">
+              <span className="text-gray-700">{athlete.sport}</span>
+            </div>
+
+            {/* Status */}
+            <div className="col-span-2 flex justify-center">
+              {getStatusBadge(athlete.worstStatus)}
+            </div>
+
+            {/* Deal Count */}
+            <div className="col-span-1 text-center">
+              <span className="text-gray-900 font-medium">{athlete.dealCount}</span>
+            </div>
+
+            {/* Earnings */}
+            <div className="col-span-2 text-right">
+              <span className="text-gray-900 font-medium">
+                {athlete.totalEarnings > 0 ? formatCurrency(athlete.totalEarnings) : '-'}
+              </span>
+              {athlete.lastDealDate && (
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Last: {formatDate(athlete.lastDealDate)}
+                </p>
+              )}
+            </div>
+
+            {/* Arrow */}
+            <div className="col-span-1 flex justify-end">
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </div>
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  );
+}

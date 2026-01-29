@@ -43,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Add state to track profile loading and prevent race conditions
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const profileLoadingRef = useRef<string | null>(null); // Track current loading user ID
+  const lastLoadedUserRef = useRef<string | null>(null); // Track last successfully loaded user ID
 
   // Track login time for session duration calculation
   const loginTimeRef = useRef<Date | null>(null);
@@ -91,12 +92,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         authChangeTimeout = setTimeout(async () => {
           if (session?.user) {
+            // Skip redundant profile loads (e.g. tab visibility changes)
+            if (lastLoadedUserRef.current === session.user.id && event !== 'SIGNED_IN') {
+              console.log('🔄 Auth state change: profile already loaded for user, skipping:', session.user.id);
+              return;
+            }
             console.log('🔄 Auth state change: loading profile for user:', session.user.id);
             await loadUserProfile(session.user.id);
           } else {
             console.log('🔄 Auth state change: clearing user (no session)');
             // Clear profile loading state when signing out
             profileLoadingRef.current = null;
+            lastLoadedUserRef.current = null;
             setIsLoadingProfile(false);
             setUser(null);
           }
@@ -196,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Only set user if this is still the current request
         if (profileLoadingRef.current === userId) {
           setUser(userData);
+          lastLoadedUserRef.current = userId;
           console.log('✅ User state has been set successfully via API');
           return userData;
         } else {

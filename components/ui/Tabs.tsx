@@ -19,12 +19,25 @@ function useTabs() {
 }
 
 export interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
-  defaultValue: string;
+  defaultValue?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
   children: React.ReactNode;
 }
 
-function Tabs({ defaultValue, children, className, ...props }: TabsProps) {
-  const [selectedTab, setSelectedTab] = React.useState(defaultValue);
+function Tabs({ defaultValue, value, onValueChange, children, className, ...props }: TabsProps) {
+  const [internalTab, setInternalTab] = React.useState(defaultValue || value || '');
+
+  // Support controlled mode
+  const selectedTab = value !== undefined ? value : internalTab;
+  const setSelectedTab = (newValue: string) => {
+    if (onValueChange) {
+      onValueChange(newValue);
+    }
+    if (value === undefined) {
+      setInternalTab(newValue);
+    }
+  };
 
   return (
     <TabsContext.Provider value={{ selectedTab, setSelectedTab }}>

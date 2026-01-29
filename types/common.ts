@@ -3,7 +3,58 @@
  * Shared types and Supabase database definitions used across the application
  */
 
-export type UserRole = 'athlete' | 'parent' | 'agency' | 'school' | 'business';
+// User roles - SYNCED WITH DATABASE (January 2026)
+export type UserRole =
+  | 'hs_student'           // High school student athlete
+  | 'college_athlete'      // College/university athlete
+  | 'athlete'              // Legacy alias for college_athlete
+  | 'parent'               // Parent/guardian of minor athlete
+  | 'compliance_officer'   // School compliance staff
+  | 'agency'               // Agent/manager
+  | 'brand';               // Brand/sponsor
+
+// Legacy role aliases for backwards compatibility
+export type LegacyUserRole = 'school' | 'business';
+
+// Helper to normalize legacy roles to current roles
+export function normalizeRole(role: string): UserRole {
+  const roleMap: Record<string, UserRole> = {
+    'business': 'brand',
+    'school': 'compliance_officer',
+  };
+  return (roleMap[role] || role) as UserRole;
+}
+
+// Role display names for UI
+export const roleDisplayNames: Record<UserRole, string> = {
+  hs_student: 'High School Athlete',
+  college_athlete: 'College Athlete',
+  athlete: 'Athlete',
+  parent: 'Parent/Guardian',
+  compliance_officer: 'Compliance Officer',
+  agency: 'Agent/Manager',
+  brand: 'Brand/Sponsor'
+};
+
+// Check if role is an athlete type
+export function isAthleteRole(role: string): boolean {
+  return ['hs_student', 'college_athlete', 'athlete'].includes(role);
+}
+
+// Check if role is a minor (requires parental consent)
+export function isMinorRole(role: string): boolean {
+  return role === 'hs_student';
+}
+
+// Check if role can manage compliance
+export function isComplianceRole(role: string): boolean {
+  return role === 'compliance_officer';
+}
+
+// Check if role is a brand/sponsor
+export function isBrandRole(role: string): boolean {
+  return ['brand', 'agency'].includes(role);
+}
 
 export interface Database {
   public: {

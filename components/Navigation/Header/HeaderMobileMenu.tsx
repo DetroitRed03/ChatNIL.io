@@ -1,38 +1,27 @@
 'use client';
 
-import { Menu, X, LayoutDashboard, Target, Mail, User, Settings, LogOut } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Menu, X, LayoutDashboard, User, Settings, LogOut, BookOpen, GraduationCap } from 'lucide-react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessagingStore, setMessagingUserRole, setMessagingUserId } from '@/lib/stores/messaging';
-import { UnreadBadge } from '@/components/messaging/shared/UnreadBadge';
 
 /**
  * HeaderMobileMenu Component
  *
  * Mobile hamburger menu for authenticated users.
  * Shows navigation links in a drawer layout.
+ *
+ * PAUSED FEATURES (Marketplace/Messaging) - Intentionally removed:
+ * - Messages link and unread badge (messaging is paused)
+ * - Opportunities link for athletes (marketplace matching is paused)
+ *
+ * These can be re-enabled when marketplace features are activated.
  */
 
 export default function HeaderMobileMenu() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const { totalUnread, fetchUnreadCount } = useMessagingStore();
-
-  // Fetch unread count on mount and set user role
-  useEffect(() => {
-    if (user?.id) {
-      const role = user.role === 'agency' || user.role === 'business' ? 'agency' : 'athlete';
-      setMessagingUserRole(role);
-      setMessagingUserId(user.id);
-      fetchUnreadCount();
-
-      // Poll for unread count every 30 seconds
-      const interval = setInterval(fetchUnreadCount, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [user?.id, user?.role, fetchUnreadCount]);
 
   const handleLogout = async () => {
     await logout();
@@ -41,10 +30,20 @@ export default function HeaderMobileMenu() {
 
   if (!user) return null;
 
-  // Determine messages route based on role
-  const messagesRoute = user.role === 'agency' || user.role === 'business'
-    ? '/agency/messages'
-    : '/messages';
+  // Role-specific menu items
+  const isHSStudent = user.role === 'hs_student';
+  const isCollegeAthlete = user.role === 'athlete' || user.role === 'college_athlete';
+  const isParent = user.role === 'parent';
+  const isComplianceOfficer = user.role === 'compliance_officer';
+
+  // Get role-specific settings path
+  const getSettingsPath = () => {
+    if (isComplianceOfficer) return '/compliance/settings';
+    if (isHSStudent) return '/dashboard/hs-student/settings';
+    if (isCollegeAthlete) return '/dashboard/college-athlete/settings';
+    if (isParent) return '/parent/settings';
+    return '/settings';
+  };
 
   return (
     <>
@@ -59,10 +58,6 @@ export default function HeaderMobileMenu() {
           <X className="h-5 w-5 text-gray-600" />
         ) : (
           <Menu className="h-5 w-5 text-gray-600" />
-        )}
-        {/* Show unread indicator on menu button */}
-        {totalUnread > 0 && !showMobileMenu && (
-          <span className="absolute top-1 right-1 w-2 h-2 bg-orange-500 rounded-full" />
         )}
       </button>
 
@@ -90,50 +85,79 @@ export default function HeaderMobileMenu() {
                 Dashboard
               </button>
 
-              <button
-                onClick={() => {
-                  router.push('/opportunities');
-                  setShowMobileMenu(false);
-                }}
-                className="flex items-center w-full px-3 py-3 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-              >
-                <Target className="h-5 w-5 mr-3" />
-                Opportunities
-              </button>
+              {/* HS Student: Library & Quizzes */}
+              {isHSStudent && (
+                <>
+                  <button
+                    onClick={() => {
+                      router.push('/library');
+                      setShowMobileMenu(false);
+                    }}
+                    className="flex items-center w-full px-3 py-3 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                  >
+                    <BookOpen className="h-5 w-5 mr-3" />
+                    Library
+                  </button>
+                  <button
+                    onClick={() => {
+                      router.push('/quizzes');
+                      setShowMobileMenu(false);
+                    }}
+                    className="flex items-center w-full px-3 py-3 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                  >
+                    <GraduationCap className="h-5 w-5 mr-3" />
+                    Quizzes
+                  </button>
+                </>
+              )}
 
-              <button
-                onClick={() => {
-                  router.push(messagesRoute);
-                  setShowMobileMenu(false);
-                }}
-                className="flex items-center justify-between w-full px-3 py-3 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-              >
-                <span className="flex items-center">
-                  <Mail className="h-5 w-5 mr-3" />
-                  Messages
-                </span>
-                {totalUnread > 0 && (
-                  <UnreadBadge count={totalUnread} size="sm" />
-                )}
-              </button>
+              {/* College Athlete: Deals */}
+              {isCollegeAthlete && (
+                <>
+                  <button
+                    onClick={() => {
+                      router.push('/deals');
+                      setShowMobileMenu(false);
+                    }}
+                    className="flex items-center w-full px-3 py-3 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                  >
+                    <BookOpen className="h-5 w-5 mr-3" />
+                    My Deals
+                  </button>
+                  <button
+                    onClick={() => {
+                      router.push('/deals/validate');
+                      setShowMobileMenu(false);
+                    }}
+                    className="flex items-center w-full px-3 py-3 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                  >
+                    <BookOpen className="h-5 w-5 mr-3" />
+                    Validate Deal
+                  </button>
+                </>
+              )}
 
               <div className="border-t border-gray-200 my-3" />
 
               {/* Profile and Settings */}
               <button
                 onClick={() => {
-                  router.push('/profile');
+                  if (isHSStudent) {
+                    router.push('/dashboard/hs-student');
+                  } else {
+                    router.push('/profile');
+                  }
                   setShowMobileMenu(false);
                 }}
                 className="flex items-center w-full px-3 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
               >
                 <User className="h-5 w-5 mr-3 text-gray-500" />
-                Profile
+                {isHSStudent ? 'My Progress' : 'Profile'}
               </button>
 
               <button
                 onClick={() => {
-                  router.push('/settings');
+                  router.push(getSettingsPath());
                   setShowMobileMenu(false);
                 }}
                 className="flex items-center w-full px-3 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"

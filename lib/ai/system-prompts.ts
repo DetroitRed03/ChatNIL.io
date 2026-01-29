@@ -1,15 +1,109 @@
 /**
- * Role-Aware System Prompts for ChatNIL AI Brain
+ * Role-Based System Prompts for ChatNIL AI
  *
- * Each user role gets a customized system prompt that shapes how the AI
- * responds to their questions. This ensures athletes get simple explanations,
- * parents get legal context, coaches get compliance info, etc.
+ * This file supports TWO prompt systems:
+ * 1. NEW: Template-based prompts for hs_student, college_athlete, parent, compliance_officer
+ *    - Uses SYSTEM_PROMPTS record with basePrompt + contextTemplate
+ *    - Context is interpolated from database via getPromptForUser()
+ *
+ * 2. LEGACY: Function-based prompts for athlete, parent, coach, school_admin, agency
+ *    - Uses getSystemPrompt(userContext) for dynamic prompt building
+ *    - Context is provided by the client in the API call
  */
 
-export type UserRole = 'athlete' | 'parent' | 'coach' | 'school_admin' | 'agency';
+import { HS_STUDENT_SYSTEM_PROMPT, HS_STUDENT_CONTEXT_TEMPLATE } from './prompts/hs-student';
+import { COLLEGE_ATHLETE_SYSTEM_PROMPT, COLLEGE_ATHLETE_CONTEXT_TEMPLATE } from './prompts/college-athlete';
+import { PARENT_SYSTEM_PROMPT, PARENT_CONTEXT_TEMPLATE } from './prompts/parent';
+import { COMPLIANCE_OFFICER_SYSTEM_PROMPT, COMPLIANCE_OFFICER_CONTEXT_TEMPLATE } from './prompts/compliance-officer';
+
+// ============================================================================
+// NEW SYSTEM - Template-based prompts with database context
+// ============================================================================
+
+export type UserRole = 'hs_student' | 'college_athlete' | 'parent' | 'compliance_officer';
+
+export interface SystemPromptConfig {
+  basePrompt: string;
+  contextTemplate: string;
+}
+
+/**
+ * System prompts for each user role (NEW SYSTEM)
+ * Each entry contains:
+ * - basePrompt: The main system prompt defining the AI's persona and behavior
+ * - contextTemplate: Template for user-specific context (populated with {{PLACEHOLDERS}})
+ */
+export const SYSTEM_PROMPTS: Record<UserRole, SystemPromptConfig> = {
+  hs_student: {
+    basePrompt: HS_STUDENT_SYSTEM_PROMPT,
+    contextTemplate: HS_STUDENT_CONTEXT_TEMPLATE,
+  },
+  college_athlete: {
+    basePrompt: COLLEGE_ATHLETE_SYSTEM_PROMPT,
+    contextTemplate: COLLEGE_ATHLETE_CONTEXT_TEMPLATE,
+  },
+  parent: {
+    basePrompt: PARENT_SYSTEM_PROMPT,
+    contextTemplate: PARENT_CONTEXT_TEMPLATE,
+  },
+  compliance_officer: {
+    basePrompt: COMPLIANCE_OFFICER_SYSTEM_PROMPT,
+    contextTemplate: COMPLIANCE_OFFICER_CONTEXT_TEMPLATE,
+  },
+};
+
+/**
+ * Default system prompt for users without a defined role
+ */
+export const DEFAULT_SYSTEM_PROMPT = `You are ChatNIL, an AI assistant that helps people understand NIL (Name, Image, and Likeness) opportunities for student athletes.
+
+## Your Purpose
+Help users learn about NIL basics, rules, and opportunities. You provide general guidance that applies to athletes, parents, coaches, and anyone interested in understanding NIL.
+
+## What You Help With
+- Explaining what NIL means and how it works
+- General information about NCAA and state NIL rules
+- Overview of deal types (sponsorships, social media, appearances)
+- Basic brand-building concepts
+- Compliance considerations
+
+## What You DON'T Do
+- Provide legal advice
+- Provide financial or tax advice
+- Make decisions for users
+- Facilitate or recommend specific deals
+
+## Response Style
+- Clear and educational
+- Avoid jargon when possible
+- Encourage users to sign up for a role-specific experience
+- Keep responses concise and helpful
+
+If you'd like personalized guidance based on your specific situation, please sign up and select your role (student athlete, parent, or compliance officer) for a customized experience.`;
+
+/**
+ * Get conversation starters for each role (NEW SYSTEM)
+ */
+export function getConversationStarter(role: UserRole | null): string {
+  const starters: Record<UserRole, string> = {
+    hs_student: "Hey! I'm here to help you learn about NIL and build your personal brand. What would you like to know?",
+    college_athlete: "Hello! I can help you navigate NIL deals and stay compliant. Want to validate a deal or learn about the rules?",
+    parent: "Hello! I'm here to help you understand what NIL means for your child. What questions do you have?",
+    compliance_officer: "Hello! I can assist with NIL compliance, deal review, and regulatory guidance. How can I help?",
+  };
+
+  return role ? starters[role] : "Hello! I'm ChatNIL, your guide to understanding NIL opportunities. How can I help you today?";
+}
+
+// ============================================================================
+// LEGACY SYSTEM - Function-based prompts with client-provided context
+// Used by /api/chat/ai/route.ts
+// ============================================================================
+
+export type LegacyUserRole = 'athlete' | 'parent' | 'coach' | 'school_admin' | 'agency';
 
 export interface UserContext {
-  role: UserRole;
+  role: LegacyUserRole;
   state?: string;
   name?: string;
   athleteName?: string; // For parents/coaches
@@ -32,13 +126,6 @@ Core Principles:
 - Stay up-to-date on NIL landscape changes
 - Emphasize education and empowerment`;
 
-/**
- * System prompt for ATHLETE users
- *
- * Tone: Friendly, encouraging, educational
- * Focus: Simple explanations, opportunities, step-by-step guidance
- * Avoid: Legal jargon, complex financial terms without explanation
- */
 // Archetype-specific hints for AI personalization
 const ARCHETYPE_HINTS: Record<string, string> = {
   captain: 'This athlete is a natural leader. Emphasize team impact, legacy, and opportunities to inspire others. Suggest leadership-focused partnerships and mentorship content.',
@@ -51,8 +138,8 @@ const ARCHETYPE_HINTS: Record<string, string> = {
   builder: 'This athlete thinks long-term. Discuss equity deals, business ownership, and long-term brand building. Emphasize entrepreneurial opportunities.',
 };
 
-export function getAthleteSystemPrompt(context: UserContext): string {
-  const { state, name, sport, schoolLevel, archetypeCode, archetypeName, topTraits, traitScores } = context;
+function getAthleteSystemPrompt(context: UserContext): string {
+  const { state, name, sport, schoolLevel, archetypeCode, archetypeName, topTraits } = context;
 
   // Get archetype-specific hints
   const archetypeHint = archetypeCode ? ARCHETYPE_HINTS[archetypeCode] : '';
@@ -95,19 +182,12 @@ RESPONSE FORMAT:
 - Include relevant examples or success stories when helpful
 - End with encouragement or next steps
 
-${state ? `STATE-SPECIFIC: Always reference ${state} NIL rules when discussing compliance or legal questions. ${state} ${state === 'CA' || state === 'California' ? 'allows NIL deals without school approval, but requires disclosure.' : 'has specific NIL requirements - check state rules.'}` : ''}
+${state ? `STATE-SPECIFIC: Always reference ${state} NIL rules when discussing compliance or legal questions. ${state === 'CA' || state === 'California' ? 'allows NIL deals without school approval, but requires disclosure.' : 'has specific NIL requirements - check state rules.'}` : ''}
 
 Remember: You're not just answering questions - you're mentoring a student-athlete on their NIL journey.`;
 }
 
-/**
- * System prompt for PARENT users
- *
- * Tone: Professional, detailed, protective
- * Focus: Legal protections, financial planning, red flags
- * Emphasize: Due diligence, parental rights, safety
- */
-export function getParentSystemPrompt(context: UserContext): string {
+function getParentSystemPrompt(context: UserContext): string {
   const { state, athleteName } = context;
 
   return `${BASE_SYSTEM_PROMPT}
@@ -149,14 +229,7 @@ ${state ? `STATE-SPECIFIC: ${state} NIL laws apply. ${athleteName ? `Your athlet
 Remember: You're helping parents protect their child while enabling opportunities. Be thorough and emphasize due diligence.`;
 }
 
-/**
- * System prompt for COACH users
- *
- * Tone: Professional, compliance-focused, team-oriented
- * Focus: NCAA rules, team dynamics, time management
- * Emphasize: Compliance, fairness, academic performance
- */
-export function getCoachSystemPrompt(context: UserContext): string {
+function getCoachSystemPrompt(context: UserContext): string {
   const { state, sport, schoolLevel } = context;
 
   return `${BASE_SYSTEM_PROMPT}
@@ -210,14 +283,7 @@ ${state ? `STATE-SPECIFIC: ${state} NIL laws and ${schoolLevel === 'high_school'
 Remember: You're supporting athletes while maintaining program integrity and compliance.`;
 }
 
-/**
- * System prompt for SCHOOL_ADMIN users
- *
- * Tone: Authoritative, policy-focused, risk-aware
- * Focus: Compliance, liability, institutional policy
- * Emphasize: Legal obligations, institutional protection
- */
-export function getSchoolAdminSystemPrompt(context: UserContext): string {
+function getSchoolAdminSystemPrompt(context: UserContext): string {
   const { state, schoolLevel } = context;
 
   return `${BASE_SYSTEM_PROMPT}
@@ -269,14 +335,7 @@ ${state ? `STATE-SPECIFIC: ${state} NIL laws require specific institutional acti
 Remember: You're responsible for institutional compliance and risk management while enabling student-athlete opportunities.`;
 }
 
-/**
- * System prompt for AGENCY users
- *
- * Tone: Business-professional, strategic, results-oriented
- * Focus: Deal structure, market value, athlete development
- * Emphasize: Win-win partnerships, compliance, brand building
- */
-export function getAgencySystemPrompt(context: UserContext): string {
+function getAgencySystemPrompt(context: UserContext): string {
   const { state } = context;
 
   return `${BASE_SYSTEM_PROMPT}
@@ -336,7 +395,8 @@ Remember: You're building sustainable partnerships that benefit athletes, brands
 }
 
 /**
- * Get the appropriate system prompt based on user role
+ * Get the appropriate system prompt based on user role (LEGACY SYSTEM)
+ * Used by /api/chat/ai/route.ts
  */
 export function getSystemPrompt(context: UserContext): string {
   switch (context.role) {
@@ -356,10 +416,10 @@ export function getSystemPrompt(context: UserContext): string {
 }
 
 /**
- * Get a conversation starter based on user role
+ * Get a conversation starter based on user role (LEGACY SYSTEM)
  */
-export function getConversationStarter(role: UserRole): string {
-  const starters: Record<UserRole, string> = {
+export function getLegacyConversationStarter(role: LegacyUserRole): string {
+  const starters: Record<LegacyUserRole, string> = {
     athlete: "Hey! I'm here to help you navigate NIL opportunities and build your brand. What questions do you have about NIL deals?",
     parent: "Hello! I'm here to help you protect your athlete while exploring NIL opportunities. What would you like to know about NIL compliance and contracts?",
     coach: "Hello! I can help you understand NIL compliance and how to support your athletes within NCAA/NAIA rules. What questions do you have?",

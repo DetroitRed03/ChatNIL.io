@@ -19,6 +19,7 @@ import { getEnhancedRAGContext, detectStateInQuery, detectQuizTopicInQuery, getS
 import { withRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { getCachedResponse, cacheResponse, isCacheable } from '@/lib/ai/cache';
 import { retrieveDocumentContext } from '@/lib/documents/retriever';
+import { buildEnhancedChatContext } from '@/lib/ai/enhanced-chat-context';
 
 // Helper to fetch user's assessment results
 async function getUserAssessmentResults(userId: string): Promise<{
@@ -275,8 +276,47 @@ export async function POST(request: NextRequest) {
             console.log('🧠 Generating AI response with RAG...');
             sendStatus('thinking', 'Thinking...');
 
-            // 1. Get role-aware system prompt
-            const systemPrompt = getSystemPrompt(userContext);
+            // 1. Get role-aware system prompt with dashboard context
+            const baseSystemPrompt = getSystemPrompt(userContext);
+
+            // 1b. Enhance with real-time dashboard data if user is authenticated
+            let systemPrompt = baseSystemPrompt;
+            if (userId) {
+              try {
+                // Create admin supabase client for dashboard context
+                const supabaseAdmin = createClient(
+                  process.env.SUPABASE_URL!,
+                  process.env.SUPABASE_SERVICE_ROLE_KEY!
+                );
+
+                // Get user's actual role from database
+                const { data: userProfile } = await supabaseAdmin
+                  .from('users')
+                  .select('role')
+                  .eq('id', userId)
+                  .single();
+
+                const dbRole = userProfile?.role || userRole || 'athlete';
+
+                // Build enhanced context with dashboard data
+                const { fullContext, dashboardContext } = await buildEnhancedChatContext(
+                  userId,
+                  dbRole,
+                  supabaseAdmin,
+                  baseSystemPrompt
+                );
+
+                systemPrompt = fullContext;
+                console.log('📊 Dashboard context injected:', {
+                  role: dbRole,
+                  hasData: Object.keys(dashboardContext.data).length > 0,
+                  actions: dashboardContext.availableActions.length
+                });
+              } catch (dashboardError: any) {
+                console.warn('⚠️ Dashboard context failed, using base prompt:', dashboardError.message);
+                // Continue with base prompt if dashboard fails
+              }
+            }
 
             // 2. Detect query intent and fetch relevant knowledge
             let ragContext = '';
