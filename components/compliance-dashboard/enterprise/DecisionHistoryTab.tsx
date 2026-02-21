@@ -22,7 +22,7 @@ interface DecisionRecord {
 }
 
 interface DecisionHistoryTabProps {
-  onViewDeal: (dealId: string, athleteId: string) => void;
+  onViewDeal: (dealId: string) => void;
 }
 
 export function DecisionHistoryTab({ onViewDeal }: DecisionHistoryTabProps) {
@@ -264,7 +264,7 @@ export function DecisionHistoryTab({ onViewDeal }: DecisionHistoryTabProps) {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() => onViewDeal(record.dealId, record.athleteId)}
+                      onClick={() => onViewDeal(record.dealId)}
                       className="text-sm text-orange-600 hover:text-orange-700 font-medium"
                     >
                       View

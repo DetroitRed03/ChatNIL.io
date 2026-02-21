@@ -136,7 +136,7 @@ export async function POST(
       'info_requested': 'info_requested'
     };
 
-    // Update deal with decision
+    // Update deal with decision (also clear has_active_appeal since a new decision supersedes any pending appeal)
     const { error: updateError } = await supabaseAdmin
       .from('nil_deals')
       .update({
@@ -145,7 +145,8 @@ export async function POST(
         compliance_decision_at: new Date().toISOString(),
         compliance_decision_by: user.id,
         athlete_notes: athleteNotes || null,
-        internal_notes: internalNotes || null
+        internal_notes: internalNotes || null,
+        has_active_appeal: false
       })
       .eq('id', dealId);
 
@@ -155,7 +156,30 @@ export async function POST(
     }
     console.log('✅ Deal updated successfully with status:', statusMap[decision]);
 
-    // Handle score override if provided
+    // Always update compliance_scores.status to reflect the decision
+    const decisionToScoreStatus: Record<string, string> = {
+      'approved': 'green',
+      'approved_with_conditions': 'yellow',
+      'rejected': 'red',
+      'info_requested': 'yellow'
+    };
+
+    const newScoreStatus = decisionToScoreStatus[decision];
+    if (newScoreStatus) {
+      const { error: scoreStatusError } = await supabaseAdmin
+        .from('compliance_scores')
+        .update({ status: newScoreStatus })
+        .eq('deal_id', dealId);
+
+      if (scoreStatusError) {
+        console.error('⚠️ Error updating compliance_scores status:', scoreStatusError);
+        // Non-critical - continue
+      } else {
+        console.log('✅ compliance_scores.status updated to:', newScoreStatus);
+      }
+    }
+
+    // Handle score override if provided (overrides the status set above)
     if (overrideScore) {
       // Calculate new status based on override score
       const newStatus = overrideScore.newScore >= 80 ? 'green' :

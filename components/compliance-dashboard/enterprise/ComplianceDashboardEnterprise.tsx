@@ -385,11 +385,7 @@ export function ComplianceDashboardEnterprise() {
     if (result.type === 'athlete') {
       router.push(`/compliance/athlete/${result.id}`);
     } else if (result.type === 'deal') {
-      // Find athlete for this deal and navigate
-      const item = actionItems.find(i => i.dealId === result.id);
-      if (item) {
-        router.push(`/compliance/athlete/${item.athleteId}?deal=${result.id}`);
-      }
+      router.push(`/compliance/deals/${result.id}/review`);
     } else if (result.type === 'action' && result.id.startsWith('filter-')) {
       // Apply filter
       const parts = result.id.split('-');
@@ -620,7 +616,7 @@ export function ComplianceDashboardEnterprise() {
                   items={actionItems}
                   selectedIds={selectedIds}
                   onSelectionChange={setSelectedIds}
-                  onItemClick={(item) => router.push(`/compliance/athlete/${item.athleteId}?deal=${item.dealId}`)}
+                  onItemClick={(item) => router.push(`/compliance/deals/${item.dealId}/review`)}
                   onAssign={(itemId) => {
                     setAssignmentItemId(itemId);
                     setSelectedIds(new Set([itemId]));
@@ -640,7 +636,7 @@ export function ComplianceDashboardEnterprise() {
 
             {activeTab === 'decision_history' && (
               <DecisionHistoryTab
-                onViewDeal={(dealId, athleteId) => router.push(`/compliance/athlete/${athleteId}?deal=${dealId}`)}
+                onViewDeal={(dealId) => router.push(`/compliance/deals/${dealId}/review`)}
               />
             )}
 

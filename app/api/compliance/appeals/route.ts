@@ -249,22 +249,53 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to resolve appeal' }, { status: 500 });
     }
 
-    // If modified or reversed, update the deal
+    // Always clear has_active_appeal on the deal when an appeal is resolved
+    const dealUpdate: Record<string, any> = {
+      has_active_appeal: false,
+    };
+
+    // If modified or reversed, also update the decision and status
     if (resolution !== 'upheld' && newDecision) {
-      const dealUpdate: Record<string, any> = {
-        compliance_decision: newDecision,
-        compliance_decision_at: new Date().toISOString(),
-        compliance_decision_by: user.id,
+      dealUpdate.compliance_decision = newDecision;
+      dealUpdate.compliance_decision_at = new Date().toISOString();
+      dealUpdate.compliance_decision_by = user.id;
+
+      // Map the new decision to a deal status
+      const statusMap: Record<string, string> = {
+        'approved': 'approved',
+        'approved_with_conditions': 'approved_conditional',
+        'rejected': 'rejected',
+        'info_requested': 'info_requested',
       };
+      if (statusMap[newDecision]) {
+        dealUpdate.status = statusMap[newDecision];
+      }
 
       if (resolutionNotes) {
         dealUpdate.athlete_notes = resolutionNotes;
       }
+    }
 
-      await supabaseAdmin
-        .from('nil_deals')
-        .update(dealUpdate)
-        .eq('id', appeal.deal_id);
+    await supabaseAdmin
+      .from('nil_deals')
+      .update(dealUpdate)
+      .eq('id', appeal.deal_id);
+
+    // Update compliance_scores.status to reflect the resolution
+    if (resolution !== 'upheld' && newDecision) {
+      const decisionToScoreStatus: Record<string, string> = {
+        'approved': 'green',
+        'approved_with_conditions': 'yellow',
+        'rejected': 'red',
+        'info_requested': 'yellow',
+      };
+      const newScoreStatus = decisionToScoreStatus[newDecision];
+      if (newScoreStatus) {
+        await supabaseAdmin
+          .from('compliance_scores')
+          .update({ status: newScoreStatus })
+          .eq('deal_id', appeal.deal_id);
+      }
     }
 
     // Get deal info for notification
