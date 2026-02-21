@@ -112,13 +112,8 @@ export function ComplianceDashboardEnterprise() {
   const [isProcessingBulk, setIsProcessingBulk] = useState(false);
 
   // Tab state
-  type DashboardTab = 'overview' | 'action_required' | 'decision_history' | 'appeals_queue';
-  const [activeTab, setActiveTab] = useState<DashboardTab>(
-    filterParam === 'action' ? 'action_required'
-    : filterParam === 'appeals' ? 'appeals_queue'
-    : filterParam === 'history' ? 'decision_history'
-    : 'overview'
-  );
+  type DashboardTab = 'action_required' | 'decision_history' | 'appeals_queue';
+  const [activeTab, setActiveTab] = useState<DashboardTab>('action_required');
   const [appealsCount, setAppealsCount] = useState(0);
 
   // Get access token helper
@@ -261,10 +256,8 @@ export function ComplianceDashboardEnterprise() {
       setActiveTab('appeals_queue');
     } else if (filterParam === 'history') {
       setActiveTab('decision_history');
-    } else if (!filterParam && !deadlineFilter) {
-      setActiveTab('overview');
     }
-  }, [filterParam, deadlineFilter]);
+  }, [filterParam]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -527,22 +520,12 @@ export function ComplianceDashboardEnterprise() {
         </div>
 
         {/* Main Content Grid */}
-        <div className={`grid grid-cols-1 ${activeTab !== 'overview' ? 'lg:grid-cols-4' : ''} gap-6`}>
-          {/* Left Column - Main Content */}
-          <div className={`${activeTab !== 'overview' ? 'lg:col-span-3' : ''} space-y-4`}>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Left Column - Action Items (3 cols) */}
+          <div className="lg:col-span-3 space-y-4">
             {/* Tab Navigation */}
             <div className="flex items-center justify-between border-b border-gray-200">
               <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setActiveTab('overview')}
-                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'overview'
-                      ? 'border-orange-500 text-orange-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Overview
-                </button>
                 <button
                   onClick={() => setActiveTab('action_required')}
                   className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
@@ -600,53 +583,6 @@ export function ComplianceDashboardEnterprise() {
             </div>
 
             {/* Tab Content */}
-            {activeTab === 'overview' && (
-              <div className="space-y-6 py-4">
-                {/* Compliance by Sport - full width */}
-                <ComplianceBySportV2
-                  sports={dashboardData.bySport.map(s => ({
-                    ...s,
-                    greenCount: s.totalAthletes - s.yellowCount - s.redCount,
-                    pendingReviews: 0
-                  }))}
-                  onSportClick={(sport) => router.push(`/compliance/athletes?sport=${encodeURIComponent(sport)}`)}
-                  onAthleteClick={(athleteId) => router.push(`/compliance/athlete/${athleteId}`)}
-                  onViewAll={() => router.push('/compliance/athletes?view=by_sport')}
-                />
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Team Workload */}
-                  {teamMembers.length > 0 && (
-                    <TeamWorkloadPanel
-                      members={teamMembers}
-                      totalOpenItems={totalOpenItems}
-                      onMemberClick={(memberId) => {
-                        handleFilterChange({ ...filters, assignee: memberId });
-                        setActiveTab('action_required');
-                      }}
-                    />
-                  )}
-
-                  {/* Recent Activity */}
-                  <RecentActivityFeed
-                    activities={dashboardData.recentActivity}
-                    onViewAll={() => router.push('/compliance/activity')}
-                  />
-                </div>
-
-                {/* Quick action to jump to action items */}
-                {totalItems > 0 && (
-                  <button
-                    onClick={() => setActiveTab('action_required')}
-                    className="w-full py-3 px-4 bg-orange-50 border border-orange-200 rounded-lg text-orange-700 font-medium text-sm hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"
-                  >
-                    View {totalItems} Action Item{totalItems !== 1 ? 's' : ''} Requiring Review
-                    <span className="text-orange-400">&rarr;</span>
-                  </button>
-                )}
-              </div>
-            )}
-
             {activeTab === 'action_required' && (
               <>
                 {/* Quick Filters */}
@@ -718,37 +654,35 @@ export function ComplianceDashboardEnterprise() {
             )}
           </div>
 
-          {/* Right Column - Sidebar (1 col) - hidden on overview since it's shown inline */}
-          {activeTab !== 'overview' && (
-            <div className="space-y-6">
-              {/* Team Workload */}
-              {teamMembers.length > 0 && (
-                <TeamWorkloadPanel
-                  members={teamMembers}
-                  totalOpenItems={totalOpenItems}
-                  onMemberClick={(memberId) => handleFilterChange({ ...filters, assignee: memberId })}
-                />
-              )}
-
-              {/* Compliance by Sport */}
-              <ComplianceBySportV2
-                sports={dashboardData.bySport.map(s => ({
-                  ...s,
-                  greenCount: s.totalAthletes - s.yellowCount - s.redCount,
-                  pendingReviews: 0
-                }))}
-                onSportClick={(sport) => router.push(`/compliance/athletes?sport=${encodeURIComponent(sport)}`)}
-                onAthleteClick={(athleteId) => router.push(`/compliance/athlete/${athleteId}`)}
-                onViewAll={() => router.push('/compliance/athletes?view=by_sport')}
+          {/* Right Column - Sidebar (1 col) */}
+          <div className="space-y-6">
+            {/* Team Workload */}
+            {teamMembers.length > 0 && (
+              <TeamWorkloadPanel
+                members={teamMembers}
+                totalOpenItems={totalOpenItems}
+                onMemberClick={(memberId) => handleFilterChange({ ...filters, assignee: memberId })}
               />
+            )}
 
-              {/* Recent Activity */}
-              <RecentActivityFeed
-                activities={dashboardData.recentActivity}
-                onViewAll={() => router.push('/compliance/activity')}
-              />
-            </div>
-          )}
+            {/* Compliance by Sport */}
+            <ComplianceBySportV2
+              sports={dashboardData.bySport.map(s => ({
+                ...s,
+                greenCount: s.totalAthletes - s.yellowCount - s.redCount,
+                pendingReviews: 0
+              }))}
+              onSportClick={(sport) => router.push(`/compliance/athletes?sport=${encodeURIComponent(sport)}`)}
+              onAthleteClick={(athleteId) => router.push(`/compliance/athlete/${athleteId}`)}
+              onViewAll={() => router.push('/compliance/athletes?view=by_sport')}
+            />
+
+            {/* Recent Activity */}
+            <RecentActivityFeed
+              activities={dashboardData.recentActivity}
+              onViewAll={() => router.push('/compliance/activity')}
+            />
+          </div>
         </div>
       </main>
 
