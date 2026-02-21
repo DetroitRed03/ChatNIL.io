@@ -4,113 +4,77 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { GraduationCap, Users, Shield, Building2, ArrowRight, Loader2, CheckCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import type { UserRole } from '@/lib/types/onboarding';
+import { ArrowRight, CheckCircle } from 'lucide-react';
+
+type UserRole = 'hs_athlete' | 'college_athlete' | 'parent' | 'compliance_officer';
 
 interface RoleOption {
   id: UserRole;
   title: string;
   description: string;
-  icon: React.ReactNode;
-  emoji: string;
+  icon: string;
   features: string[];
-  route: string;
 }
 
 const roleOptions: RoleOption[] = [
   {
-    id: 'hs_student',
+    id: 'hs_athlete',
     title: 'High School Athlete',
     description: 'Learn about NIL and prepare for your future',
-    icon: <GraduationCap className="h-6 w-6" />,
-    emoji: '\u{1F3C8}',
+    icon: '\u{1F3C8}',
     features: [
       'AI-powered NIL education',
       'Build your athlete profile',
       "Understand your state's rules",
       'Parent/guardian oversight',
     ],
-    route: '/onboarding/hs-student',
   },
   {
     id: 'college_athlete',
     title: 'College Athlete',
     description: 'Manage deals and maximize your NIL potential',
-    icon: <Users className="h-6 w-6" />,
-    emoji: '\u{1F393}',
+    icon: '\u{1F393}',
     features: [
       'Deal tracking & analysis',
       'Fair market value estimates',
       'Compliance auto-check',
       'Earnings dashboard',
     ],
-    route: '/onboarding/college-athlete',
   },
   {
     id: 'parent',
     title: 'Parent / Guardian',
     description: 'Support and protect your young athlete',
-    icon: <Shield className="h-6 w-6" />,
-    emoji: '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}',
+    icon: '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}',
     features: [
       "Monitor your athlete's activity",
       'Approve deals before signing',
       'Receive compliance alerts',
       'Educational resources',
     ],
-    route: '/onboarding/parent',
   },
   {
     id: 'compliance_officer',
     title: 'Compliance Officer',
     description: 'Streamline NIL oversight for your institution',
-    icon: <Building2 className="h-6 w-6" />,
-    emoji: '\u{1F4CB}',
+    icon: '\u{1F4CB}',
     features: [
       'AI-powered deal review',
       'Risk scoring & alerts',
       'Team management',
       'Audit-ready reports',
     ],
-    route: '/onboarding/compliance-officer',
   },
 ];
 
-export default function RoleSelectionPage() {
+export default function SignUpPage() {
   const router = useRouter();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleContinue = async () => {
-    const role = roleOptions.find(r => r.id === selectedRole);
-    if (!role) return;
-
-    setIsLoading(true);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-
-      const response = await fetch('/api/onboarding/set-role', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
-        },
-        credentials: 'include',
-        body: JSON.stringify({ role: role.id }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to set role');
-      }
-
-      router.push(role.route);
-    } catch (error) {
-      console.error('Error setting role:', error);
-      setIsLoading(false);
-    }
+  const handleContinue = () => {
+    if (!selectedRole) return;
+    sessionStorage.setItem('selectedRole', selectedRole);
+    router.push(`/signup/${selectedRole}`);
   };
 
   return (
@@ -127,18 +91,14 @@ export default function RoleSelectionPage() {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-6 py-12">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
-        >
+        <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             Welcome to ChatNIL
           </h1>
           <p className="text-xl text-gray-600">
-            Tell us about yourself so we can personalize your experience
+            Select your role to get started with a personalized experience
           </p>
-        </motion.div>
+        </div>
 
         {/* Role Cards */}
         <div className="grid md:grid-cols-2 gap-6 mb-12">
@@ -148,7 +108,7 @@ export default function RoleSelectionPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              onClick={() => !isLoading && setSelectedRole(role.id)}
+              onClick={() => setSelectedRole(role.id)}
               className={`
                 relative p-6 rounded-2xl border-2 cursor-pointer transition-all duration-200
                 ${selectedRole === role.id
@@ -157,14 +117,17 @@ export default function RoleSelectionPage() {
                 }
               `}
             >
+              {/* Selected Checkmark */}
               {selectedRole === role.id && (
                 <div className="absolute top-4 right-4">
                   <CheckCircle className="w-6 h-6 text-orange-500" />
                 </div>
               )}
 
-              <div className="text-4xl mb-4">{role.emoji}</div>
+              {/* Icon */}
+              <div className="text-4xl mb-4">{role.icon}</div>
 
+              {/* Title & Description */}
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
                 {role.title}
               </h3>
@@ -172,6 +135,7 @@ export default function RoleSelectionPage() {
                 {role.description}
               </p>
 
+              {/* Features */}
               <ul className="space-y-2">
                 {role.features.map((feature, i) => (
                   <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
@@ -190,7 +154,7 @@ export default function RoleSelectionPage() {
         <div className="text-center">
           <button
             onClick={handleContinue}
-            disabled={!selectedRole || isLoading}
+            disabled={!selectedRole}
             className={`
               inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-lg
               transition-all duration-200
@@ -200,27 +164,16 @@ export default function RoleSelectionPage() {
               }
             `}
           >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Setting up...
-              </>
-            ) : (
-              <>
-                Continue
-                <ArrowRight className="w-5 h-5" />
-              </>
-            )}
+            Continue
+            <ArrowRight className="w-5 h-5" />
           </button>
 
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="mt-6 text-gray-500 text-sm"
-          >
-            You can change your role later in settings if needed
-          </motion.p>
+          <p className="mt-6 text-gray-500">
+            Already have an account?{' '}
+            <Link href="/onboarding" className="text-orange-600 hover:underline font-medium">
+              Sign in
+            </Link>
+          </p>
         </div>
       </main>
     </div>

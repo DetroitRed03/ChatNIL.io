@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
-import { User, UserRole, AthleteProfile, ParentProfile, CoachProfile } from '@/types';
+import { User, UserRole, AthleteProfile, ParentProfile } from '@/types';
 import { supabase, resetSupabaseSession } from '@/lib/supabase';
 import { prepareForSignup, setSignupSession, clearRedirectStorage, isFreshSession, setDebugMode, clearAllAuthStorage } from '@/lib/auth-storage';
 import { useChatHistoryStore } from '@/lib/chat-history-store';
@@ -10,7 +10,7 @@ import { trackEvent, calculateSessionDuration } from '@/lib/analytics';
 
 // Keep existing interface for backward compatibility, but extend it
 interface ExtendedUser extends User {
-  profile?: AthleteProfile | ParentProfile | CoachProfile;
+  profile?: AthleteProfile | ParentProfile;
 }
 
 interface SignupData {
@@ -18,7 +18,7 @@ interface SignupData {
   email: string;
   password: string;
   role: UserRole;
-  profileData: Partial<AthleteProfile | ParentProfile | CoachProfile>;
+  profileData: Partial<AthleteProfile | ParentProfile>;
 }
 
 interface AuthContextType {

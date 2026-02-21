@@ -726,7 +726,7 @@ export interface User {
   role: UserRole;
   name: string;
   avatar?: string;
-  profile?: AthleteProfile | ParentProfile | CoachProfile | AgencyProfile;
+  profile?: AthleteProfile | ParentProfile | AgencyProfile;
   // Phase 6B: School system fields
   school_created?: boolean;
   profile_completion_tier?: 'basic' | 'full';
@@ -764,16 +764,7 @@ export interface ParentProfile {
   onboarding_completed?: boolean;
 }
 
-export interface CoachProfile {
-  user_id: string;
-  first_name: string;
-  last_name: string;
-  school: string;
-  team?: string;
-  sport: string;
-  years_experience?: number;
-  onboarding_completed?: boolean;
-}
+// CoachProfile removed - Coach role was removed in migration 017
 
 export interface AgencyProfile {
   user_id: string;
@@ -840,22 +831,7 @@ export interface ParentAthleteRelationship {
   updated_at: string;
 }
 
-export interface CoachAthleteRelationship {
-  coach_id: string;
-  athlete_id: string;
-  team_role?: 'starter' | 'bench' | 'redshirt' | 'walk_on' | 'injured_reserve';
-  sport?: string;
-  season?: string;
-  permissions: {
-    view_nil_activities?: boolean;
-    provide_guidance?: boolean;
-    receive_reports?: boolean;
-    manage_compliance?: boolean;
-  };
-  active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+// CoachAthleteRelationship removed - Coach role was removed in migration 017
 
 // Badge and Gamification interfaces
 export type BadgeRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
