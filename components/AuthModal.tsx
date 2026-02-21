@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -40,6 +41,7 @@ export default function AuthModal({
   onLogin,
   onSignup
 }: AuthModalProps) {
+  const router = useRouter();
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -385,13 +387,23 @@ export default function AuthModal({
           <div className="text-center">
             <p className="text-sm text-gray-600">
               {mode === 'login' ? "Don't have an account?" : "Already have an account?"}
-              <button
-                onClick={switchMode}
-                disabled={isSubmitting}
-                className="ml-2 text-primary-600 hover:text-primary-700 font-semibold transition-colors disabled:opacity-50"
-              >
-                {mode === 'login' ? 'Sign up' : 'Sign in'}
-              </button>
+              {mode === 'login' ? (
+                <button
+                  onClick={() => { onClose(); router.push('/signup'); }}
+                  disabled={isSubmitting}
+                  className="ml-2 text-primary-600 hover:text-primary-700 font-semibold transition-colors disabled:opacity-50"
+                >
+                  Sign up
+                </button>
+              ) : (
+                <button
+                  onClick={switchMode}
+                  disabled={isSubmitting}
+                  className="ml-2 text-primary-600 hover:text-primary-700 font-semibold transition-colors disabled:opacity-50"
+                >
+                  Sign in
+                </button>
+              )}
             </p>
           </div>
 

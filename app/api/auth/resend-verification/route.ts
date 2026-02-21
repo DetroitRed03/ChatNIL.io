@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       type: 'signup',
       email,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://chatnil.io'}/auth/callback`,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://chatnil-io.vercel.app'}/auth/callback`,
       },
     });
 
