@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Eye, EyeOff, ArrowLeft, Loader2 } from 'lucide-react';
+import { Logo } from '@/components/brand/Logo';
 import { US_STATES, SPORTS } from '@/lib/types/onboarding';
 
 const roleConfig: Record<string, {
@@ -126,12 +127,7 @@ export default function RoleSignUpPage() {
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50">
       {/* Header */}
       <header className="p-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold text-lg">CN</span>
-          </div>
-          <span className="text-xl font-bold text-gray-900">ChatNIL</span>
-        </Link>
+        <Logo size="md" variant="full" href="/" />
       </header>
 
       <main className="max-w-md mx-auto px-6 py-12">

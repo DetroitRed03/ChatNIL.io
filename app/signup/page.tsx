@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle } from 'lucide-react';
+import { Logo } from '@/components/brand/Logo';
 
 type UserRole = 'hs_athlete' | 'college_athlete' | 'parent' | 'compliance_officer';
 
@@ -81,12 +82,7 @@ export default function SignUpPage() {
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-50">
       {/* Header */}
       <header className="p-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold text-lg">CN</span>
-          </div>
-          <span className="text-xl font-bold text-gray-900">ChatNIL</span>
-        </Link>
+        <Logo size="md" variant="full" href="/" />
       </header>
 
       {/* Main Content */}
