@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useNavigation } from '@/lib/stores/navigation';
 import { supabase } from '@/lib/supabase';
 import {
@@ -40,6 +40,7 @@ interface RecentActivity {
 
 export function ComplianceOfficerSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { sidebarCollapsed, toggleSidebar } = useNavigation();
   const [stats, setStats] = useState<QuickFilterStats>({ critical: 0, warning: 0, compliant: 0 });
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
@@ -121,8 +122,17 @@ export function ComplianceOfficerSidebar() {
   ];
 
   const isActive = (href: string) => {
+    // For links with query params (e.g., ?filter=action), match only when the param is present
     if (href.includes('?')) {
-      return pathname === href.split('?')[0];
+      const [basePath, queryString] = href.split('?');
+      if (pathname !== basePath) return false;
+      const params = new URLSearchParams(queryString);
+      const filterValue = params.get('filter');
+      return searchParams.get('filter') === filterValue;
+    }
+    // For plain Dashboard link, only active when there's NO filter param
+    if (href === '/compliance/dashboard') {
+      return pathname === href && !searchParams.get('filter');
     }
     return pathname === href || pathname?.startsWith(href + '/');
   };
