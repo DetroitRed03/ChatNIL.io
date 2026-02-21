@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { isAthleteRole } from '@/types/common';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Only athletes have FMV notifications
-    if (user.role !== 'athlete') {
+    if (!isAthleteRole(user.role)) {
       return NextResponse.json({
         success: true,
         notifications: [],

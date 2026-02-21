@@ -28,8 +28,11 @@ export interface CacheConfig {
 }
 
 // Default cache configuration
+// DISABLED: Cache was serving old responses with outdated formatting (numbered lists,
+// bold headers) that bypassed updated system prompts. Re-enable after confirming
+// new prompt style is working consistently.
 const DEFAULT_CONFIG: CacheConfig = {
-  enabled: true,
+  enabled: false,
   ttlHours: 24, // Cache responses for 24 hours
   minQueryLength: 10, // Don't cache very short queries
   maxCacheSize: 1000, // Maximum number of cached entries

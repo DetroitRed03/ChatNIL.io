@@ -11,6 +11,7 @@
 
 import { NextRequest } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { isAthleteRole } from '@/types/common';
 
 export const dynamic = 'force-dynamic';
 
@@ -142,7 +143,7 @@ export async function GET(request: NextRequest) {
             });
           }
         }
-      } else if (user.role === 'athlete') {
+      } else if (isAthleteRole(user.role)) {
         // Load recent campaign matches for athletes
         const { data: recentMatches } = await supabase
           .from('agency_athlete_matches')
@@ -200,7 +201,7 @@ export async function GET(request: NextRequest) {
         try {
           const lastCheck = lastCheckMap.get(userId) || new Date(Date.now() - 60000);
 
-          if (user.role === 'athlete') {
+          if (isAthleteRole(user.role)) {
             // For athletes, check for new agency matches
             const { data: newMatches, error } = await supabase
               .from('agency_athlete_matches')

@@ -18,6 +18,8 @@ import {
   Calendar,
   Building2,
   Send,
+  RefreshCw,
+  History,
 } from 'lucide-react';
 import { ConditionsAcknowledgmentForm } from '@/components/deals/ConditionsAcknowledgmentForm';
 
@@ -62,6 +64,7 @@ interface DealData {
   has_active_appeal: boolean;
   appeal_count: number;
   superseded_by_deal_id?: string | null;
+  resubmitted_from_deal_id?: string | null;
   info_requests: InfoRequest[];
   appeals: Appeal[];
   compliance_scores?: Array<{
@@ -338,6 +341,40 @@ export default function DealDetailPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-6 space-y-6">
+        {/* Resubmission Context Banners */}
+        {deal.superseded_by_deal_id && (
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+            <div className="flex items-center gap-2 text-blue-700 mb-2">
+              <RefreshCw className="w-5 h-5" />
+              <span className="font-medium">This deal was resubmitted</span>
+            </div>
+            <p className="text-sm text-blue-600 mb-3">
+              You submitted a modified version of this deal.
+            </p>
+            <Link
+              href={`/deals/${deal.superseded_by_deal_id}`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
+            >
+              View resubmitted deal &rarr;
+            </Link>
+          </div>
+        )}
+
+        {deal.resubmitted_from_deal_id && (
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+            <div className="flex items-center gap-2 text-gray-700 mb-2">
+              <History className="w-5 h-5" />
+              <span className="font-medium">This is a resubmission</span>
+            </div>
+            <Link
+              href={`/deals/${deal.resubmitted_from_deal_id}`}
+              className="inline-flex items-center gap-1 text-sm text-gray-600 hover:underline"
+            >
+              View original deal &rarr;
+            </Link>
+          </div>
+        )}
+
         {/* Decision Banner */}
         {config && (
           <div className={`${config.bg} border ${config.border} rounded-xl p-6`}>

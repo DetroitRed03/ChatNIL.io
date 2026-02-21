@@ -6,66 +6,34 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { defaultAthleteSettings, AthleteSettings } from '@/types/settings';
 import { isAthleteRole } from '@/types/common';
 
 export const dynamic = 'force-dynamic';
 
 // Create Supabase client with service role for RLS bypass
+// CRITICAL: Must disable Next.js fetch caching — supabase-js uses fetch internally
+// and Next.js App Router caches all fetch() by default, causing stale reads after writes.
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
-}
-
-// Get authenticated user from cookies (async version for Next.js 14)
-async function getAuthenticatedUser(request: NextRequest) {
-  const cookieStore = await cookies();
-
-  // Check for Authorization header first
-  const authHeader = request.headers.get('Authorization');
-  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
-          });
-        },
+      auth: { persistSession: false },
+      global: {
+        fetch: (url: any, opts: any) => fetch(url, { ...opts, cache: 'no-store' as any }),
       },
     }
   );
-
-  // Try getting user from session first
-  let { data: { user }, error } = await supabase.auth.getUser();
-
-  // If no user from session, try bearer token
-  if (!user && bearerToken) {
-    const { data: { user: tokenUser }, error: tokenError } = await supabase.auth.getUser(bearerToken);
-    if (tokenUser && !tokenError) {
-      user = tokenUser;
-    }
-  }
-
-  return user || null;
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+
+    if (!userId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
     const supabase = getSupabaseAdmin();
@@ -74,7 +42,7 @@ export async function GET(request: NextRequest) {
     const { data: userData } = await supabase
       .from('users')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single();
 
     if (!isAthleteRole(userData?.role || '')) {
@@ -85,7 +53,7 @@ export async function GET(request: NextRequest) {
     const { data: settings, error: settingsError } = await supabase
       .from('athlete_settings')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (settingsError && settingsError.code !== 'PGRST116') {
@@ -96,7 +64,7 @@ export async function GET(request: NextRequest) {
     // Return settings or defaults
     return NextResponse.json({
       settings: settings || {
-        user_id: user.id,
+        user_id: userId,
         ...defaultAthleteSettings,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -111,19 +79,20 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const body = await request.json();
+    const userId = body.userId;
+
+    if (!userId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
-    const body = await request.json();
     const supabase = getSupabaseAdmin();
 
     // Verify user is an athlete
     const { data: userData } = await supabase
       .from('users')
       .select('role')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single();
 
     if (!isAthleteRole(userData?.role || '')) {
@@ -131,7 +100,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Remove fields that shouldn't be updated directly
-    const { id, user_id, created_at, ...updateData } = body;
+    const { id, user_id, userId: _, created_at, ...updateData } = body;
 
     // For HS students, enforce certain restrictions
     if (userData?.role === 'hs_student') {
@@ -147,7 +116,7 @@ export async function PUT(request: NextRequest) {
       .from('athlete_settings')
       .upsert(
         {
-          user_id: user.id,
+          user_id: userId,
           ...updateData,
           updated_at: new Date().toISOString()
         },

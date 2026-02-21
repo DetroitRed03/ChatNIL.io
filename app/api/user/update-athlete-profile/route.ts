@@ -44,7 +44,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (currentProfile.role !== 'athlete') {
+    const athleteRoles = ['athlete', 'college_athlete', 'hs_student'];
+    if (!athleteRoles.includes(currentProfile.role)) {
       return NextResponse.json(
         { error: 'This endpoint is only available for athletes' },
         { status: 403 }
@@ -123,6 +124,71 @@ export async function POST(request: Request) {
           { status: 500 }
         );
       }
+    }
+
+    // Handle social media stats — write to athlete_public_profiles + users tables
+    if (body.social_media_stats && typeof body.social_media_stats === 'object') {
+      const sm = body.social_media_stats;
+
+      const socialColumns: Record<string, any> = {
+        instagram_handle: sm.instagram?.handle || null,
+        instagram_followers: sm.instagram?.followers || 0,
+        instagram_engagement_rate: sm.instagram?.engagement_rate || null,
+        tiktok_handle: sm.tiktok?.handle || null,
+        tiktok_followers: sm.tiktok?.followers || 0,
+        tiktok_engagement_rate: sm.tiktok?.engagement_rate || null,
+        twitter_handle: sm.twitter?.handle || null,
+        twitter_followers: sm.twitter?.followers || 0,
+        youtube_channel: sm.youtube?.handle || null,
+        youtube_subscribers: sm.youtube?.subscribers || 0,
+        // NOTE: total_followers is a GENERATED ALWAYS column — auto-calculated from individual platform followers
+        updated_at: new Date().toISOString(),
+      };
+
+      // Calculate avg engagement rate
+      const engRates = [
+        sm.instagram?.engagement_rate,
+        sm.tiktok?.engagement_rate,
+        sm.twitter?.engagement_rate,
+      ].filter((r): r is number => typeof r === 'number' && r > 0);
+      if (engRates.length > 0) {
+        socialColumns.avg_engagement_rate = +(engRates.reduce((a, b) => a + b, 0) / engRates.length).toFixed(2);
+      }
+
+      // Try update, then insert if no row exists
+      const { data: updated } = await serviceClient
+        .from('athlete_public_profiles')
+        .update(socialColumns)
+        .eq('user_id', user.id)
+        .select('id');
+
+      if (!updated || updated.length === 0) {
+        const { data: userData } = await serviceClient.from('users').select('first_name, last_name, username, school_name, state, role, school_level').eq('id', user.id).single();
+        await serviceClient.from('athlete_public_profiles').insert({
+          user_id: user.id,
+          display_name: `${userData?.first_name || ''} ${userData?.last_name || ''}`.trim() || userData?.username || 'Athlete',
+          sport: body.primary_sport || 'Not set',
+          school_name: userData?.school_name || 'Not set',
+          school_level: userData?.school_level || (userData?.role === 'hs_student' ? 'high_school' : 'college'),
+          state: userData?.state || 'Unknown',
+          ...socialColumns,
+        });
+      }
+
+      // Also write to users.social_media_stats (trigger calculates total_followers etc.)
+      const socialStatsArray: any[] = [];
+      if (sm.instagram?.handle || sm.instagram?.followers) {
+        socialStatsArray.push({ platform: 'instagram', handle: sm.instagram.handle || '', followers: sm.instagram.followers || 0, engagement_rate: sm.instagram.engagement_rate || 0 });
+      }
+      if (sm.tiktok?.handle || sm.tiktok?.followers) {
+        socialStatsArray.push({ platform: 'tiktok', handle: sm.tiktok.handle || '', followers: sm.tiktok.followers || 0, engagement_rate: sm.tiktok.engagement_rate || 0 });
+      }
+      if (sm.twitter?.handle || sm.twitter?.followers) {
+        socialStatsArray.push({ platform: 'twitter', handle: sm.twitter.handle || '', followers: sm.twitter.followers || 0, engagement_rate: sm.twitter.engagement_rate || 0 });
+      }
+
+      await serviceClient.from('users').update({ social_media_stats: socialStatsArray, updated_at: new Date().toISOString() }).eq('id', user.id);
+      console.log('📱 Social media saved to athlete_public_profiles + users');
     }
 
     // Fetch updated complete profile

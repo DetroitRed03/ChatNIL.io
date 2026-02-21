@@ -309,7 +309,8 @@ export function detectStateInQuery(query: string): string | null {
     'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
     'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT',
     'vermont': 'VT', 'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV',
-    'wisconsin': 'WI', 'wyoming': 'WY'
+    'wisconsin': 'WI', 'wyoming': 'WY',
+    'district of columbia': 'DC', 'washington dc': 'DC', 'washington d.c.': 'DC'
   };
 
   const lowerQuery = query.toLowerCase();

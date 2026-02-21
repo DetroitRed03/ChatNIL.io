@@ -80,6 +80,9 @@ interface DashboardData {
     id: string;
     question: string;
     pillar: string;
+    type?: string;
+    hints?: string[];
+    coachingContext?: string;
     completed: boolean;
     xpReward: number;
   };
@@ -91,9 +94,16 @@ interface DashboardData {
   stateRules: {
     state: string;
     stateCode: string;
+    hsNilAllowed: boolean;
     canDo: string[];
+    cannotDo: string[];
+    mustDo: string[];
     watchOut: string[];
     prohibited: string[];
+    athleticAssociationName?: string;
+    athleticAssociationUrl?: string;
+    detailedSummary?: string;
+    disclaimer?: string;
   };
   parentConnection: {
     connected: boolean;
@@ -142,9 +152,10 @@ export function HSStudentDashboardV2() {
   const [showStateRulesModal, setShowStateRulesModal] = useState(false);
   const [streakToast, setStreakToast] = useState<number | null>(null);
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      // Only show loading spinner on initial load, not on background refreshes
+      if (!silent) setLoading(true);
 
       const { data: { session } } = await supabase.auth.getSession();
       const accessToken = session?.access_token;
@@ -218,10 +229,8 @@ export function HSStudentDashboardV2() {
       const nextAchievement = allAchievements.find(a => !earnedIds.has(a.id));
 
       // State rules
-      const stateNames: Record<string, string> = {
-        CA: 'California', TX: 'Texas', FL: 'Florida', NY: 'New York', OH: 'Ohio',
-      };
       const state = apiData.user.state || 'TX';
+      const sr = apiData.stateRules; // Real state rules from API (may be null)
 
       const transformed: DashboardData = {
         student: {
@@ -230,7 +239,7 @@ export function HSStudentDashboardV2() {
           fullName: apiData.user.fullName,
           sport: apiData.user.sport,
           school: apiData.user.school,
-          state: stateNames[state] || state,
+          state: sr?.state_name || state,
           avatarUrl: apiData.user.avatar,
         },
         gamification: {
@@ -256,7 +265,10 @@ export function HSStudentDashboardV2() {
         dailyChallenge: {
           id: apiData.dailyQuestion?.id || 'dc-1',
           question: apiData.dailyQuestion?.question || 'Quick! Name ONE brand you\'d love to partner with 🎯',
-          pillar: apiData.dailyQuestion?.category || 'Identity',
+          pillar: apiData.dailyQuestion?.category || apiData.dailyQuestion?.pillar || 'Identity',
+          type: apiData.dailyQuestion?.type || 'text',
+          hints: apiData.dailyQuestion?.hints,
+          coachingContext: apiData.dailyQuestion?.coachingContext,
           completed: false,
           xpReward: 10,
         },
@@ -266,11 +278,18 @@ export function HSStudentDashboardV2() {
           total: allAchievements.length,
         },
         stateRules: {
-          state: stateNames[state] || state,
+          state: sr?.state_name || state,
           stateCode: state,
-          canDo: ['You CAN earn from NIL deals'],
-          watchOut: ['School can\'t help with deals'],
-          prohibited: ['No alcohol/gambling brands'],
+          hsNilAllowed: sr?.high_school_allowed ?? true,
+          canDo: sr?.summary_can_do || ['You CAN earn from NIL deals'],
+          cannotDo: sr?.summary_cannot_do || [],
+          mustDo: sr?.summary_must_do || [],
+          watchOut: sr?.summary_warnings || ['School can\'t help with deals'],
+          prohibited: sr?.prohibited_categories || ['No alcohol/gambling brands'],
+          athleticAssociationName: sr?.athletic_association_name,
+          athleticAssociationUrl: sr?.athletic_association_url,
+          detailedSummary: sr?.detailed_summary,
+          disclaimer: sr?.disclaimer,
         },
         parentConnection: {
           connected: apiData.consent?.status === 'approved',
@@ -313,7 +332,7 @@ export function HSStudentDashboardV2() {
       }, 1500);
     }
 
-    fetchDashboardData();
+    fetchDashboardData(true);
   };
 
   const handleChallengeSubmit = async (answer: string) => {
@@ -329,28 +348,36 @@ export function HSStudentDashboardV2() {
         body: JSON.stringify({
           questionId: data?.dailyChallenge.id,
           answer,
+          questionText: data?.dailyChallenge.question,
+          questionType: data?.dailyChallenge.type || 'text',
+          coachingContext: data?.dailyChallenge.coachingContext,
         }),
       });
 
       const result = await response.json();
-      if (result.success) {
-        const unlocks = result.leveledUp ? [`Level ${result.newLevel} unlocked!`] : undefined;
-        handleXPEarned(result.xpEarned, result.leveledUp, result.newLevel, unlocks, result.newStreak);
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to submit answer');
+      }
 
-        // Check for achievements
-        if (result.achievementsEarned && result.achievementsEarned.length > 0) {
-          const achievementId = result.achievementsEarned[0];
-          const achievement = allAchievements.find(a => a.id === achievementId);
-          if (achievement) {
-            setTimeout(() => {
-              setUnlockedAchievement(achievement);
-              setShowAchievement(true);
-            }, 3000);
-          }
+      const unlocks = result.leveledUp ? [`Level ${result.newLevel} unlocked!`] : undefined;
+      handleXPEarned(result.xpEarned, result.leveledUp, result.newLevel, unlocks, result.newStreak);
+
+      // Check for achievements
+      if (result.achievementsEarned && result.achievementsEarned.length > 0) {
+        const achievementId = result.achievementsEarned[0];
+        const achievement = allAchievements.find(a => a.id === achievementId);
+        if (achievement) {
+          setTimeout(() => {
+            setUnlockedAchievement(achievement);
+            setShowAchievement(true);
+          }, 3000);
         }
       }
+
+      return result;
     } catch (err) {
       console.error('Challenge submit error:', err);
+      throw err; // Re-throw so DailyChallengeModal can show error state
     }
   };
 
@@ -362,7 +389,7 @@ export function HSStudentDashboardV2() {
   };
 
   const handleParentInviteSuccess = () => {
-    fetchDashboardData();
+    fetchDashboardData(true);
   };
 
   if (loading) {
@@ -454,6 +481,8 @@ export function HSStudentDashboardV2() {
           <DailyChallengeModal
             question={data.dailyChallenge.question}
             pillar={data.dailyChallenge.pillar}
+            questionType={data.dailyChallenge.type}
+            hints={data.dailyChallenge.hints}
             xpReward={data.dailyChallenge.xpReward}
             onSubmit={handleChallengeSubmit}
             onClose={() => setShowChallenge(false)}
@@ -487,10 +516,16 @@ export function HSStudentDashboardV2() {
         onClose={() => setShowStateRulesModal(false)}
         state={data.stateRules.stateCode}
         stateName={data.stateRules.state}
-        hsNilAllowed={true}
+        hsNilAllowed={data.stateRules.hsNilAllowed}
         canDo={data.stateRules.canDo}
+        cannotDo={data.stateRules.cannotDo}
+        mustDo={data.stateRules.mustDo}
         watchOut={data.stateRules.watchOut}
         prohibited={data.stateRules.prohibited}
+        detailedSummary={data.stateRules.detailedSummary}
+        athleticAssociationName={data.stateRules.athleticAssociationName}
+        athleticAssociationUrl={data.stateRules.athleticAssociationUrl}
+        disclaimer={data.stateRules.disclaimer}
       />
 
       {/* Streak Toast */}
@@ -523,7 +558,13 @@ export function HSStudentDashboardV2() {
           progress={data.journey.currentPillarProgress}
           total={data.journey.currentPillarTotal}
           xpReward={25}
-          onContinue={() => router.push(`/chapter/${data.journey.currentPillar}`)}
+          onContinue={() => {
+            if (data.journey.isComplete) {
+              router.push('/profile');
+            } else {
+              router.push(`/chapter/${data.journey.currentPillar}`);
+            }
+          }}
         />
 
         {/* Quick XP Section - Full Width, Immediate Actions */}
@@ -535,6 +576,7 @@ export function HSStudentDashboardV2() {
           nextProfileField={data.profile.nextEmptyField}
           onDailyChallenge={() => setShowChallenge(true)}
           onCompleteProfile={() => router.push('/profile')}
+          onQuizzes={() => router.push('/quizzes')}
         />
 
         {/* Two Column Grid - Aligned at top */}
@@ -545,7 +587,6 @@ export function HSStudentDashboardV2() {
               currentStreak={data.streak.current}
               daysThisWeek={data.streak.daysThisWeek}
               todayComplete={data.streak.todayComplete}
-              onStartStreak={() => setShowChallenge(true)}
             />
 
             <ChaptersGridV2
@@ -569,6 +610,7 @@ export function HSStudentDashboardV2() {
               state={data.stateRules.state}
               stateCode={data.stateRules.stateCode}
               canDo={data.stateRules.canDo}
+              mustDo={data.stateRules.mustDo}
               watchOut={data.stateRules.watchOut}
               prohibited={data.stateRules.prohibited}
               onLearnMore={() => setShowStateRulesModal(true)}

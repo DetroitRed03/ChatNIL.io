@@ -5,42 +5,95 @@ import { PillarType, PILLARS } from '@/lib/discovery/questions';
 
 export const dynamic = 'force-dynamic';
 
-// Daily questions pool
+// Daily questions pool — enhanced with hints and coaching context
 const dailyQuestions = [
   {
     id: 'dq-1',
-    question: 'If you could partner with any brand, which one would you choose and why?',
-    category: 'Identity',
+    question: 'What 3 words would your teammates use to describe you?',
+    pillar: 'identity',
+    type: 'text',
+    hints: ['Think about what your coach says about you', 'What do friends come to you for?'],
+    coachingContext: 'The athlete is identifying personal brand traits. Look for self-awareness and specificity.'
   },
   {
     id: 'dq-2',
-    question: 'What\'s one thing you learned about NIL this week?',
-    category: 'Business',
+    question: 'Quick! Name ONE brand you\'d love to partner with and WHY',
+    pillar: 'identity',
+    type: 'text',
+    hints: ['Think about brands you already use and love', 'What brands match your personality?'],
+    coachingContext: 'The athlete is connecting personal identity to brand alignment. Look for genuine reasoning.'
   },
   {
     id: 'dq-3',
-    question: 'If you earned $500 from NIL, how would you split it between spending, saving, and taxes?',
-    category: 'Money',
+    question: 'If you earned $500 from an NIL deal today, how would you split it up?',
+    pillar: 'money',
+    type: 'text',
+    hints: ['Think about taxes — how much should you set aside?', 'What about saving vs. spending?'],
+    coachingContext: 'The athlete is demonstrating financial literacy. Look for awareness of taxes, saving, and responsible spending.'
   },
   {
     id: 'dq-4',
-    question: 'What impact do you want to have on younger athletes in your community?',
-    category: 'Legacy',
+    question: 'What\'s ONE thing you want to be known for after your athletic career?',
+    pillar: 'legacy',
+    type: 'text',
+    hints: ['Think beyond sports — what impact do you want to make?', 'What would you want people to say about you at 40?'],
+    coachingContext: 'The athlete is articulating their long-term legacy vision. Look for depth of thought about identity beyond athletics.'
   },
   {
     id: 'dq-5',
-    question: 'Describe your personal brand in three words.',
-    category: 'Identity',
+    question: 'What makes you DIFFERENT from other athletes in your sport?',
+    pillar: 'identity',
+    type: 'text',
+    hints: ['Think about your personality, not just your stats', 'What hobbies or interests set you apart?'],
+    coachingContext: 'The athlete is identifying their unique value proposition. Look for specificity beyond just athletic ability.'
   },
   {
     id: 'dq-6',
-    question: 'What would be a red flag in an NIL deal offer?',
-    category: 'Business',
+    question: 'What\'s a red flag you\'d look for in an NIL deal?',
+    pillar: 'business',
+    type: 'text',
+    hints: ['What if they pressure you to sign quickly?', 'What about deals that seem too good to be true?'],
+    coachingContext: 'The athlete is learning to identify predatory deal terms. Look for awareness of common red flags.'
   },
   {
     id: 'dq-7',
-    question: 'What\'s one money habit you want to build this month?',
-    category: 'Money',
+    question: 'What cause or community issue do you care about most?',
+    pillar: 'legacy',
+    type: 'text',
+    hints: ['What issue in your community fires you up?', 'Is there a cause connected to your personal story?'],
+    coachingContext: 'The athlete is identifying causes that shape their brand. Look for genuine passion and personal connection.'
+  },
+  {
+    id: 'dq-8',
+    question: 'What\'s one skill you have OUTSIDE of sports that could help your brand?',
+    pillar: 'identity',
+    type: 'text',
+    hints: ['Are you creative, funny, a good speaker?', 'Think about what you do in your free time'],
+    coachingContext: 'The athlete is recognizing transferable skills. Look for self-awareness about non-athletic talents.'
+  },
+  {
+    id: 'dq-9',
+    question: 'What does "exclusivity" mean in an NIL contract?',
+    pillar: 'business',
+    type: 'text',
+    hints: ['Think about what it means to only work with one brand', 'What if Nike pays you — can you wear Adidas?'],
+    coachingContext: 'The athlete is demonstrating understanding of exclusivity clauses and their implications.'
+  },
+  {
+    id: 'dq-10',
+    question: 'If a brand asked you to promote something you don\'t believe in, what would you do?',
+    pillar: 'legacy',
+    type: 'text',
+    hints: ['Think about your values and what you stand for', 'Consider how it would look to your community'],
+    coachingContext: 'The athlete is navigating authenticity vs. money. Look for awareness that saying no protects long-term brand value.'
+  },
+  {
+    id: 'dq-11',
+    question: 'Who should you talk to BEFORE signing any NIL deal?',
+    pillar: 'business',
+    type: 'text',
+    hints: ['Think about trusted adults in your life', 'What about your school\'s compliance office?'],
+    coachingContext: 'The athlete is identifying their support network. Look for mentions of parents/guardians, compliance officers, or mentors.'
   },
 ];
 
@@ -322,6 +375,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Fetch real state NIL rules for the athlete's state
+    const state = profile?.primary_state || 'CA';
+    let stateRules = null;
+    try {
+      const { data: stateData } = await supabase
+        .from('state_nil_rules')
+        .select('state_name, state_code, high_school_allowed, allows_nil, summary_can_do, summary_cannot_do, summary_must_do, summary_warnings, athletic_association_name, athletic_association_url, detailed_summary, short_summary, disclaimer, prohibited_categories, requires_parental_consent, disclosure_deadline_days')
+        .eq('state_code', state)
+        .single();
+
+      if (stateData) {
+        stateRules = stateData;
+      }
+    } catch (e) {
+      console.log('Could not fetch state NIL rules (non-critical)');
+    }
+
     // Build response
     const dashboardData = {
       user: {
@@ -329,7 +399,7 @@ export async function GET(request: NextRequest) {
         fullName: profile?.username || user.email?.split('@')[0] || 'Athlete',
         sport: profile?.sport || profileData.sport?.value || 'Not set',
         school: profile?.school_name || 'High School',
-        state: profile?.primary_state || 'CA',
+        state,
         avatar: profile?.avatar_url,
         age: userAge,
       },
@@ -347,6 +417,7 @@ export async function GET(request: NextRequest) {
         requestedAt: profile?.consent_requested_at,
       },
       profile: profileSummary,
+      stateRules,
       learningPath: {
         name: profile?.learning_path === 'foundation' ? 'Foundation Path' : 'Learning Path',
         progress: Math.min(completionPercentage + 10, 100),

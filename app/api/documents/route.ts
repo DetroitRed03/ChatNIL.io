@@ -30,20 +30,14 @@ export async function GET(request: NextRequest) {
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
-    const sessionId = searchParams.get('sessionId');
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
 
-    // Build query
+    // Build query against the documents table (new document processing system)
     let query = supabase
-      .from('user_documents')
+      .from('documents')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
-
-    // Filter by session if provided
-    if (sessionId) {
-      query = query.eq('session_id', sessionId);
-    }
 
     // Apply limit if provided
     if (limit) {
@@ -66,13 +60,12 @@ export async function GET(request: NextRequest) {
       fileName: doc.file_name,
       fileSize: doc.file_size,
       fileType: doc.file_type,
-      storagePath: doc.storage_path,
-      publicUrl: doc.public_url,
+      storagePath: doc.storage_path || '',
       createdAt: doc.created_at,
-      sessionId: doc.session_id,
-      sessionTitle: doc.session_title || 'Untitled Chat',
-      messageId: doc.message_id,
       userId: doc.user_id,
+      documentType: doc.document_type,
+      extractionStatus: doc.extraction_status,
+      source: doc.source,
     }));
 
     // Calculate stats
@@ -281,7 +274,7 @@ export async function DELETE(request: NextRequest) {
 
     // Get document to verify ownership and get storage path
     const { data: document, error: fetchError } = await supabase
-      .from('chat_attachments')
+      .from('documents')
       .select('*')
       .eq('id', documentId)
       .eq('user_id', user.id)
@@ -304,9 +297,9 @@ export async function DELETE(request: NextRequest) {
       // Continue with DB deletion even if storage delete fails
     }
 
-    // Delete from database
+    // Delete from database (document_chunks cascade-deleted via FK)
     const { error: dbError } = await supabase
-      .from('chat_attachments')
+      .from('documents')
       .delete()
       .eq('id', documentId)
       .eq('user_id', user.id);

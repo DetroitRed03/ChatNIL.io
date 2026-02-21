@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
+import OpenAI from 'openai';
 
 export const dynamic = 'force-dynamic';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Service role client for bypassing RLS on writes
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 // Level thresholds
 const LEVEL_THRESHOLDS = [0, 100, 250, 500, 1000, 2000];
@@ -15,7 +28,7 @@ export async function POST(
     const { pillar } = await params;
     const cookieStore = await cookies();
     const body = await request.json();
-    const { questionId, answer, questionIndex } = body;
+    const { questionId, answer, questionIndex, questionType, questionText, coachingContext } = body;
 
     if (!questionId || answer === undefined) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -41,6 +54,7 @@ export async function POST(
       }
     );
 
+    // Auth check using SSR client
     let { data: { user } } = await supabase.auth.getUser();
     if (!user && bearerToken) {
       const { data: { user: tokenUser } } = await supabase.auth.getUser(bearerToken);
@@ -51,8 +65,21 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Save progress - use upsert to handle re-answering same question
-    const { error: progressError } = await supabase
+    // Generate AI feedback for text questions
+    let aiFeedback: string | null = null;
+    let qualityScore: number | null = null;
+
+    if (questionType === 'text' && questionText && coachingContext) {
+      const result = await generateChapterFeedback(
+        { question: questionText, coachingContext },
+        answer
+      );
+      aiFeedback = result.feedback;
+      qualityScore = result.qualityScore;
+    }
+
+    // Save progress using service role client to bypass RLS
+    const { error: progressError } = await supabaseAdmin
       .from('chapter_progress')
       .upsert({
         user_id: user.id,
@@ -60,6 +87,8 @@ export async function POST(
         question_id: questionId,
         question_index: questionIndex,
         answer,
+        ...(qualityScore !== null ? { quality_score: qualityScore } : {}),
+        ...(aiFeedback !== null ? { ai_feedback: aiFeedback } : {}),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,pillar,question_index'
@@ -67,14 +96,22 @@ export async function POST(
 
     if (progressError) {
       console.error('Chapter progress save error:', progressError);
-      // Continue anyway to still award XP even if progress save fails
     }
 
-    // Award XP
-    const xpAmount = 5;
+    // Award XP — base + bonus for high-quality text answers
+    let xpAmount = 5;
+    let bonusXP = 0;
+    if (qualityScore !== null) {
+      if (qualityScore >= 5) {
+        bonusXP = 5;
+      } else if (qualityScore >= 4) {
+        bonusXP = 3;
+      }
+      xpAmount += bonusXP;
+    }
 
-    // Get current profile
-    const { data: profile } = await supabase
+    // Get current profile using service role client
+    const { data: profile } = await supabaseAdmin
       .from('athlete_profiles')
       .select('current_xp, level, lifetime_xp')
       .eq('id', user.id)
@@ -95,8 +132,8 @@ export async function POST(
       }
     }
 
-    // Update profile
-    await supabase
+    // Update profile using service role client
+    const { error: profileError } = await supabaseAdmin
       .from('athlete_profiles')
       .update({
         current_xp: newXP,
@@ -107,8 +144,12 @@ export async function POST(
       })
       .eq('id', user.id);
 
-    // Log XP transaction
-    const { error: xpError } = await supabase
+    if (profileError) {
+      console.error('Profile update error:', profileError);
+    }
+
+    // Log XP transaction using service role client
+    const { error: xpError } = await supabaseAdmin
       .from('xp_transactions')
       .insert({
         user_id: user.id,
@@ -118,17 +159,19 @@ export async function POST(
 
     if (xpError) {
       console.error('XP transaction log error:', xpError);
-      // Non-critical, continue anyway
     }
 
     // For text questions, always correct
     // For multiple choice/true-false, could check against correct answer
-    const correct = true; // Simplified - always mark as correct for now
+    const correct = true;
 
     return NextResponse.json({
       success: true,
       correct,
       xpEarned: xpAmount,
+      bonusXP,
+      qualityScore,
+      aiFeedback,
       newXP,
       newLevel,
       leveledUp: newLevel > currentLevel
@@ -136,5 +179,64 @@ export async function POST(
   } catch (error) {
     console.error('Chapter progress error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+async function generateChapterFeedback(
+  question: { question: string; coachingContext: string },
+  answer: string
+): Promise<{ feedback: string; qualityScore: number }> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a friendly NIL coach for high school athletes (ages 14-18).
+
+TASK: Evaluate the athlete's answer and provide personalized coaching feedback.
+
+RULES:
+- 2-3 sentences max
+- Reference something SPECIFIC from their answer
+- Add one insight or connection they might not have considered
+- Be warm and encouraging but substantive
+- Use one emoji max
+- NO generic praise like "Great answer!" without specifics
+- NO bullet points or lists
+
+Also rate the answer quality 1-5:
+1 = Minimal effort or off-topic
+2 = On topic but vague
+3 = Decent response with some thought
+4 = Good response showing real reflection
+5 = Excellent, specific, and insightful
+
+Context about this question: ${question.coachingContext}
+
+Return JSON: { "feedback": "your feedback here", "qualityScore": N }`,
+        },
+        {
+          role: 'user',
+          content: `Question: "${question.question}"\nAthlete's answer: "${answer}"`,
+        },
+      ],
+      max_tokens: 200,
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (content) {
+      const result = JSON.parse(content);
+      return {
+        feedback: result.feedback || "That's a thoughtful response! Keep building on these ideas.",
+        qualityScore: Math.min(5, Math.max(1, result.qualityScore || 3)),
+      };
+    }
+    return { feedback: "That's a thoughtful response! Keep building on these ideas.", qualityScore: 3 };
+  } catch (error) {
+    console.error('Error generating chapter feedback:', error);
+    return { feedback: "That's a thoughtful response! Keep building on these ideas.", qualityScore: 3 };
   }
 }

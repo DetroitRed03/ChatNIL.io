@@ -5,10 +5,16 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+// CRITICAL: Must disable Next.js fetch caching to prevent stale reads
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
+  {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: {
+      fetch: (url: any, opts: any) => fetch(url, { ...opts, cache: 'no-store' as any }),
+    },
+  }
 );
 
 export async function GET(request: NextRequest) {
@@ -46,7 +52,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get institution
+    // Get institution — check institution_staff first, then athlete_profiles
     const { data: staffRecord } = await supabaseAdmin
       .from('institution_staff')
       .select('institution_id')
@@ -70,18 +76,44 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    // Get all compliance officers at this institution
-    const { data: teamStaff } = await supabaseAdmin
+    // Get team members from BOTH sources to fix dual-table problem
+    // Source 1: institution_staff (legacy/primary)
+    const { data: staffMembers } = await supabaseAdmin
       .from('institution_staff')
       .select('user_id, title')
       .eq('institution_id', institutionId)
       .eq('role', 'compliance_officer');
 
-    if (!teamStaff || teamStaff.length === 0) {
+    // Source 2: compliance_team_members (invite flow)
+    const { data: teamMembers } = await supabaseAdmin
+      .from('compliance_team_members')
+      .select('user_id, role')
+      .eq('institution_id', institutionId)
+      .eq('status', 'active');
+
+    // Merge — deduplicate by user_id
+    const memberMap = new Map<string, { user_id: string; title?: string; teamRole?: string }>();
+
+    (staffMembers || []).forEach(s => {
+      memberMap.set(s.user_id, { user_id: s.user_id, title: s.title });
+    });
+
+    (teamMembers || []).forEach(m => {
+      if (!memberMap.has(m.user_id)) {
+        memberMap.set(m.user_id, { user_id: m.user_id, teamRole: m.role });
+      } else {
+        const existing = memberMap.get(m.user_id)!;
+        existing.teamRole = m.role;
+      }
+    });
+
+    const allMemberEntries = Array.from(memberMap.values());
+
+    if (allMemberEntries.length === 0) {
       return NextResponse.json({ members: [], totalOpenItems: 0 });
     }
 
-    const teamUserIds = teamStaff.map(s => s.user_id);
+    const teamUserIds = allMemberEntries.map(m => m.user_id);
 
     // Get profiles for team members
     const { data: profiles } = await supabaseAdmin
@@ -91,13 +123,13 @@ export async function GET(request: NextRequest) {
 
     const profilesMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
-    // Get auth users for emails
-    const { data: authUsers } = await supabaseAdmin
+    // Get user info (names and emails)
+    const { data: users } = await supabaseAdmin
       .from('users')
-      .select('id, email')
+      .select('id, email, first_name, last_name')
       .in('id', teamUserIds);
 
-    const emailsMap = new Map(authUsers?.map(u => [u.id, u.email]) || []);
+    const usersMap = new Map(users?.map(u => [u.id, u]) || []);
 
     // Get assignment counts
     const { data: assignments } = await supabaseAdmin
@@ -113,7 +145,6 @@ export async function GET(request: NextRequest) {
       openItems: number;
       completedThisWeek: number;
       overdueItems: number;
-      avgResolutionHours?: number;
       resolutionTimes: number[];
     }>();
 
@@ -133,7 +164,6 @@ export async function GET(request: NextRequest) {
       if (assignment.status === 'assigned' || assignment.status === 'in_progress') {
         stats.openItems++;
 
-        // Check if overdue
         if (assignment.due_date && new Date(assignment.due_date) < now) {
           stats.overdueItems++;
         }
@@ -143,7 +173,6 @@ export async function GET(request: NextRequest) {
           stats.completedThisWeek++;
         }
 
-        // Calculate resolution time
         if (assignment.assigned_at) {
           const resolutionHours = (completedAt.getTime() - new Date(assignment.assigned_at).getTime()) / (1000 * 60 * 60);
           stats.resolutionTimes.push(resolutionHours);
@@ -153,17 +182,23 @@ export async function GET(request: NextRequest) {
 
     // Build response
     let totalOpenItems = 0;
-    const members = teamStaff.map(staff => {
-      const profile = profilesMap.get(staff.user_id);
-      const email = emailsMap.get(staff.user_id);
-      const stats = memberStats.get(staff.user_id)!;
+    const members = allMemberEntries.map(entry => {
+      const profile = profilesMap.get(entry.user_id);
+      const userInfo = usersMap.get(entry.user_id);
+      const stats = memberStats.get(entry.user_id)!;
 
       totalOpenItems += stats.openItems;
 
+      // Build display name: prefer first_name + last_name, then username, then title, then email
+      const fullName = userInfo?.first_name && userInfo?.last_name
+        ? `${userInfo.first_name} ${userInfo.last_name}`
+        : null;
+      const displayName = fullName || profile?.username || entry.title || userInfo?.email?.split('@')[0] || 'Team Member';
+
       return {
-        id: staff.user_id,
-        name: profile?.username || staff.title || email?.split('@')[0] || 'Team Member',
-        email: email || '',
+        id: entry.user_id,
+        name: displayName,
+        email: userInfo?.email || '',
         openItems: stats.openItems,
         completedThisWeek: stats.completedThisWeek,
         overdueItems: stats.overdueItems,

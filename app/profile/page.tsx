@@ -48,8 +48,6 @@ export default function ProfileEditPage() {
       router.replace('/compliance/settings');
     } else if (user && user.role === 'parent') {
       router.replace('/parent/settings');
-    } else if (user && user.role === 'hs_student') {
-      router.replace('/dashboard/hs-student');
     }
   }, [user, router]);
 
@@ -196,8 +194,10 @@ export default function ProfileEditPage() {
         setTravelWilling(data.nil_preferences.travel_willing || false);
       }
 
-      // Calculate completion
-      const completion = calculateProfileCompletion(data);
+      // Calculate completion (skip content scoring if state doesn't allow NIL for HS)
+      const completion = calculateProfileCompletion(data, {
+        nilAllowedInState: data.state_nil_allowed,
+      });
       setProfileCompletion(completion.percentage);
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -1176,16 +1176,18 @@ export default function ProfileEditPage() {
               </div>
             </ProfileSectionCard>
 
-            {/* 6. Portfolio Section */}
-            <ProfileSectionCard
-              id="portfolio"
-              title="Portfolio"
-              description="Showcase your work"
-              icon={ImageIcon}
-              completionPercentage={calculatePortfolioCompletion()}
-            >
-              {user?.id && <PortfolioManagementSection userId={user.id} />}
-            </ProfileSectionCard>
+            {/* 6. Portfolio Section — hidden when HS student's state doesn't allow NIL */}
+            {(profile?.role !== 'hs_student' || profile?.state_nil_allowed !== false) && (
+              <ProfileSectionCard
+                id="portfolio"
+                title="Portfolio"
+                description="Showcase your work"
+                icon={ImageIcon}
+                completionPercentage={calculatePortfolioCompletion()}
+              >
+                {user?.id && <PortfolioManagementSection userId={user.id} />}
+              </ProfileSectionCard>
+            )}
           </div>
         </div>
       </div>

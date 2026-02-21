@@ -23,6 +23,7 @@ function QuizSessionContent() {
   const [results, setResults] = useState<any>(null);
   const [badgeEarned, setBadgeEarned] = useState<Badge | null>(null);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [resultsError, setResultsError] = useState(false);
 
   useEffect(() => {
     // Try to get questions from sessionStorage (set when quiz was started)
@@ -79,7 +80,7 @@ function QuizSessionContent() {
 
       const data = await response.json();
 
-      if (data.success) {
+      if (data.success && data.results?.total_questions > 0) {
         setResults(data.results);
         setShowResults(true);
 
@@ -113,11 +114,17 @@ function QuizSessionContent() {
 
         // Check if this was the user's first quiz (award badge)
         await checkForBadgeAward();
+      } else if (data.results?.total_questions === 0) {
+        // Answers weren't persisted — show error state instead of 0% results
+        console.error('Quiz results returned 0 questions — answers may not have been saved');
+        setResultsError(true);
       } else {
         console.error('Quiz results fetch failed:', data.error);
+        setResultsError(true);
       }
     } catch (error) {
       console.error('Error fetching quiz results:', error);
+      setResultsError(true);
     }
   };
 
@@ -167,6 +174,28 @@ function QuizSessionContent() {
 
   if (!user) {
     return null;
+  }
+
+  if (resultsError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50/30 via-white to-amber-50/20 px-4">
+        <div className="bg-white rounded-2xl shadow-lg border border-orange-100 p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">😕</span>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h2>
+          <p className="text-gray-600 mb-6">
+            Your quiz answers may not have been saved. Please try taking the quiz again.
+          </p>
+          <button
+            onClick={() => router.push('/quizzes')}
+            className="w-full py-3 bg-gradient-to-r from-orange-400 to-amber-500 text-white rounded-xl font-semibold hover:from-orange-500 hover:to-amber-600 transition-all"
+          >
+            Back to Quizzes
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

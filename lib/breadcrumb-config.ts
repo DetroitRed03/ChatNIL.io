@@ -28,6 +28,7 @@ export const BREADCRUMB_CONFIG: Record<string, BreadcrumbConfig> = {
   '/chat': { label: 'AI Coach', parent: '/dashboard' },
   '/settings': { label: 'Settings', parent: '/dashboard' },
   '/library': { label: 'Library', parent: '/dashboard' },
+  '/progress': { label: 'Progress', parent: '/dashboard' },
 
   // Public profile (when authenticated user views it)
   '/athletes': { label: 'Public Profile', parent: '/dashboard' },

@@ -1,71 +1,82 @@
-/**
- * Resend Email Service
- *
- * Provides email sending capabilities using Resend API.
- */
-
 import { Resend } from 'resend';
+import { EMAIL_CONFIG, EmailSender } from './config';
 
-// Initialize Resend client
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-export interface EmailOptions {
+interface SendEmailParams {
   to: string | string[];
   subject: string;
   html: string;
-  from?: string;
+  text?: string;
+  from?: EmailSender;
   replyTo?: string;
+  tags?: { name: string; value: string }[];
 }
 
-export interface SendEmailResult {
-  success: boolean;
-  id?: string;
-  error?: string;
-}
-
-const DEFAULT_FROM = 'ChatNIL <noreply@chatnil.io>';
-
-/**
- * Send an email using Resend
- */
-export async function sendEmail(options: EmailOptions): Promise<SendEmailResult> {
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  text,
+  from = 'default',
+  replyTo,
+  tags,
+}: SendEmailParams) {
   if (!resend) {
     console.warn('Resend not configured - RESEND_API_KEY not set');
-    return {
-      success: false,
-      error: 'Email service not configured',
-    };
+    return { success: false, error: 'Email service not configured' };
   }
 
   try {
     const { data, error } = await resend.emails.send({
-      from: options.from || DEFAULT_FROM,
-      to: Array.isArray(options.to) ? options.to : [options.to],
-      subject: options.subject,
-      html: options.html,
-      replyTo: options.replyTo,
+      from: EMAIL_CONFIG.senders[from],
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+      text: text || stripHtml(html),
+      reply_to: replyTo,
+      tags,
     });
 
     if (error) {
       console.error('Resend error:', error);
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
 
-    console.log('Email sent successfully:', data?.id);
-    return {
-      success: true,
-      id: data?.id,
-    };
+    console.log(`Email sent: ${subject} to ${to} [${data?.id}]`);
+    return { success: true, messageId: data?.id };
   } catch (error: any) {
-    console.error('Failed to send email:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to send email',
-    };
+    console.error('Email send error:', error);
+    return { success: false, error: error.message };
   }
+}
+
+// Batch send for multiple recipients with different content
+export async function sendBatchEmails(
+  emails: Array<{
+    to: string;
+    subject: string;
+    html: string;
+    from?: EmailSender;
+  }>
+) {
+  const results = await Promise.allSettled(
+    emails.map((email) => sendEmail(email))
+  );
+
+  return results.map((result, index) => ({
+    to: emails[index].to,
+    success: result.status === 'fulfilled' && result.value.success,
+    error: result.status === 'rejected' ? result.reason : null,
+  }));
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[^>]*>.*?<\/style>/gs, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }

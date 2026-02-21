@@ -101,7 +101,7 @@ export interface AthleteFMVData {
 
 /**
  * State NIL Rules - State-by-state NIL compliance regulations
- * Created in Migration 023
+ * Created in Migration 023, enhanced in Migration 030
  */
 export interface StateNILRules {
   state_code: string;              // 'KY', 'CA', etc.
@@ -121,12 +121,94 @@ export interface StateNILRules {
   agent_registration_required: boolean;
   financial_literacy_required: boolean;
 
+  // Freeform restrictions (migration 028)
+  restrictions?: string[];
+
   // Documentation
   rules_summary?: string;
   rules_url?: string;
   effective_date?: string;
 
+  // Athletic association (migration 030)
+  athletic_association_name?: string;
+  athletic_association_url?: string;
+
+  // HS effective date
+  hs_nil_effective_date?: string;
+
+  // Permission flags
+  can_earn_money?: boolean;
+  can_use_agent?: boolean;
+  can_sign_contracts?: boolean;
+  can_use_school_marks?: boolean;
+  can_mention_school?: boolean;
+  can_wear_uniform_in_content?: boolean;
+
+  // Parental requirements
+  requires_parental_consent?: boolean;
+  min_age_without_consent?: number;
+  parent_must_sign_contracts?: boolean;
+
+  // School involvement
+  school_can_facilitate_deals?: boolean;
+  must_notify_school?: boolean;
+  must_notify_athletic_association?: boolean;
+  disclosure_deadline_days?: number;
+  requires_pre_approval?: boolean;
+
+  // Restriction booleans
+  cannot_conflict_with_school_sponsors?: boolean;
+  cannot_use_during_school_hours?: boolean;
+  cannot_interfere_with_academics?: boolean;
+  cannot_promote_during_games?: boolean;
+
+  // Compensation limits
+  has_compensation_cap?: boolean;
+  compensation_cap_amount?: number;
+  compensation_cap_period?: string;
+
+  // Dashboard summaries (JSONB)
+  summary_can_do?: string[];
+  summary_cannot_do?: string[];
+  summary_must_do?: string[];
+  summary_warnings?: string[];
+
+  // Source/verification
+  primary_source_url?: string;
+  secondary_sources?: string[];
+  last_verified_date?: string;
+  verified_by?: string;
+
+  // Legal
+  relevant_legislation?: string;
+  legislation_url?: string;
+
+  // Summaries
+  short_summary?: string;
+  detailed_summary?: string;
+
+  // Disclaimer
+  disclaimer?: string;
+
   // Metadata
   last_updated: string;
   created_at: string;
+}
+
+/**
+ * State Athletic Association
+ * Created in Migration 031
+ */
+export interface StateAthleticAssociation {
+  id: string;
+  state_code: string;
+  association_name: string;
+  association_acronym?: string;
+  website_url?: string;
+  nil_policy_url?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
 }

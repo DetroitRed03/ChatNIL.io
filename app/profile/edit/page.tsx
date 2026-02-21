@@ -87,6 +87,14 @@ export default function EditProfilePage() {
           'Brand Affinity': profile.brand_affinity || [],
         });
       }
+      // Load social media stats if available
+      if (profile.social_media_stats && typeof profile.social_media_stats === 'object') {
+        setSocialMedia({
+          instagram: profile.social_media_stats.instagram || {},
+          tiktok: profile.social_media_stats.tiktok || {},
+          twitter: profile.social_media_stats.twitter || {},
+        });
+      }
       setLoading(false);
     } else if (!profile && user) {
       // Still loading profile from auth context
@@ -121,6 +129,11 @@ export default function EditProfilePage() {
           lifestyle_interests: selectedInterests['Lifestyle Interests'],
           causes_care_about: selectedInterests['Causes Care About'],
           brand_affinity: selectedInterests['Brand Affinity'],
+          social_media_stats: {
+            instagram: socialMedia.instagram?.handle || socialMedia.instagram?.followers ? socialMedia.instagram : null,
+            tiktok: socialMedia.tiktok?.handle || socialMedia.tiktok?.followers ? socialMedia.tiktok : null,
+            twitter: socialMedia.twitter?.handle || socialMedia.twitter?.followers ? socialMedia.twitter : null,
+          },
         })
       });
 
@@ -143,14 +156,14 @@ export default function EditProfilePage() {
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
-  }, [user, loading, bio, firstName, lastName, school, graduationYear, major, gpa, primarySport, position, division, selectedInterests]);
+  }, [user, loading, bio, firstName, lastName, school, graduationYear, major, gpa, primarySport, position, division, selectedInterests, socialMedia]);
 
   // Track changes after initial load
   useEffect(() => {
     if (isInitialized.current && !loading) {
       hasChanges.current = true;
     }
-  }, [bio, firstName, lastName, school, graduationYear, major, gpa, primarySport, position, division, selectedInterests, loading]);
+  }, [bio, firstName, lastName, school, graduationYear, major, gpa, primarySport, position, division, selectedInterests, socialMedia, loading]);
 
   // Debounced autosave effect - only trigger after data changes
   useEffect(() => {
@@ -163,7 +176,7 @@ export default function EditProfilePage() {
     }, 2000); // 2 second debounce
 
     return () => clearTimeout(timer);
-  }, [bio, firstName, lastName, school, graduationYear, major, gpa, primarySport, position, division, selectedInterests, loading, autosave, saveStatus]);
+  }, [bio, firstName, lastName, school, graduationYear, major, gpa, primarySport, position, division, selectedInterests, socialMedia, loading, autosave, saveStatus]);
 
   const tabs = [
     { id: 'personal', label: 'Personal', icon: User },

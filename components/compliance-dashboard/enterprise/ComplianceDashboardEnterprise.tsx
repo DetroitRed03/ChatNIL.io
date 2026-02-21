@@ -77,6 +77,7 @@ export function ComplianceDashboardEnterprise() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const deadlineFilter = searchParams.get('deadline');
+  const filterParam = searchParams.get('filter');
 
   // Core data state
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -246,6 +247,17 @@ export function ComplianceDashboardEnterprise() {
       fetchActionItems();
     }
   }, [filters, page, pageSize, deadlineFilter]);
+
+  // Handle ?filter= query param from sidebar links
+  useEffect(() => {
+    if (filterParam === 'action') {
+      setActiveTab('action_required');
+    } else if (filterParam === 'appeals') {
+      setActiveTab('appeals_queue');
+    } else if (filterParam === 'history') {
+      setActiveTab('decision_history');
+    }
+  }, [filterParam]);
 
   // Keyboard shortcuts
   useEffect(() => {

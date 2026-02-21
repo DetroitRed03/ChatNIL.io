@@ -16,7 +16,12 @@ function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
+    {
+      auth: { persistSession: false },
+      global: {
+        fetch: (url: any, opts: any) => fetch(url, { ...opts, cache: 'no-store' as any }),
+      },
+    }
   );
 }
 

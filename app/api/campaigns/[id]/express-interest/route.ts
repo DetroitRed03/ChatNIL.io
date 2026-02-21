@@ -1,5 +1,6 @@
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { isAthleteRole } from '@/types/common';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +76,7 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (userData.role !== 'athlete') {
+    if (!isAthleteRole(userData.role)) {
       return NextResponse.json(
         { error: 'Only athletes can express interest in campaigns' },
         { status: 403 }

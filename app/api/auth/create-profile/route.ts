@@ -17,7 +17,8 @@ function getSupabaseAdmin() {
       global: {
         headers: {
           'X-Client-Info': 'chatnil-admin-api'
-        }
+        },
+        fetch: (url: any, opts: any) => fetch(url, { ...opts, cache: 'no-store' as any }),
       }
     }
   );

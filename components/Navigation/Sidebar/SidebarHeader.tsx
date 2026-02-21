@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useNavigation } from '@/lib/stores/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { isAthleteRole } from '@/types/common';
 
 /**
  * SidebarHeader Component
@@ -62,7 +63,7 @@ export default function SidebarHeader({ onNewChat, onSearchClick }: SidebarHeade
             <Search className="w-4 h-4" />
           </button>
           {/* Athlete-only features */}
-          {user?.role === 'athlete' && (
+          {isAthleteRole(user?.role || '') && (
             <>
               <button
                 onClick={() => router.push('/library')}
@@ -128,7 +129,7 @@ export default function SidebarHeader({ onNewChat, onSearchClick }: SidebarHeade
           </button>
 
           {/* Athlete-only features */}
-          {user?.role === 'athlete' && (
+          {isAthleteRole(user?.role || '') && (
             <>
               {/* Library */}
               <button

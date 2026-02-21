@@ -50,7 +50,7 @@ export default function HSStudentSettingsPage() {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/athlete/settings');
+      const res = await fetch(`/api/athlete/settings?userId=${user?.id}`);
 
       if (res.ok) {
         const data = await res.json();
@@ -73,7 +73,7 @@ export default function HSStudentSettingsPage() {
       const res = await fetch('/api/athlete/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
+        body: JSON.stringify({ ...settings, userId: user?.id })
       });
 
       if (!res.ok) {

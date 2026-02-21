@@ -7,14 +7,12 @@ interface StreakCardProps {
   currentStreak: number;
   daysThisWeek: boolean[];
   todayComplete: boolean;
-  onStartStreak: () => void;
 }
 
 export function StreakCard({
   currentStreak,
   daysThisWeek,
   todayComplete,
-  onStartStreak,
 }: StreakCardProps) {
   const streakEmoji = currentStreak >= 30 ? '👑' : currentStreak >= 7 ? '⚡' : '🔥';
 
@@ -53,21 +51,16 @@ export function StreakCard({
       {/* Week View */}
       <WeekStreak days={daysThisWeek} />
 
-      {/* CTA */}
-      {!todayComplete ? (
-        <motion.button
-          onClick={onStartStreak}
-          className="w-full mt-5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold py-3 rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          {currentStreak > 0 ? 'Keep it going!' : 'Start your streak!'}
-        </motion.button>
-      ) : (
-        <div className="mt-5 bg-green-50 border border-green-200 text-green-700 text-center py-3 rounded-xl font-medium">
-          ✅ Today complete! See you tomorrow.
-        </div>
-      )}
+      {/* Status */}
+      <div className={`mt-5 text-center py-3 rounded-xl font-medium ${
+        todayComplete
+          ? 'bg-green-50 border border-green-200 text-green-700'
+          : 'bg-orange-50 border border-orange-200 text-orange-700'
+      }`}>
+        {todayComplete
+          ? '✅ Today complete! See you tomorrow.'
+          : 'Complete a challenge or chapter to keep your streak!'}
+      </div>
     </motion.div>
   );
 }

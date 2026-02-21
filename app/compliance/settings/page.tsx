@@ -8,8 +8,6 @@ import {
   ComplianceSettings,
   ComplianceTeamMember,
   ComplianceTeamInvite,
-  rolePermissionDefaults,
-  ComplianceTeamRole,
   defaultComplianceSettings
 } from '@/types/settings';
 import {
@@ -23,12 +21,10 @@ import {
   Save,
   Plus,
   X,
-  Mail,
-  Trash2,
-  UserPlus,
   Check,
   AlertCircle,
-  Loader2
+  Loader2,
+  ArrowRight,
 } from 'lucide-react';
 
 type TabId = 'profile' | 'workflow' | 'notifications' | 'team' | 'security';
@@ -48,13 +44,6 @@ export default function ComplianceSettingsPage() {
   const [pendingInvites, setPendingInvites] = useState<ComplianceTeamInvite[]>([]);
 
   const [activeTab, setActiveTab] = useState<TabId>('profile');
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteForm, setInviteForm] = useState({
-    email: '',
-    name: '',
-    role: 'officer' as ComplianceTeamRole
-  });
-  const [inviting, setInviting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -143,89 +132,6 @@ export default function ComplianceSettingsPage() {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setInviting(true);
-    setError(null);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
-      };
-
-      const res = await fetch('/api/compliance/team/invite', {
-        method: 'POST',
-        credentials: 'include',
-        headers,
-        body: JSON.stringify(inviteForm)
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to send invite');
-      }
-
-      setShowInviteModal(false);
-      setInviteForm({ email: '', name: '', role: 'officer' });
-      fetchData(); // Refresh to show new invite
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setInviting(false);
-    }
-  };
-
-  const cancelInvite = async (inviteId: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-
-      const headers: HeadersInit = accessToken
-        ? { 'Authorization': `Bearer ${accessToken}` }
-        : {};
-
-      const res = await fetch(`/api/compliance/team/invite?id=${inviteId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers
-      });
-
-      if (res.ok) {
-        setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
-      }
-    } catch (err) {
-      console.error('Failed to cancel invite:', err);
-    }
-  };
-
-  const removeMember = async (memberId: string) => {
-    if (!confirm('Are you sure you want to remove this team member?')) return;
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
-
-      const headers: HeadersInit = accessToken
-        ? { 'Authorization': `Bearer ${accessToken}` }
-        : {};
-
-      const res = await fetch(`/api/compliance/team/members?id=${memberId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers
-      });
-
-      if (res.ok) {
-        setTeamMembers(prev => prev.filter(m => m.id !== memberId));
-      }
-    } catch (err) {
-      console.error('Failed to remove member:', err);
-    }
-  };
 
   // Auth check
   if (authLoading) {
@@ -513,88 +419,31 @@ export default function ComplianceSettingsPage() {
 
         {/* Team Tab */}
         {activeTab === 'team' && (
-          <div className="space-y-6">
-            {/* Team Members */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold">Team Members</h2>
-                <button
-                  onClick={() => setShowInviteModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Invite Member
-                </button>
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                <Users className="w-6 h-6 text-orange-600" />
               </div>
-
-              {teamMembers.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>No team members yet</p>
-                  <p className="text-sm">Invite colleagues to help manage compliance</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {teamMembers.map(member => (
-                    <div key={member.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                          {member.user?.full_name?.[0] || '?'}
-                        </div>
-                        <div>
-                          <p className="font-medium">{member.user?.full_name || 'Unknown'}</p>
-                          <p className="text-sm text-gray-500">{member.user?.email}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full capitalize">
-                          {member.role}
-                        </span>
-                        {member.user_id !== user?.id && (
-                          <button
-                            onClick={() => removeMember(member.id)}
-                            className="p-2 text-gray-400 hover:text-red-500"
-                            title="Remove member"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div>
+                <h2 className="text-lg font-bold">Compliance Team</h2>
+                <p className="text-sm text-gray-500">
+                  {teamMembers.length} active member{teamMembers.length !== 1 ? 's' : ''}
+                  {pendingInvites.length > 0 && ` · ${pendingInvites.length} pending invite${pendingInvites.length !== 1 ? 's' : ''}`}
+                </p>
+              </div>
             </div>
 
-            {/* Pending Invites */}
-            {pendingInvites.length > 0 && (
-              <div className="bg-white rounded-xl shadow-sm p-6">
-                <h3 className="font-bold mb-4">Pending Invites</h3>
-                <div className="space-y-3">
-                  {pendingInvites.map(invite => (
-                    <div key={invite.id} className="flex items-center justify-between p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <Mail className="w-5 h-5 text-yellow-600" />
-                        <div>
-                          <p className="font-medium">{invite.invitee_name || invite.invitee_email}</p>
-                          <p className="text-sm text-gray-500">{invite.invitee_email}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-yellow-700">Pending</span>
-                        <button
-                          onClick={() => cancelInvite(invite.id)}
-                          className="p-2 text-gray-400 hover:text-red-500"
-                          title="Cancel invite"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <p className="text-gray-600 mb-6">
+              Manage your compliance team, invite new members, view workload distribution, and track assignments from the dedicated team management page.
+            </p>
+
+            <button
+              onClick={() => router.push('/compliance/team')}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 font-medium transition-colors"
+            >
+              Manage Team
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         )}
 
@@ -632,94 +481,6 @@ export default function ComplianceSettingsPage() {
         )}
       </main>
 
-      {/* Invite Modal */}
-      {showInviteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Invite Team Member</h2>
-              <button
-                onClick={() => setShowInviteModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleInvite} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={inviteForm.email}
-                  onChange={e => setInviteForm(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
-                  placeholder="colleague@school.edu"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name (optional)
-                </label>
-                <input
-                  type="text"
-                  value={inviteForm.name}
-                  onChange={e => setInviteForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
-                  placeholder="John Smith"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Role
-                </label>
-                <select
-                  value={inviteForm.role}
-                  onChange={e => setInviteForm(prev => ({ ...prev, role: e.target.value as ComplianceTeamRole }))}
-                  className="w-full p-3 border rounded-xl focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="admin">Admin - Full access</option>
-                  <option value="officer">Officer - Can approve/reject deals</option>
-                  <option value="assistant">Assistant - Can flag but not approve</option>
-                  <option value="viewer">Viewer - Read-only access</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowInviteModal(false)}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={inviting || !inviteForm.email}
-                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {inviting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="w-4 h-4" />
-                      Send Invite
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

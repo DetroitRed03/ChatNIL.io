@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, User, Settings, LogOut, LayoutDashboard, BookOpen, GraduationCap } from 'lucide-react';
+import { ChevronDown, User, Settings, LogOut, LayoutDashboard, BookOpen, GraduationCap, FolderOpen, TrendingUp } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -152,10 +152,34 @@ export default function HeaderUserMenu() {
                   <BookOpen className="h-4 w-4 mr-3 text-gray-500" />
                   Validate Deal
                 </button>
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    router.push('/library');
+                  }}
+                  className="flex items-center w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <FolderOpen className="h-4 w-4 mr-3 text-gray-500" />
+                  Library
+                </button>
               </>
             )}
 
             <div className="border-t border-gray-100 my-1" />
+
+            {/* My Progress (Athletes) */}
+            {(isHSStudent || isCollegeAthlete) && (
+              <button
+                onClick={() => {
+                  setShowUserMenu(false);
+                  router.push('/progress');
+                }}
+                className="flex items-center w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <TrendingUp className="h-4 w-4 mr-3 text-gray-500" />
+                My Progress
+              </button>
+            )}
 
             {/* Profile / My Account */}
             <button
@@ -165,8 +189,6 @@ export default function HeaderUserMenu() {
                   router.push('/compliance/settings');
                 } else if (isParent) {
                   router.push('/parent/settings');
-                } else if (isHSStudent) {
-                  router.push('/dashboard/hs-student');
                 } else {
                   router.push('/profile');
                 }
@@ -174,7 +196,7 @@ export default function HeaderUserMenu() {
               className="flex items-center w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <User className="h-4 w-4 mr-3 text-gray-500" />
-              {isComplianceOfficer || isParent ? 'My Account' : isHSStudent ? 'My Progress' : 'Profile'}
+              {isComplianceOfficer || isParent ? 'My Account' : 'Profile'}
             </button>
 
             <button

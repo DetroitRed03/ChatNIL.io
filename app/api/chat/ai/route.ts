@@ -15,11 +15,13 @@ import { createClient } from '@supabase/supabase-js';
 import { trackEventServer } from '@/lib/analytics-server';
 import { estimateTokenCount, estimateCost, categorizePrompt } from '@/lib/analytics';
 import { getSystemPrompt, type UserContext } from '@/lib/ai/system-prompts';
+import { getPromptForUser } from '@/lib/ai/get-prompt-for-role';
 import { getEnhancedRAGContext, detectStateInQuery, detectQuizTopicInQuery, getStateNILRules, getQuizStudyMaterial } from '@/lib/ai/rag';
 import { withRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { getCachedResponse, cacheResponse, isCacheable } from '@/lib/ai/cache';
 import { retrieveDocumentContext } from '@/lib/documents/retriever';
 import { buildEnhancedChatContext } from '@/lib/ai/enhanced-chat-context';
+import { enforceResponseFormatting } from '@/lib/ai/format-response';
 
 // Helper to fetch user's assessment results
 async function getUserAssessmentResults(userId: string): Promise<{
@@ -91,7 +93,7 @@ interface Message {
 interface ChatRequest {
   messages: Message[];
   userId?: string;
-  userRole?: 'athlete' | 'parent' | 'coach' | 'school_admin' | 'agency';
+  userRole?: 'athlete' | 'parent' | 'coach' | 'school_admin' | 'agency' | 'hs_student' | 'college_athlete' | 'compliance_officer';
   userState?: string;
   userName?: string;
   athleteName?: string;
@@ -233,8 +235,11 @@ export async function POST(request: NextRequest) {
                 sendSources(cachedEntry.metadata.sources);
               }
 
+              // Post-process cached response for formatting compliance
+              const formattedCachedResponse = enforceResponseFormatting(cachedEntry.response_text);
+
               // Stream the cached response with a natural typing effect
-              const words = cachedEntry.response_text.split(' ');
+              const words = formattedCachedResponse.split(' ');
               for (let i = 0; i < words.length; i++) {
                 const word = words[i] + (i < words.length - 1 ? ' ' : '');
                 responseText += word;
@@ -276,14 +281,16 @@ export async function POST(request: NextRequest) {
             console.log('🧠 Generating AI response with RAG...');
             sendStatus('thinking', 'Thinking...');
 
-            // 1. Get role-aware system prompt with dashboard context
-            const baseSystemPrompt = getSystemPrompt(userContext);
+            // 1. Get role-aware system prompt with user context
+            // Template-based roles use the NEW system (fully interpolated from DB)
+            // Legacy roles use the OLD system (client-provided context + dashboard injection)
+            const TEMPLATE_ROLES = ['hs_student', 'college_athlete', 'parent', 'compliance_officer'];
 
-            // 1b. Enhance with real-time dashboard data if user is authenticated
-            let systemPrompt = baseSystemPrompt;
+            let systemPrompt = '';
+
             if (userId) {
               try {
-                // Create admin supabase client for dashboard context
+                // Create admin supabase client for context
                 const supabaseAdmin = createClient(
                   process.env.SUPABASE_URL!,
                   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -298,24 +305,39 @@ export async function POST(request: NextRequest) {
 
                 const dbRole = userProfile?.role || userRole || 'athlete';
 
-                // Build enhanced context with dashboard data
-                const { fullContext, dashboardContext } = await buildEnhancedChatContext(
-                  userId,
-                  dbRole,
-                  supabaseAdmin,
-                  baseSystemPrompt
-                );
-
-                systemPrompt = fullContext;
-                console.log('📊 Dashboard context injected:', {
-                  role: dbRole,
-                  hasData: Object.keys(dashboardContext.data).length > 0,
-                  actions: dashboardContext.availableActions.length
-                });
-              } catch (dashboardError: any) {
-                console.warn('⚠️ Dashboard context failed, using base prompt:', dashboardError.message);
-                // Continue with base prompt if dashboard fails
+                if (TEMPLATE_ROLES.includes(dbRole)) {
+                  // NEW SYSTEM: Template-based prompt with complete DB context
+                  // This includes ALL user data: profile, chapter answers, daily challenges,
+                  // quiz performance, personal brand, state rules, opportunities, etc.
+                  const promptResult = await getPromptForUser(userId);
+                  systemPrompt = promptResult.systemPrompt;
+                  console.log('📊 Template context injected:', {
+                    role: promptResult.role,
+                    contextKeys: Object.keys(promptResult.userContext).length
+                  });
+                } else {
+                  // LEGACY SYSTEM: Function-based prompt + dashboard data injection
+                  const baseSystemPrompt = getSystemPrompt(userContext);
+                  const { fullContext, dashboardContext } = await buildEnhancedChatContext(
+                    userId,
+                    dbRole,
+                    supabaseAdmin,
+                    baseSystemPrompt
+                  );
+                  systemPrompt = fullContext;
+                  console.log('📊 Dashboard context injected:', {
+                    role: dbRole,
+                    hasData: Object.keys(dashboardContext.data).length > 0,
+                    actions: dashboardContext.availableActions.length
+                  });
+                }
+              } catch (contextError: any) {
+                console.warn('⚠️ Context injection failed, using base prompt:', contextError.message);
+                systemPrompt = getSystemPrompt(userContext);
               }
+            } else {
+              // No authenticated user — use legacy system with client-provided context
+              systemPrompt = getSystemPrompt(userContext);
             }
 
             // 2. Detect query intent and fetch relevant knowledge
@@ -464,9 +486,17 @@ export async function POST(request: NextRequest) {
               }
             }
 
-            // Send sources to the client
-            if (ragSources.knowledge.length > 0 || ragSources.memories.length > 0 || ragSources.documents.length > 0 || ragSources.hasRealTimeData) {
-              sendSources(ragSources);
+            // Send sources to the client — only when there are meaningful sources
+            // Memory-only sources ("Personal Memory") are noise for regular conversations
+            // Only show sources when we have knowledge base hits, documents, or real-time web data
+            const hasMeaningfulSources = ragSources.knowledge.length > 0 || ragSources.documents.length > 0 || ragSources.hasRealTimeData;
+            if (hasMeaningfulSources) {
+              // Strip memories from sources sent to client — they show as "Personal Memory" which is confusing
+              const clientSources = {
+                ...ragSources,
+                memories: [], // Don't show memories as sources in the UI
+              };
+              sendSources(clientSources);
             }
 
             // Track if we used RAG context for cache metadata
@@ -481,6 +511,14 @@ export async function POST(request: NextRequest) {
             if (ragContext) {
               fullContext += `\n\n${ragContext}`;
             }
+
+            // Add compliance disclaimer instruction when web search provided real-time data
+            if (ragSources.hasRealTimeData) {
+              fullContext += `\n\nIMPORTANT: Your response includes real-time web search data. When citing rules, regulations, or compliance information from this data, add a brief disclaimer at the end: "Note: Rules and regulations change frequently. Always verify current requirements with your compliance office or legal counsel."`;
+            }
+
+            // Append formatting reminder at end of system prompt (reinforces compliance)
+            fullContext += `\n\nREMINDER: Use bullet points and line breaks. Use bold sparingly (at most ONE bold phrase per response). Never write walls of text. Never bold every header or term. Never mention external tools — ChatNIL IS the user's platform.`;
 
             const systemMessage = {
               role: 'system' as const,
@@ -516,8 +554,8 @@ export async function POST(request: NextRequest) {
               body: JSON.stringify({
                 model: 'gpt-4',
                 messages: openAIMessages,
-                temperature: 0.7,
-                max_tokens: 2000, // Increased from 1000 to prevent cutoff
+                temperature: 0.5,
+                max_tokens: 400,
                 stream: true
               }),
               signal: abortController.signal

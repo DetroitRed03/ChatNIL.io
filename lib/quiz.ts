@@ -5,6 +5,7 @@
  */
 
 import { supabase } from './supabase';
+import { createClient } from '@supabase/supabase-js';
 import {
   QuizQuestion,
   UserQuizProgress,
@@ -13,6 +14,21 @@ import {
   QuizSessionResults,
   UserQuizStats
 } from './types';
+
+/**
+ * Service role client for server-side queries that bypass RLS.
+ * Created inline to avoid importing next/headers from lib/supabase/server.ts.
+ */
+function getServiceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (url && key) {
+    return createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
+  return supabase; // fallback to anon client
+}
 
 /**
  * Generate a short alphanumeric code for quiz sessions
@@ -145,8 +161,9 @@ export async function getQuizCategories(userId?: string): Promise<QuizCategoryIn
     }
   ];
 
-  // Get question counts for each category
-  const { data: questions } = await supabase
+  // Use service client for question counts to bypass RLS
+  const serviceClient = getServiceClient();
+  const { data: questions } = await serviceClient
     .from('quiz_questions')
     .select('category, id');
 
@@ -163,7 +180,7 @@ export async function getQuizCategories(userId?: string): Promise<QuizCategoryIn
 
   // If userId provided, get completion stats
   if (userId) {
-    const { data: progress } = await supabase
+    const { data: progress } = await serviceClient
       .from('user_quiz_progress')
       .select(`
         question_id,
@@ -174,22 +191,24 @@ export async function getQuizCategories(userId?: string): Promise<QuizCategoryIn
       .eq('status', 'completed');
 
     if (progress) {
-      const categoryProgress = progress.reduce((acc: Record<string, { completed: number; correct: number }>, p: any) => {
+      // Track unique questions per category to avoid counting retakes
+      const categoryProgress = progress.reduce((acc: Record<string, { uniqueQuestions: Set<string>; correct: number }>, p: any) => {
         const category = (p as any).quiz_questions.category;
         if (!acc[category]) {
-          acc[category] = { completed: 0, correct: 0 };
+          acc[category] = { uniqueQuestions: new Set(), correct: 0 };
         }
-        acc[category].completed++;
+        acc[category].uniqueQuestions.add(p.question_id);
         if (p.is_correct) acc[category].correct++;
         return acc;
-      }, {} as Record<string, { completed: number; correct: number }>);
+      }, {} as Record<string, { uniqueQuestions: Set<string>; correct: number }>);
 
       categories.forEach(cat => {
         const prog = categoryProgress[cat.category];
         if (prog) {
-          cat.completedCount = prog.completed;
-          cat.averageScore = prog.completed > 0
-            ? Math.round((prog.correct / prog.completed) * 100)
+          // Use unique question count, capped at total available
+          cat.completedCount = Math.min(prog.uniqueQuestions.size, cat.questionCount);
+          cat.averageScore = prog.uniqueQuestions.size > 0
+            ? Math.round((prog.correct / prog.uniqueQuestions.size) * 100)
             : undefined;
         }
       });
@@ -291,14 +310,55 @@ export async function submitQuizAnswer(
   const isCorrect = userAnswerIndex === question.correct_answer;
   const pointsEarned = isCorrect ? question.points : 0;
 
-  // Note: Since we don't have a quiz_answers table or record_quiz_answer function,
-  // we're just returning the result without storing it.
-  // This is a simplified version that allows the quiz to work.
+  // Persist answer to database via record_quiz_answer RPC (migration 009)
+  // Note: quiz_session_id was changed from uuid to text in migration 029
+  let persisted = false;
+  try {
+    const { error: rpcError } = await supabase.rpc('record_quiz_answer', {
+      p_user_id: userId,
+      p_question_id: questionId,
+      p_user_answer: JSON.stringify(userAnswer),
+      p_user_answer_index: userAnswerIndex,
+      p_time_taken_seconds: timeTaken,
+      p_quiz_session_id: sessionId || null,
+    });
+    if (rpcError) throw rpcError;
+    persisted = true;
+  } catch (rpcErr) {
+    console.warn('RPC record_quiz_answer failed, falling back to direct INSERT:', rpcErr);
+  }
+
+  // Fallback: direct INSERT if RPC failed (e.g., quiz_session_id type mismatch)
+  if (!persisted) {
+    try {
+      const { error: insertError } = await supabase
+        .from('user_quiz_progress')
+        .insert({
+          user_id: userId,
+          question_id: questionId,
+          status: 'completed',
+          user_answer: JSON.stringify(userAnswer),
+          user_answer_index: userAnswerIndex,
+          is_correct: isCorrect,
+          time_taken_seconds: timeTaken,
+          points_earned: pointsEarned,
+          quiz_session_id: sessionId || null,
+          completed_at: new Date().toISOString(),
+        });
+      if (insertError) {
+        console.error('Direct INSERT fallback also failed:', insertError);
+      } else {
+        persisted = true;
+      }
+    } catch (insertErr) {
+      console.error('Failed to persist quiz answer via fallback:', insertErr);
+    }
+  }
 
   return {
     isCorrect,
     pointsEarned,
-    explanation: '', // No explanation field in current schema
+    explanation: question.explanation || '',
     correctAnswer: question.correct_answer
   };
 }
@@ -307,16 +367,16 @@ export async function submitQuizAnswer(
  * Get quiz session results
  */
 export async function getQuizSessionResults(sessionId: string): Promise<QuizSessionResults> {
-  // Note: quiz_sessions table doesn't exist - session data is tracked in user_quiz_progress
-  // Query user_quiz_progress to aggregate session results
-  const { data: progress, error: progressError } = await supabase
+  // Use service role client to bypass RLS (this runs server-side in API routes)
+  const serviceClient = getServiceClient();
+
+  const { data: progress, error: progressError } = await serviceClient
     .from('user_quiz_progress')
     .select('*')
     .eq('quiz_session_id', sessionId);
 
   if (progressError) {
     console.error('Error fetching quiz session progress:', progressError);
-    // Return empty results if table doesn't exist yet
     return {
       total_questions: 0,
       correct_answers: 0,
@@ -349,8 +409,9 @@ export async function getQuizSessionResults(sessionId: string): Promise<QuizSess
  * Get user's overall quiz statistics
  */
 export async function getUserQuizStats(userId: string): Promise<UserQuizStats> {
-  // Try RPC first, fall back to direct query if function doesn't exist
-  const { data, error } = await supabase.rpc('get_user_quiz_stats', {
+  // Try RPC first using service client to bypass RLS
+  const serviceClient = getServiceClient();
+  const { data, error } = await serviceClient.rpc('get_user_quiz_stats', {
     p_user_id: userId
   });
 
@@ -369,10 +430,11 @@ export async function getUserQuizStats(userId: string): Promise<UserQuizStats> {
   // Fallback: Calculate stats from user_quiz_progress table directly
   console.log('RPC get_user_quiz_stats not available, using fallback query');
 
-  const { data: progress, error: progressError } = await supabase
+  const { data: progress, error: progressError } = await serviceClient
     .from('user_quiz_progress')
     .select('*')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .eq('status', 'completed');
 
   if (progressError) {
     console.warn('Could not fetch quiz progress:', progressError.message);
@@ -392,13 +454,22 @@ export async function getUserQuizStats(userId: string): Promise<UserQuizStats> {
   const total_questions_correct = records.filter((r: any) => r.is_correct).length;
   const total_points_earned = records.reduce((sum: number, r: any) => sum + (r.points_earned || 0), 0);
   const total_time_spent_seconds = records.reduce((sum: number, r: any) => sum + (r.time_taken_seconds || 0), 0);
-  const average_score_percentage = total_questions_attempted > 0
-    ? Math.round((total_questions_correct / total_questions_attempted) * 100)
+
+  // Calculate per-session average score for a fairer metric
+  const sessionMap = new Map<string, { correct: number; total: number }>();
+  records.forEach((r: any) => {
+    const sid = r.quiz_session_id || 'unknown';
+    if (!sessionMap.has(sid)) sessionMap.set(sid, { correct: 0, total: 0 });
+    const s = sessionMap.get(sid)!;
+    s.total++;
+    if (r.is_correct) s.correct++;
+  });
+  const sessionScores = Array.from(sessionMap.values()).map(s => s.total > 0 ? (s.correct / s.total) * 100 : 0);
+  const average_score_percentage = sessionScores.length > 0
+    ? Math.round(sessionScores.reduce((a, b) => a + b, 0) / sessionScores.length)
     : 0;
 
-  // Count unique quiz sessions
-  const uniqueSessions = new Set(records.map((r: any) => r.quiz_session_id).filter(Boolean));
-  const quizzes_completed = uniqueSessions.size;
+  const quizzes_completed = sessionMap.size;
 
   return {
     total_questions_attempted,
@@ -474,8 +545,10 @@ export async function getRecommendedQuizzes(
 export async function getQuizSessionProgress(
   sessionId: string
 ): Promise<UserQuizProgress[]> {
-  // Try to fetch progress, but return empty array if table doesn't exist
-  const { data, error } = await supabase
+  // Use service role client to bypass RLS (this runs server-side in API routes)
+  const serviceClient = getServiceClient();
+
+  const { data, error } = await serviceClient
     .from('user_quiz_progress')
     .select(`
       *,
@@ -485,8 +558,8 @@ export async function getQuizSessionProgress(
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.warn('Could not fetch quiz session progress (table may not exist):', error.message);
-    return []; // Return empty array instead of throwing
+    console.warn('Could not fetch quiz session progress:', error.message);
+    return [];
   }
 
   return data || [];

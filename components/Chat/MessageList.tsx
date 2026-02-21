@@ -47,12 +47,12 @@ const formatTimestamp = (timestamp: Date | string | undefined): string => {
 // Component to display message sources with numbered references matching [1], [2], etc. in the text
 function SourcesDisplay({ sources }: { sources: MessageSources }) {
   const hasKnowledge = sources.knowledge && sources.knowledge.length > 0;
-  const hasMemories = sources.memories && sources.memories.length > 0;
   const hasDocuments = sources.documents && sources.documents.length > 0;
   const hasRealTime = sources.hasRealTimeData;
 
-  // Don't render if no sources
-  if (!hasKnowledge && !hasMemories && !hasDocuments && !hasRealTime) {
+  // Only show sources when we have meaningful external sources
+  // Personal memories are noise — they show as "Personal Memory" which confuses users
+  if (!hasKnowledge && !hasDocuments && !hasRealTime) {
     return null;
   }
 
@@ -69,14 +69,8 @@ function SourcesDisplay({ sources }: { sources: MessageSources }) {
       allSources.push({ title: doc.fileName, category: doc.documentType || 'Document', type: 'document' });
     });
   }
-  if (hasMemories) {
-    sources.memories.forEach(memory => {
-      const memoryTitle = memory.type === 'fact' ? 'Remembered fact' :
-                          memory.type === 'preference' ? 'Your preference' :
-                          memory.type === 'context' ? 'Previous context' : memory.type;
-      allSources.push({ title: memoryTitle, category: 'Personal Memory', type: 'memory' });
-    });
-  }
+  // Memories are intentionally excluded from the Sources UI
+  // They showed as "Personal Memory" tags which confused users during regular conversation
   if (hasRealTime) {
     allSources.push({ title: 'Live web search results', category: 'Real-time', type: 'realtime' });
   }

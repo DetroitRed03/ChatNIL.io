@@ -18,6 +18,9 @@ function getSupabaseAdmin() {
     auth: {
       autoRefreshToken: false,
       persistSession: false
+    },
+    global: {
+      fetch: (url: any, opts: any) => fetch(url, { ...opts, cache: 'no-store' as any }),
     }
   }
 );

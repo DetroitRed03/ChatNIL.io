@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { findCampaignMatches } from '@/lib/campaign-matchmaking';
+import { isAthleteRole } from '@/types/common';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +63,7 @@ export async function GET(
       );
     }
 
-    if (athlete.role !== 'athlete') {
+    if (!isAthleteRole(athlete.role)) {
       return NextResponse.json(
         { error: 'User is not an athlete' },
         { status: 403 }

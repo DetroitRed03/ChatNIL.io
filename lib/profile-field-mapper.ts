@@ -121,22 +121,22 @@ export const FIELD_MAPPING: Record<string, FieldMapping> = {
   'last_profile_update': { table: 'athlete_profiles', column: 'last_profile_update' },
   'profile_views': { table: 'athlete_profiles', column: 'profile_views' },
 
-  // ===== FIELDS THAT DON'T EXIST - MAP TO JSONB COLUMNS =====
-
-  // These are mapped to nil_interests as JSONB array items
-  'hobbies': { table: 'athlete_profiles', column: 'nil_interests' },
-  'content_creation_interests': { table: 'athlete_profiles', column: 'nil_interests' },
-  'lifestyle_interests': { table: 'athlete_profiles', column: 'nil_interests' },
-  'causes_care_about': { table: 'athlete_profiles', column: 'nil_interests' },
-
-  // Brand affinity maps to brand_preferences
-  'brand_affinity': { table: 'athlete_profiles', column: 'brand_preferences' },
-
-  // Social media - Note: This should ideally use the social_media_stats table
-  // but for now we'll store in nil_preferences as JSONB
-  'social_media_stats': { table: 'athlete_profiles', column: 'nil_preferences' },
-  'social_media_handles': { table: 'athlete_profiles', column: 'nil_preferences' },
-  'socialMediaHandles': { table: 'athlete_profiles', column: 'nil_preferences' },
+  // ===== INTEREST/PERSONALITY & NIL FIELDS =====
+  // NOTE: These are intercepted in the PUT handler BEFORE splitProfileUpdates
+  // and written to athlete_public_profiles via raw fetch (see /api/profile/route.ts).
+  // Migration 016 users table columns (hobbies, content_creation_interests, etc.)
+  // were NEVER applied to production, so we write to athlete_public_profiles JSONB
+  // columns instead: brand_values, content_categories, brand_preferences.
+  //
+  // Intercepted interest fields:
+  //   hobbies, content_creation_interests, lifestyle_interests,
+  //   causes_care_about, brand_affinity
+  //
+  // Intercepted NIL fields (also written to athlete_public_profiles):
+  //   nil_interests, nil_concerns, nil_goals, nil_preferences
+  //
+  // Social media - also handled separately in PUT handler:
+  //   social_media_stats (writes to athlete_public_profiles + users tables)
 };
 
 /**
@@ -195,29 +195,15 @@ export function mergeProfileData(
     merged.primary_sport = athleteData.sport;
   }
 
-  // Map social_media_stats - need to fetch from social_media_stats table
-  // For now, check if it exists in nil_preferences
-  if (!merged.social_media_stats && athleteData?.nil_preferences) {
-    // Check if social stats were stored in nil_preferences JSONB
-    if (typeof athleteData.nil_preferences === 'object' && athleteData.nil_preferences.social_media_stats) {
-      merged.social_media_stats = athleteData.nil_preferences.social_media_stats;
+  // Social media fields live on userData (from athlete_public_profiles merge).
+  // Restore them from userData in case athleteData spread overwrote with nulls.
+  const userOwnedFields = [
+    'social_media_stats', 'total_followers', 'avg_engagement_rate',
+  ];
+  for (const field of userOwnedFields) {
+    if (userData[field] != null && merged[field] == null) {
+      merged[field] = userData[field];
     }
-  }
-
-  // Map JSONB fields to individual arrays
-  // nil_interests contains: hobbies, content_creation_interests, lifestyle_interests, causes_care_about
-  if (athleteData?.nil_interests && Array.isArray(athleteData.nil_interests)) {
-    // For now, just expose the array as-is
-    // TODO: In the future, could parse JSONB to separate these
-    if (!merged.hobbies) merged.hobbies = athleteData.nil_interests;
-    if (!merged.content_creation_interests) merged.content_creation_interests = athleteData.nil_interests;
-    if (!merged.lifestyle_interests) merged.lifestyle_interests = athleteData.nil_interests;
-    if (!merged.causes_care_about) merged.causes_care_about = athleteData.nil_interests;
-  }
-
-  // Map brand_preferences to brand_affinity
-  if (athleteData?.brand_preferences && !merged.brand_affinity) {
-    merged.brand_affinity = athleteData.brand_preferences;
   }
 
   return merged;
@@ -227,7 +213,7 @@ export function mergeProfileData(
  * Check if a user is an athlete (has or should have athlete_profiles record)
  */
 export function isAthleteRole(role: string | undefined): boolean {
-  return role === 'athlete' || role === 'student_athlete';
+  return role === 'athlete' || role === 'college_athlete' || role === 'hs_student';
 }
 
 /**

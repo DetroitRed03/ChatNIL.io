@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { findCampaignMatches } from '@/lib/campaign-matchmaking';
+import { isAthleteRole } from '@/types/common';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       .eq('id', userId)
       .single();
 
-    if (userError || !userData || userData.role !== 'athlete') {
+    if (userError || !userData || !isAthleteRole(userData.role)) {
       return NextResponse.json(
         { error: 'Only athletes can access campaign matches' },
         { status: 403 }

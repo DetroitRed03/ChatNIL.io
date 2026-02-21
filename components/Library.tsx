@@ -1,634 +1,432 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Upload,
   Search,
   Filter,
-  Grid3X3,
-  List,
-  File,
+  Loader2,
+  Shield,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle,
+  FileSearch,
+  Sparkles,
   FileText,
-  Image,
-  FileSpreadsheet,
-  MoreVertical,
-  Download,
-  Trash2,
-  Eye,
-  Plus,
-  Send,
-  X,
-  MessageSquare
 } from 'lucide-react';
-import { useLibraryStore, type LibraryFile, type FileType, type ViewMode } from '@/lib/stores/library';
-import { addFileToLibrary } from '@/lib/stores/library';
-import { useChatHistoryStore } from '@/lib/chat-history-store';
-import SharedInput, { type UploadedFile } from '@/components/SharedInput';
-import { Message } from '@/lib/stores/chat';
-import { useRouter } from 'next/navigation';
+import { useLibraryStore } from '@/lib/stores/library';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { useAnalysisStream } from '@/hooks/useAnalysisStream';
+import type { DealAnalysis, DealExtraction } from '@/lib/types/deal-analysis';
+import { mapDbRowToAnalysis } from '@/lib/types/deal-analysis';
+
+import DealUploadZone from './library/DealUploadZone';
+import AnalysisCard from './library/AnalysisCard';
+import DealAnalysisResult from './library/DealAnalysisResult';
+import ComplianceScoreRing from './library/ComplianceScoreRing';
+
+// Lazy-load wizard to avoid large initial bundle
+import dynamic from 'next/dynamic';
+const DealValidationWizard = dynamic(
+  () => import('./deal-validation/DealValidationWizard'),
+  { ssr: false }
+);
 
 export default function Library() {
+  const { user } = useAuth();
+  const { startAnalysis, cancelAnalysis } = useAnalysisStream();
+
   const {
-    files,
-    viewMode,
-    setViewMode,
-    activeFilter,
-    setActiveFilter,
-    sortBy,
-    sortOrder,
-    setSortBy,
-    setSortOrder,
-    searchQuery,
-    setSearchQuery,
-    getFilteredFiles,
-    getFileStats,
-    removeFile,
-    updateFile
+    analyses,
+    setAnalyses,
+    activeAnalysisId,
+    setActiveAnalysisId,
+    analysisStreamStatus,
+    currentExtraction,
+    analysisFilter,
+    setAnalysisFilter,
+    analysisSearchQuery,
+    setAnalysisSearchQuery,
+    getFilteredAnalyses,
+    updateAnalysis,
   } = useLibraryStore();
 
-  const { sidebarCollapsed, createChatWithFirstMessage, addMessageToChat, setActiveChat } = useChatHistoryStore();
-  const router = useRouter();
-  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [selectedAnalysis, setSelectedAnalysis] = useState<DealAnalysis | null>(null);
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardInitialData, setWizardInitialData] = useState<any>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Helper to get auth token for document uploads
-  const getAuthToken = async (): Promise<string | undefined> => {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token;
-  };
+  // Load analyses on mount
+  useEffect(() => {
+    if (user) {
+      loadAnalyses();
+    }
+  }, [user]);
 
-  const [dragActive, setDragActive] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<LibraryFile | null>(null);
-  const [showFileMenu, setShowFileMenu] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Auto-open result after analysis completes
+  useEffect(() => {
+    if (activeAnalysisId && !analysisStreamStatus) {
+      const analysis = analyses.find(a => a.id === activeAnalysisId);
+      if (analysis) {
+        setSelectedAnalysis(analysis);
+        setActiveAnalysisId(null);
+      }
+    }
+  }, [activeAnalysisId, analysisStreamStatus, analyses]);
 
-  // Chat input state
-  const [inputValue, setInputValue] = useState('');
-  const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
+  const loadAnalyses = async () => {
+    try {
+      setLoading(true);
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
 
-  const stats = getFileStats();
-  const filteredFiles = getFilteredFiles();
+      const res = await fetch('/api/library/analyses', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setAnalyses(data.analyses);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load analyses:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    const authToken = await getAuthToken();
-    for (const file of droppedFiles) {
-      await addFileToLibrary(file, authToken);
+  const handleFileSelected = async (file: File) => {
+    setUploadError(null);
+    try {
+      await startAnalysis(file);
+      // Refresh list after completion
+      await loadAnalyses();
+    } catch (error: any) {
+      console.error('Analysis failed:', error);
+      setUploadError(error.message || 'Analysis failed');
     }
   };
 
-  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []);
-    const authToken = await getAuthToken();
-    for (const file of selectedFiles) {
-      await addFileToLibrary(file, authToken);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  const handleConvertToDeal = async (analysisId: string) => {
+    const analysis = analyses.find(a => a.id === analysisId);
+    if (!analysis?.extractionResult) return;
+
+    const extraction = analysis.extractionResult;
+
+    // Pre-populate the wizard with extracted data
+    setWizardInitialData({
+      thirdPartyName: extraction.brand || '',
+      dealType: extraction.dealType || 'other',
+      compensation: extraction.compensation?.toString() || '',
+      deliverables: extraction.deliverables || '',
+      startDate: extraction.startDate || '',
+      endDate: extraction.endDate || '',
+    });
+
+    setSelectedAnalysis(null);
+    setShowWizard(true);
   };
 
-  // Processing status badge
-  const ProcessingBadge = ({ file }: { file: LibraryFile }) => {
-    if (!file.processingStatus || file.processingStatus === 'pending') {
-      return null;
-    }
-
-    if (file.processingStatus === 'processing') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
-          <Loader2 className="w-3 h-3 animate-spin" />
-          Processing
-        </span>
-      );
-    }
-
-    if (file.processingStatus === 'completed') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
-          <CheckCircle className="w-3 h-3" />
-          AI Ready
-        </span>
-      );
-    }
-
-    if (file.processingStatus === 'failed') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700" title={file.processingError}>
-          <AlertCircle className="w-3 h-3" />
-          Failed
-        </span>
-      );
-    }
-
-    return null;
+  const handleWizardComplete = async () => {
+    setShowWizard(false);
+    setWizardInitialData(null);
+    // Refresh analyses to show "Converted" badge
+    await loadAnalyses();
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  const handleDeleteAnalysis = async (analysisId: string) => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
 
-  const getFileIcon = (file: LibraryFile) => {
-    switch (file.category) {
-      case 'contract':
-        return <FileText className="w-8 h-8 text-red-500" />;
-      case 'image':
-        return <Image className="w-8 h-8 text-green-500" />;
-      case 'document':
-        return <FileSpreadsheet className="w-8 h-8 text-blue-500" />;
-      default:
-        return <File className="w-8 h-8 text-gray-500" />;
+      // Use service role via API or direct delete
+      const { error } = await supabase
+        .from('deal_analyses')
+        .delete()
+        .eq('id', analysisId);
+
+      if (!error) {
+        setAnalyses(analyses.filter(a => a.id !== analysisId));
+        setSelectedAnalysis(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete analysis:', error);
     }
   };
 
-  const FilterButton = ({ type, label, count }: { type: FileType | 'all', label: string, count: number }) => (
-    <button
-      onClick={() => setActiveFilter(type)}
-      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-        activeFilter === type
-          ? 'bg-orange-100 text-orange-800 border border-orange-200'
-          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-      }`}
-    >
-      {label} ({count})
-    </button>
-  );
+  const filteredAnalyses = getFilteredAnalyses();
+  const isAnalyzing = !!analysisStreamStatus && analysisStreamStatus !== 'completed' && analysisStreamStatus !== 'failed';
 
-  const handleDownload = (file: LibraryFile) => {
-    const url = URL.createObjectURL(file.file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
+  // Stats
+  const completedAnalyses = analyses.filter(a => a.analysisStatus === 'completed');
+  const greenCount = completedAnalyses.filter(a => a.complianceStatus === 'green').length;
+  const yellowCount = completedAnalyses.filter(a => a.complianceStatus === 'yellow').length;
+  const redCount = completedAnalyses.filter(a => a.complianceStatus === 'red').length;
 
-  const handlePreview = (file: LibraryFile) => {
-    if (file.category === 'image' && file.preview) {
-      setSelectedFile(file);
-    } else {
-      const url = URL.createObjectURL(file.file);
-      window.open(url, '_blank');
-      URL.revokeObjectURL(url);
-    }
-  };
-
-  // Chat functions
-  const handleAddFile = (file: UploadedFile) => {
-    setAttachedFiles(prev => [...prev, file]);
-  };
-
-  const handleRemoveFile = (fileId: string) => {
-    setAttachedFiles(prev => prev.filter(f => f.id !== fileId));
-  };
-
-  const handleSendMessage = () => {
-    if (!inputValue.trim() && attachedFiles.length === 0) return;
-
-    // Add context about selected library file if one is selected
-    let contextMessage = inputValue.trim();
-    if (selectedFile) {
-      contextMessage = `[Library file: ${selectedFile.name}] ${contextMessage}`;
-    }
-
-    // Create a new chat with the first message (includes library context)
-    const chatId = createChatWithFirstMessage(contextMessage, 'athlete');
-
-    // Set the active chat and navigate to chat page
-    setActiveChat(chatId);
-    router.push('/');
-
-    // Clear input
-    setInputValue('');
-    setAttachedFiles([]);
-  };
-
-  const getInputPlaceholder = () => {
-    if (selectedFile) {
-      return `Ask anything about ${selectedFile.name}...`;
-    }
-    return "Ask anything about your files...";
-  };
-
-  const FileCard = ({ file }: { file: LibraryFile }) => (
-    <div
-      className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg hover:scale-105 transition-all cursor-pointer relative group"
-      onClick={() => setSelectedFile(file)}
-    >
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowFileMenu(showFileMenu === file.id ? null : file.id);
-          }}
-          className="p-1 hover:bg-gray-100 rounded"
-        >
-          <MoreVertical className="w-4 h-4" />
-        </button>
-
-        {showFileMenu === file.id && (
-          <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-md shadow-lg py-1 z-10 min-w-[120px]">
-            <button
-              onClick={() => {
-                handlePreview(file);
-                setShowFileMenu(null);
-              }}
-              className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
-            >
-              <Eye className="w-3 h-3" />
-              Preview
-            </button>
-            <button
-              onClick={() => {
-                handleDownload(file);
-                setShowFileMenu(null);
-              }}
-              className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
-            >
-              <Download className="w-3 h-3" />
-              Download
-            </button>
-            <button
-              onClick={() => {
-                removeFile(file.id);
-                setShowFileMenu(null);
-              }}
-              className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-red-600 flex items-center gap-2"
-            >
-              <Trash2 className="w-3 h-3" />
-              Delete
-            </button>
-          </div>
-        )}
+  if (loading && !user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50/30 via-white to-amber-50/20">
+        <Loader2 className="w-10 h-10 text-orange-500 animate-spin" />
       </div>
-
-      <div className="flex flex-col items-center text-center">
-        {file.preview ? (
-          <img src={file.preview} alt={file.name} className="w-16 h-16 object-cover rounded-lg mb-3" />
-        ) : (
-          <div className="mb-3">{getFileIcon(file)}</div>
-        )}
-
-        <h3 className="text-sm font-medium text-gray-900 truncate w-full mb-1">{file.name}</h3>
-        <p className="text-xs text-gray-500 mb-1">{formatFileSize(file.size)}</p>
-        <ProcessingBadge file={file} />
-        <p className="text-xs text-gray-400 mt-1">{file.uploadDate.toLocaleDateString()}</p>
-      </div>
-    </div>
-  );
-
-  const FileRow = ({ file }: { file: LibraryFile }) => (
-    <div
-      className="flex items-center justify-between p-3 border-b border-gray-100 hover:bg-orange-50 hover:border-orange-200 cursor-pointer group relative transition-colors"
-      onClick={() => setSelectedFile(file)}
-    >
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        {file.preview ? (
-          <img src={file.preview} alt={file.name} className="w-8 h-8 object-cover rounded" />
-        ) : (
-          getFileIcon(file)
-        )}
-
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-medium text-gray-900 truncate">{file.name}</h3>
-          <p className="text-xs text-gray-500">{formatFileSize(file.size)} • {file.uploadDate.toLocaleDateString()}</p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <ProcessingBadge file={file} />
-        <span className="text-xs text-gray-400 capitalize">{file.category}</span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowFileMenu(showFileMenu === file.id ? null : file.id);
-          }}
-          className="p-1 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <MoreVertical className="w-4 h-4" />
-        </button>
-      </div>
-
-      {showFileMenu === file.id && (
-        <div className="absolute right-4 bg-white border border-gray-200 rounded-md shadow-lg py-1 z-10 min-w-[120px]">
-          <button
-            onClick={() => {
-              handlePreview(file);
-              setShowFileMenu(null);
-            }}
-            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
-          >
-            <Eye className="w-3 h-3" />
-            Preview
-          </button>
-          <button
-            onClick={() => {
-              handleDownload(file);
-              setShowFileMenu(null);
-            }}
-            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"
-          >
-            <Download className="w-3 h-3" />
-            Download
-          </button>
-          <button
-            onClick={() => {
-              removeFile(file.id);
-              setShowFileMenu(null);
-            }}
-            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-red-600 flex items-center gap-2"
-          >
-            <Trash2 className="w-3 h-3" />
-            Delete
-          </button>
-        </div>
-      )}
-    </div>
-  );
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 relative">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Library</h1>
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* View Toggle */}
-            <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 ${viewMode === 'grid' ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
-              >
-                <Grid3X3 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 ${viewMode === 'list' ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
-              >
-                <List className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Upload Button */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+    <div className="flex flex-col overflow-y-auto min-h-screen bg-gradient-to-br from-orange-50/30 via-white to-amber-50/20 py-6 sm:py-8 px-4 sm:px-6">
+      <div className="max-w-7xl mx-auto w-full">
+        {/* Gradient Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative bg-gradient-to-r from-orange-400/90 via-orange-500/90 to-amber-500/90 rounded-2xl px-6 py-8 mb-8 overflow-hidden shadow-xl shadow-orange-200/50"
+        >
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+            animate={{ x: ['-100%', '200%'] }}
+            transition={{ duration: 5, repeat: Infinity, repeatDelay: 3 }}
+          />
+          <div className="relative z-10 flex items-center">
+            <motion.div
+              className="p-4 bg-white/30 backdrop-blur-sm rounded-2xl mr-5"
+              animate={{
+                boxShadow: [
+                  '0 0 25px rgba(255,255,255,0.5)',
+                  '0 0 55px rgba(255,255,255,0.85)',
+                  '0 0 25px rgba(255,255,255,0.5)',
+                ],
+              }}
+              transition={{ duration: 3.5, repeat: Infinity }}
             >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Upload</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="space-y-3">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search files..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
+              <Sparkles className="w-10 h-10 text-white" />
+            </motion.div>
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-1">Deal Intelligence</h1>
+              <p className="text-white/90 text-lg">Your AI-powered deal analysis assistant</p>
             </div>
           </div>
+        </motion.div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterButton type="all" label="All" count={stats.total} />
-            <FilterButton type="contract" label="Contracts" count={stats.contracts} />
-            <FilterButton type="image" label="Images" count={stats.images} />
-            <FilterButton type="document" label="Documents" count={stats.documents} />
-            <FilterButton type="other" label="Other" count={stats.other} />
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto pb-20">
-        {filteredFiles.length === 0 ? (
-          <div
-            className={`h-full flex flex-col items-center justify-center p-4 sm:p-8 border-2 border-dashed rounded-lg mx-4 sm:mx-6 mt-4 transition-colors ${
-              dragActive ? 'border-orange-400 bg-orange-50' : 'border-gray-300'
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <Upload className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 mb-4" />
-            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No files yet</h3>
-            <p className="text-gray-500 text-center mb-4 text-sm sm:text-base">
-              Drag and drop files here, or click the upload button to get started
-            </p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm sm:text-base"
-            >
-              Choose Files
-            </button>
-          </div>
-        ) : (
-          <div className="p-3 sm:p-4">
-            {viewMode === 'grid' ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-                {filteredFiles.map(file => (
-                  <FileCard key={file.id} file={file} />
-                ))}
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                {filteredFiles.map(file => (
-                  <FileRow key={file.id} file={file} />
-                ))}
-              </div>
-            )}
+        {/* Stats Cards */}
+        {completedAnalyses.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <StatCard
+              icon={<FileSearch className="w-5 h-5 text-orange-600" />}
+              label="Total Analyses"
+              value={completedAnalyses.length}
+              delay={0.1}
+            />
+            <StatCard
+              icon={<CheckCircle className="w-5 h-5 text-green-600" />}
+              label="Compliant"
+              value={greenCount}
+              delay={0.2}
+            />
+            <StatCard
+              icon={<Shield className="w-5 h-5 text-amber-600" />}
+              label="Needs Review"
+              value={yellowCount}
+              delay={0.3}
+            />
+            <StatCard
+              icon={<AlertTriangle className="w-5 h-5 text-red-600" />}
+              label="Red Flags"
+              value={redCount}
+              delay={0.4}
+            />
           </div>
         )}
-      </div>
 
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        onChange={handleFileInput}
-        className="hidden"
-        accept="*/*"
-      />
-
-      {/* Document Detail Modal with Chat */}
-      {selectedFile && (
-        <>
-          <div
-            className="fixed inset-0 bg-black bg-opacity-75 z-50"
-            onClick={() => setSelectedFile(null)}
+        {/* Upload Zone */}
+        <div className="mb-8">
+          <DealUploadZone
+            onFileSelected={handleFileSelected}
+            isAnalyzing={isAnalyzing}
+            currentStatus={analysisStreamStatus}
           />
-          <div className="fixed inset-0 flex items-center justify-center z-50 p-2 sm:p-4">
-            <div
-              className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
+          {uploadError && (
+            <motion.p
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-sm text-red-600 mt-2 flex items-center gap-1.5"
             >
-              {/* Header */}
-              <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  {getFileIcon(selectedFile)}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base sm:text-lg font-medium text-gray-900 truncate">{selectedFile.name}</h3>
-                    <p className="text-xs text-gray-500">
-                      {formatFileSize(selectedFile.size)} • {selectedFile.uploadDate.toLocaleDateString()} • {selectedFile.category}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleDownload(selectedFile)}
-                    className="p-2 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                    title="Download"
-                  >
-                    <Download className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => setSelectedFile(null)}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Close"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+              <AlertTriangle className="w-4 h-4" />
+              {uploadError}
+            </motion.p>
+          )}
+        </div>
 
-              {/* Content Area - Split View */}
-              <div className="flex-1 flex overflow-hidden">
-                {/* Document Preview Panel */}
-                <div className="flex-1 bg-gray-100 p-4 overflow-y-auto flex items-center justify-center">
-                  {selectedFile.category === 'image' && selectedFile.preview ? (
-                    <img
-                      src={selectedFile.preview}
-                      alt={selectedFile.name}
-                      className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
-                    />
-                  ) : (
-                    <div className="text-center p-8">
-                      <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                        {getFileIcon(selectedFile)}
-                      </div>
-                      <h4 className="text-lg font-medium text-gray-900 mb-2">{selectedFile.name}</h4>
-                      <p className="text-sm text-gray-600 mb-4">Preview not available for this file type</p>
-                      <button
-                        onClick={() => handleDownload(selectedFile)}
-                        className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors inline-flex items-center gap-2"
-                      >
-                        <Download className="w-4 h-4" />
-                        Download to View
-                      </button>
+        {/* Live Extraction Preview */}
+        <AnimatePresence>
+          {isAnalyzing && currentExtraction && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-8 overflow-hidden"
+            >
+              <div className="bg-white rounded-xl border border-orange-200 shadow-md p-6">
+                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 text-orange-500 animate-spin" />
+                  Analyzing your document...
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                  <div className="p-2 bg-orange-50 rounded-lg">
+                    <span className="text-xs text-orange-600">Brand</span>
+                    <p className="font-medium">{currentExtraction.brand}</p>
+                  </div>
+                  {currentExtraction.compensation && (
+                    <div className="p-2 bg-orange-50 rounded-lg">
+                      <span className="text-xs text-orange-600">Compensation</span>
+                      <p className="font-medium">${currentExtraction.compensation.toLocaleString()}</p>
+                    </div>
+                  )}
+                  {currentExtraction.deliverables && (
+                    <div className="p-2 bg-orange-50 rounded-lg col-span-2">
+                      <span className="text-xs text-orange-600">Deliverables</span>
+                      <p className="font-medium truncate">{currentExtraction.deliverables}</p>
                     </div>
                   )}
                 </div>
-
-                {/* Chat Interface Panel */}
-                <div className="w-96 border-l border-gray-200 bg-white flex flex-col">
-                  {/* Chat Header */}
-                  <div className="p-4 border-b border-gray-200 bg-orange-50 flex-shrink-0">
-                    <h4 className="font-semibold text-gray-900 mb-1">Ask about this document</h4>
-                    <p className="text-xs text-gray-600">Chat with AI to understand and analyze this file</p>
-                  </div>
-
-                  {/* Messages Area */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                    <div className="bg-orange-50 rounded-lg p-3 border border-orange-100">
-                      <div className="flex items-start gap-2 mb-2">
-                        <MessageSquare className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm font-medium text-orange-900">AI Assistant</p>
-                      </div>
-                      <p className="text-sm text-gray-700">
-                        Hello! I can help you understand this document. You can ask me:
-                      </p>
-                      <ul className="text-sm text-gray-700 mt-2 space-y-1 list-disc list-inside">
-                        <li>What are the key points?</li>
-                        <li>Summarize this document</li>
-                        <li>Explain specific sections</li>
-                        <li>Extract important information</li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Chat Input */}
-                  <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendMessage();
-                          }
-                        }}
-                        placeholder={`Ask about ${selectedFile.name}...`}
-                        className="w-full pl-4 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                      />
-                      <button
-                        onClick={handleSendMessage}
-                        disabled={!inputValue.trim()}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Press Enter to send, or click the send button
-                    </p>
-                  </div>
-                </div>
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Filters + Search */}
+        {completedAnalyses.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
+            <div className="flex items-center gap-2 bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
+              <Filter className="w-4 h-4 text-orange-400 ml-2" />
+              {(['all', 'green', 'yellow', 'red'] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setAnalysisFilter(f)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                    analysisFilter === f
+                      ? 'bg-gradient-to-r from-orange-400 to-amber-500 text-white shadow-md shadow-orange-200/50'
+                      : 'text-gray-600 hover:bg-orange-50 hover:text-orange-700'
+                  }`}
+                >
+                  {f === 'all' ? 'All' : f === 'green' ? 'Compliant' : f === 'yellow' ? 'Needs Review' : 'Red Flags'}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by brand..."
+                value={analysisSearchQuery}
+                onChange={(e) => setAnalysisSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-orange-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white shadow-sm"
+              />
             </div>
           </div>
-        </>
+        )}
+
+        {/* Analysis Grid */}
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+          </div>
+        ) : filteredAnalyses.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredAnalyses.map((analysis, i) => (
+              <AnalysisCard
+                key={analysis.id}
+                analysis={analysis}
+                onClick={() => setSelectedAnalysis(analysis)}
+                index={i}
+              />
+            ))}
+          </div>
+        ) : completedAnalyses.length > 0 ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center"
+          >
+            <Shield className="w-10 h-10 text-orange-300 mx-auto mb-3" />
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">No Matching Analyses</h3>
+            <p className="text-gray-500">Try adjusting your filters or search term.</p>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center"
+          >
+            <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <FileText className="w-7 h-7 text-orange-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">Your analyses will appear here</h3>
+            <p className="text-gray-500 text-sm max-w-md mx-auto">
+              Upload a document above and our AI will extract key deal terms,
+              flag risks, and run a full compliance check.
+            </p>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Analysis Detail Modal */}
+      {selectedAnalysis && (
+        <DealAnalysisResult
+          analysis={selectedAnalysis}
+          onClose={() => setSelectedAnalysis(null)}
+          onConvertToDeal={handleConvertToDeal}
+          onDelete={handleDeleteAnalysis}
+        />
       )}
 
-      {/* Persistent AI Input Field - Always visible at bottom */}
-      <div className={`fixed bottom-0 left-0 right-0 bg-gray-50 border-t border-gray-200 p-4 z-30 transition-all duration-300 ${
-        sidebarCollapsed ? 'ml-12' : 'ml-64'
-      }`}>
-        <div className="max-w-4xl mx-auto">
-          <SharedInput
-            inputValue={inputValue}
-            setInputValue={setInputValue}
-            onSendMessage={handleSendMessage}
-            placeholder={getInputPlaceholder()}
-            attachedFiles={attachedFiles}
-            onAddFile={handleAddFile}
-            onRemoveFile={handleRemoveFile}
-            mode="library"
+      {/* Deal Validation Wizard Modal */}
+      {showWizard && wizardInitialData && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            onClick={() => setShowWizard(false)}
           />
-        </div>
-      </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="fixed inset-4 sm:inset-8 lg:inset-16 bg-white rounded-2xl shadow-2xl z-50 overflow-auto"
+          >
+            <DealValidationWizard
+              isModal={true}
+              initialData={wizardInitialData}
+              onComplete={handleWizardComplete}
+              onClose={() => {
+                setShowWizard(false);
+                setWizardInitialData(null);
+              }}
+            />
+          </motion.div>
+        </>
+      )}
     </div>
+  );
+}
+
+function StatCard({ icon, label, value, delay }: { icon: React.ReactNode; label: string; value: number; delay: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ delay, type: 'spring', stiffness: 400, damping: 17 }}
+      whileHover={{ scale: 1.05, y: -4, boxShadow: '0 20px 40px rgba(249,115,22,0.3)' }}
+      className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 shadow-md border border-orange-100 cursor-default"
+    >
+      <div className="flex items-center justify-between mb-2">
+        {icon}
+        <span className="text-xs text-orange-700/70 font-medium">{label}</span>
+      </div>
+      <div className="text-2xl font-bold text-gray-900">{value}</div>
+    </motion.div>
   );
 }

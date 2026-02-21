@@ -8,8 +8,8 @@
 // ============================================================================
 
 /**
- * User Document - Represents a file uploaded by user in chat
- * Stored in Supabase Storage and tracked in chat_attachments table
+ * User Document - Represents a file uploaded by user
+ * Stored in Supabase Storage and tracked in documents table
  */
 export interface UserDocument {
   id: string;
@@ -19,10 +19,15 @@ export interface UserDocument {
   storagePath: string;
   publicUrl?: string;
   createdAt: string;
-  sessionId: string;
-  sessionTitle: string;
-  messageId?: string;
   userId: string;
+  // Legacy chat fields (optional — not present for library uploads)
+  sessionId?: string;
+  sessionTitle?: string;
+  messageId?: string;
+  // Document analysis fields
+  documentType?: string;
+  extractionStatus?: string;
+  source?: string;
 }
 
 /**

@@ -60,7 +60,15 @@ function getSupabaseAdmin() {
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error('Missing Supabase credentials for memory operations');
   }
-  return createClient(supabaseUrl, supabaseServiceKey);
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    },
+    global: {
+      fetch: (url: any, opts: any) => fetch(url, { ...opts, cache: 'no-store' as any }),
+    }
+  });
 }
 
 /**

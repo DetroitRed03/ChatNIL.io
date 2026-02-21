@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Info, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { DealValidationWizard } from '@/components/deal-validation';
 
@@ -24,6 +25,13 @@ interface OriginalDeal {
   compliance_decision_at?: string;
 }
 
+interface ResubmittedDealInfo {
+  id: string;
+  third_party_name: string;
+  status: string;
+  compliance_decision: string | null;
+}
+
 export default function ValidateDealPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -32,6 +40,7 @@ export default function ValidateDealPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [originalDeal, setOriginalDeal] = useState<OriginalDeal | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [alreadyResubmitted, setAlreadyResubmitted] = useState<{ originalName: string; newDeal: ResubmittedDealInfo | null } | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -75,7 +84,29 @@ export default function ValidateDealPage() {
             if (dealRes.ok) {
               const dealData = await dealRes.json();
               if (dealData.superseded_by_deal_id) {
-                setError('This deal has already been resubmitted.');
+                // Fetch the new deal's info to show helpful context
+                let newDealInfo: ResubmittedDealInfo | null = null;
+                try {
+                  const newDealRes = await fetch(`/api/deals/${dealData.superseded_by_deal_id}`, {
+                    headers: accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {},
+                    credentials: 'include',
+                  });
+                  if (newDealRes.ok) {
+                    const nd = await newDealRes.json();
+                    newDealInfo = {
+                      id: nd.id,
+                      third_party_name: nd.third_party_name,
+                      status: nd.status,
+                      compliance_decision: nd.compliance_decision,
+                    };
+                  }
+                } catch {
+                  // Non-blocking
+                }
+                setAlreadyResubmitted({
+                  originalName: dealData.third_party_name || 'this deal',
+                  newDeal: newDealInfo,
+                });
                 setLoading(false);
                 return;
               }
@@ -103,6 +134,63 @@ export default function ValidateDealPage() {
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
           <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Deal was already resubmitted — show helpful info page
+  if (alreadyResubmitted) {
+    const { originalName, newDeal } = alreadyResubmitted;
+    const statusLabel = newDeal?.compliance_decision === 'approved' ? 'Approved'
+      : newDeal?.compliance_decision === 'rejected' ? 'Rejected'
+      : newDeal?.compliance_decision === 'info_requested' ? 'Info Requested'
+      : newDeal?.compliance_decision === 'approved_with_conditions' ? 'Approved with Conditions'
+      : 'Under Review';
+    const statusColor = newDeal?.compliance_decision === 'approved' ? 'text-green-700 bg-green-100'
+      : newDeal?.compliance_decision === 'rejected' ? 'text-red-700 bg-red-100'
+      : 'text-blue-700 bg-blue-100';
+
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl border border-gray-200 p-8 max-w-lg text-center">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Info className="w-8 h-8 text-blue-500" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Deal Already Resubmitted</h2>
+          <p className="text-gray-600 mb-6">
+            You&apos;ve already resubmitted &ldquo;{originalName}&rdquo; as a new deal.
+          </p>
+
+          {newDeal && (
+            <div className="p-4 bg-gray-50 rounded-lg mb-6 text-left">
+              <p className="text-sm text-gray-500 mb-1">Resubmitted as:</p>
+              <p className="font-medium text-gray-900">{newDeal.third_party_name}</p>
+              <div className="mt-2">
+                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusColor}`}>
+                  {statusLabel}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3">
+            {newDeal && (
+              <Link
+                href={`/deals/${newDeal.id}`}
+                className="w-full py-3 bg-orange-500 text-white font-medium rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+              >
+                View Resubmitted Deal
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            )}
+            <Link
+              href="/dashboard"
+              className="w-full py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -140,7 +228,7 @@ export default function ValidateDealPage() {
 
   const initialData = originalDeal ? {
     thirdPartyName: originalDeal.third_party_name || '',
-    dealType: originalDeal.deal_type || 'social_post',
+    dealType: (originalDeal.deal_type || 'social_post') as 'social_post' | 'appearance' | 'endorsement' | 'brand_ambassador' | 'merchandise' | 'other',
     compensation: originalDeal.compensation_amount || '',
     deliverables: originalDeal.description || originalDeal.deliverables || '',
     startDate: originalDeal.start_date || '',

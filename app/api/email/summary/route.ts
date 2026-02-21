@@ -87,12 +87,12 @@ export async function POST(request: NextRequest) {
       to,
       messageCount: messages.length,
       topicsCount: topicsDiscussed.length,
-      emailId: result.id,
+      emailId: result.messageId,
     });
 
     return NextResponse.json({
       success: true,
-      emailId: result.id,
+      emailId: result.messageId,
       topicsDiscussed,
       keyTakeaways,
     });

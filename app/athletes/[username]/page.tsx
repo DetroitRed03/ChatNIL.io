@@ -32,6 +32,11 @@ import {
   Ruler,
   Weight,
   Hash,
+  Scale,
+  AlertTriangle,
+  Shield,
+  Video,
+  Star,
 } from 'lucide-react';
 import { StatCard } from '@/components/ui/StatCard';
 import { Card } from '@/components/ui/Card';
@@ -245,8 +250,10 @@ export default function AthletePublicProfilePage() {
     );
   }
 
+  const isHSAthlete = profile.role === 'hs_student';
+  const showPortfolio = !isHSAthlete || profile.state_nil_allowed !== false;
   const fmv = calculateEstimatedFMV(profile);
-  const profileStrength = getProfileStrength(profile.profile_completion_score || 0);
+  const profileStrength = getProfileStrength(profile.profile_completion_score || 0, isHSAthlete);
   const totalFollowers = profile.total_followers || 0;
   const avgEngagement = profile.avg_engagement_rate || 0;
 
@@ -417,22 +424,28 @@ export default function AthletePublicProfilePage() {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-3">
-                <motion.button
-                  onClick={handleMessage}
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  aria-label={`Send message to ${profile.first_name} ${profile.last_name}`}
-                  className="px-6 py-3 bg-white text-primary-600 rounded-xl font-semibold hover:bg-gray-50 transition-all flex items-center gap-2 shadow-[0_4px_20px_rgba(249,115,22,0.25)] hover:shadow-[0_8px_30px_rgba(249,115,22,0.35)] focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  Message Athlete
-                </motion.button>
+                {!isHSAthlete && (
+                  <motion.button
+                    onClick={handleMessage}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    aria-label={`Send message to ${profile.first_name} ${profile.last_name}`}
+                    className="px-6 py-3 bg-white text-primary-600 rounded-xl font-semibold hover:bg-gray-50 transition-all flex items-center gap-2 shadow-[0_4px_20px_rgba(249,115,22,0.25)] hover:shadow-[0_8px_30px_rgba(249,115,22,0.35)] focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+                  >
+                    <MessageCircle className="h-5 w-5" />
+                    Message Athlete
+                  </motion.button>
+                )}
                 <motion.button
                   onClick={handleShare}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   aria-label={`Share ${profile.first_name} ${profile.last_name}'s profile`}
-                  className="px-6 py-3 bg-white/10 backdrop-blur-sm text-white rounded-xl font-semibold hover:bg-white/20 transition-all flex items-center gap-2 border border-white/20 shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-orange-700"
+                  className={`px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 focus:outline-none focus:ring-2 ${
+                    isHSAthlete
+                      ? 'bg-white text-primary-600 hover:bg-gray-50 shadow-[0_4px_20px_rgba(249,115,22,0.25)] hover:shadow-[0_8px_30px_rgba(249,115,22,0.35)] focus:ring-orange-500 focus:ring-offset-2'
+                      : 'bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 border border-white/20 shadow-lg hover:shadow-xl focus:ring-white focus:ring-offset-2 focus:ring-offset-orange-700'
+                  }`}
                 >
                   <Share2 className="h-5 w-5" />
                   Share Profile
@@ -484,14 +497,18 @@ export default function AthletePublicProfilePage() {
             >
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-white/20 rounded-lg">
-                  <Trophy className="h-5 w-5 text-white" />
+                  {isHSAthlete ? <Star className="h-5 w-5 text-white" /> : <Trophy className="h-5 w-5 text-white" />}
                 </div>
-                <span className="text-sm text-white/80 font-medium">FMV Ranking</span>
+                <span className="text-sm text-white/80 font-medium">
+                  {isHSAthlete ? 'Profile Strength' : 'FMV Ranking'}
+                </span>
               </div>
               <div className="text-3xl font-bold text-white">
-                {profile.percentile_rank !== null && profile.percentile_rank !== undefined
-                  ? `${profile.percentile_rank}th`
-                  : 'N/A'}
+                {isHSAthlete
+                  ? `${profile.profile_completion_score || 0}%`
+                  : (profile.percentile_rank !== null && profile.percentile_rank !== undefined
+                      ? `${profile.percentile_rank}th`
+                      : 'N/A')}
               </div>
             </motion.div>
 
@@ -504,11 +521,17 @@ export default function AthletePublicProfilePage() {
             >
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-white/20 rounded-lg">
-                  <Briefcase className="h-5 w-5 text-white" />
+                  {isHSAthlete ? <Heart className="h-5 w-5 text-white" /> : <Briefcase className="h-5 w-5 text-white" />}
                 </div>
-                <span className="text-sm text-white/80 font-medium">Active Deals</span>
+                <span className="text-sm text-white/80 font-medium">
+                  {isHSAthlete ? 'Interests' : 'Active Deals'}
+                </span>
               </div>
-              <div className="text-3xl font-bold text-white">{profile.active_deals_count || 0}</div>
+              <div className="text-3xl font-bold text-white">
+                {isHSAthlete
+                  ? (profile.nil_interests?.length || profile.content_creation_interests?.length || 0)
+                  : (profile.active_deals_count || 0)}
+              </div>
             </motion.div>
           </div>
         </div>
@@ -623,6 +646,24 @@ export default function AthletePublicProfilePage() {
                     </div>
                   );
                 })()}
+
+                {/* Highlight Film (HS athletes) */}
+                {isHSAthlete && profile.highlight_video_url && (
+                  <a
+                    href={profile.highlight_video_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg border border-orange-200 hover:border-orange-300 transition-colors group"
+                  >
+                    <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
+                      <Video className="h-5 w-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900">Highlight Film</div>
+                      <div className="text-sm text-orange-600">Watch highlights →</div>
+                    </div>
+                  </a>
+                )}
 
                 {/* Coach Information */}
                 {(profile.coach_name || profile.coach_email) && (
@@ -944,8 +985,8 @@ export default function AthletePublicProfilePage() {
                     </div>
                   )}
 
-                  {/* Compensation Range */}
-                  {(profile.nil_preferences.min_compensation !== undefined || profile.nil_preferences.max_compensation !== undefined) && (
+                  {/* Compensation Range (hidden for HS athletes) */}
+                  {!isHSAthlete && (profile.nil_preferences.min_compensation !== undefined || profile.nil_preferences.max_compensation !== undefined) && (
                     <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                       <h4 className="text-sm font-semibold text-green-900 mb-2 flex items-center gap-2">
                         <DollarSign className="h-4 w-4" />
@@ -989,6 +1030,9 @@ export default function AthletePublicProfilePage() {
                               </>
                             )}
                           </div>
+                          {isHSAthlete && profile.nil_preferences.travel_willing && (
+                            <div className="text-xs text-amber-600 mt-1">Requires parent/guardian approval</div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1052,64 +1096,116 @@ export default function AthletePublicProfilePage() {
               </Card>
             )}
 
-            {/* Portfolio Section */}
-            <Card className="p-6 border-orange-100 shadow-lg hover:shadow-xl transition-shadow">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-gradient-to-br from-orange-500 via-orange-600 to-amber-600 rounded-lg shadow-md">
-                  <FileText className="h-6 w-6 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900">Portfolio</h3>
-                {portfolioItems.length > 0 && (
-                  <Badge variant="gray">{portfolioItems.length} {portfolioItems.length === 1 ? 'item' : 'items'}</Badge>
-                )}
-              </div>
-
-              {portfolioItems.length > 0 ? (
-                <PortfolioGrid
-                  items={portfolioItems}
-                  mode="view"
-                  onClick={(item) => window.open(item.url, '_blank')}
-                />
-              ) : (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Sparkles className="h-8 w-8 text-gray-400" />
+            {/* Portfolio Section — hidden for HS athletes when state doesn't allow NIL or no content */}
+            {(showPortfolio && (!isHSAthlete || portfolioItems.length > 0)) && (
+              <Card className="p-6 border-orange-100 shadow-lg hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-gradient-to-br from-orange-500 via-orange-600 to-amber-600 rounded-lg shadow-md">
+                    <FileText className="h-6 w-6 text-white" />
                   </div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-2">Portfolio Coming Soon</h4>
-                  <p className="text-gray-600 max-w-md mx-auto">
-                    {profile.first_name} is building their content showcase. Reach out to see their work and discuss partnership opportunities!
-                  </p>
+                  <h3 className="text-2xl font-bold text-gray-900">Portfolio</h3>
+                  {portfolioItems.length > 0 && (
+                    <Badge variant="gray">{portfolioItems.length} {portfolioItems.length === 1 ? 'item' : 'items'}</Badge>
+                  )}
                 </div>
-              )}
-            </Card>
+
+                {portfolioItems.length > 0 ? (
+                  <PortfolioGrid
+                    items={portfolioItems}
+                    mode="view"
+                    onClick={(item) => window.open(item.url, '_blank')}
+                  />
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Sparkles className="h-8 w-8 text-gray-400" />
+                    </div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">Portfolio Coming Soon</h4>
+                    <p className="text-gray-600 max-w-md mx-auto">
+                      {profile.first_name} is building their content showcase. Reach out to see their work and discuss partnership opportunities!
+                    </p>
+                  </div>
+                )}
+              </Card>
+            )}
           </div>
 
           {/* Sidebar - 1/3 width */}
           <div className="space-y-6">
-            {/* Actions Card */}
-            <Card className="p-6 border-orange-100 shadow-lg hover:shadow-xl transition-shadow">
-              <h3 className="font-bold text-gray-900 mb-4">Get in Touch</h3>
-              <div className="space-y-3">
-                <button
-                  onClick={handleMessage}
-                  className="w-full px-4 py-3 bg-primary-500 text-white rounded-xl font-semibold hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  Start a Conversation
-                </button>
-                <button className="w-full px-4 py-3 bg-gray-100 text-gray-900 rounded-xl font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
-                  <Download className="h-5 w-5" />
-                  Get Media Kit
-                </button>
+            {/* Actions Card — HS vs College */}
+            {isHSAthlete ? (
+              <Card className="p-6 border-orange-100 shadow-lg hover:shadow-xl transition-shadow">
+                <h3 className="font-bold text-gray-900 mb-4">Partnership Inquiries</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  For partnership inquiries about {profile.first_name}:
+                </p>
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="w-5 h-5 text-orange-500" />
+                  <span className="font-medium text-gray-900">Parent/Guardian</span>
+                </div>
                 <button
                   onClick={handleShare}
-                  className="w-full px-4 py-3 bg-gray-100 text-gray-900 rounded-xl font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                  className="w-full px-4 py-3 bg-primary-500 text-white rounded-xl font-semibold hover:bg-primary-600 transition-colors flex items-center justify-center gap-2 mb-3"
                 >
                   <Share2 className="h-5 w-5" />
                   Share Profile
                 </button>
-              </div>
-            </Card>
+                <p className="text-xs text-gray-500 mb-4">
+                  Share this profile to discuss partnership opportunities.
+                </p>
+                <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                  <p className="text-xs text-amber-700 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>
+                      Please do not contact high school athletes directly. All inquiries should go through their parent/guardian.
+                    </span>
+                  </p>
+                </div>
+              </Card>
+            ) : (
+              <Card className="p-6 border-orange-100 shadow-lg hover:shadow-xl transition-shadow">
+                <h3 className="font-bold text-gray-900 mb-4">Get in Touch</h3>
+                <div className="space-y-3">
+                  <button
+                    onClick={handleMessage}
+                    className="w-full px-4 py-3 bg-primary-500 text-white rounded-xl font-semibold hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <MessageCircle className="h-5 w-5" />
+                    Start a Conversation
+                  </button>
+                  <button className="w-full px-4 py-3 bg-gray-100 text-gray-900 rounded-xl font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+                    <Download className="h-5 w-5" />
+                    Get Media Kit
+                  </button>
+                  <button
+                    onClick={handleShare}
+                    className="w-full px-4 py-3 bg-gray-100 text-gray-900 rounded-xl font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Share2 className="h-5 w-5" />
+                    Share Profile
+                  </button>
+                </div>
+              </Card>
+            )}
+
+            {/* State NIL Rules Notice (HS athletes only) */}
+            {isHSAthlete && (
+              <Card className="p-5 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 shadow-lg">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <Scale className="h-5 w-5 text-orange-600" />
+                  HS NIL Rules
+                </h3>
+                <p className="text-sm text-gray-700 mb-3">
+                  High school NIL rules vary by state. Verify eligibility and disclosure requirements before pursuing any partnership.
+                </p>
+                <div className="flex items-center gap-2 text-sm">
+                  <Shield className="h-4 w-4 text-orange-500" />
+                  <span className="text-gray-600">
+                    {profile.school_name ? `${profile.school_name} policies apply` : 'Check your state rules'}
+                  </span>
+                </div>
+              </Card>
+            )}
 
             {/* Quick Info Card */}
             {profile.graduation_year && (
@@ -1134,20 +1230,26 @@ export default function AthletePublicProfilePage() {
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="font-medium text-gray-900">Available for partnerships</span>
               </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Response Rate</span>
-                  <span className="font-semibold text-gray-900">95%</span>
+              {isHSAthlete ? (
+                <p className="text-sm text-gray-600">
+                  Partnerships require parent/guardian approval.
+                </p>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Response Rate</span>
+                    <span className="font-semibold text-gray-900">95%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Avg. Response Time</span>
+                    <span className="font-semibold text-gray-900">24 hours</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Avg. Response Time</span>
-                  <span className="font-semibold text-gray-900">24 hours</span>
-                </div>
-              </div>
+              )}
             </Card>
 
-            {/* FMV Card */}
-            {profile.fmv_score && (
+            {/* FMV Card (college athletes only) */}
+            {!isHSAthlete && profile.fmv_score && (
               <Card className="p-6 bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200 shadow-lg hover:shadow-xl transition-shadow">
                 <h3 className="font-bold text-gray-900 mb-2">Fair Market Value</h3>
                 <div className="text-4xl font-bold text-primary-600 mb-2">{profile.fmv_score}</div>

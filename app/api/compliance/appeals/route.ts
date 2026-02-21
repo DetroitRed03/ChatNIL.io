@@ -7,10 +7,16 @@ import { createAppealResolutionNotification } from '@/lib/compliance/notificatio
 export const dynamic = 'force-dynamic';
 
 // Create admin client for database operations (bypasses RLS)
+// CRITICAL: Must disable Next.js fetch caching to prevent stale reads
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
+  {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: {
+      fetch: (url: any, opts: any) => fetch(url, { ...opts, cache: 'no-store' as any }),
+    },
+  }
 );
 
 export async function GET(request: NextRequest) {

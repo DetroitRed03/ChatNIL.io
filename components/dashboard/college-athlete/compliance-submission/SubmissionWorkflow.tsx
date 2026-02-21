@@ -20,6 +20,7 @@ interface Deal {
   reviewedAt?: string;
   reviewNotes?: string;
   athleteNotes?: string;
+  supersededByDealId?: string | null;
 }
 
 interface SubmissionWorkflowProps {
@@ -213,56 +214,75 @@ export function SubmissionWorkflow({
             Rejected by School
           </h3>
           <div className="space-y-3">
-            {rejectedDeals.map(deal => (
-              <div
-                key={deal.id}
-                className="bg-red-50 rounded-xl border border-red-200 p-4"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                      {deal.brandLogo ? (
-                        <img src={deal.brandLogo} alt={deal.brandName} className="w-6 h-6 object-contain" />
-                      ) : (
-                        <span className="text-sm font-bold text-gray-500">
-                          {deal.brandName.charAt(0)}
-                        </span>
-                      )}
+            {rejectedDeals.map(deal => {
+              const wasResubmitted = !!deal.supersededByDealId;
+              return (
+                <div
+                  key={deal.id}
+                  className="bg-red-50 rounded-xl border border-red-200 p-4"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+                        {deal.brandLogo ? (
+                          <img src={deal.brandLogo} alt={deal.brandName} className="w-6 h-6 object-contain" />
+                        ) : (
+                          <span className="text-sm font-bold text-gray-500">
+                            {deal.brandName.charAt(0)}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-gray-900">{deal.brandName}</h4>
+                          {wasResubmitted && (
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">
+                              Resubmitted
+                            </span>
+                          )}
+                        </div>
+                        <SubmissionStatusBadge status={deal.submissionStatus} size="sm" />
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900">{deal.brandName}</h4>
-                      <SubmissionStatusBadge status={deal.submissionStatus} size="sm" />
+                    <MoneyDisplay amount={deal.value} size="md" />
+                  </div>
+                  {deal.athleteNotes && (
+                    <div className="bg-white rounded-lg p-3 mt-2">
+                      <p className="text-xs text-gray-500 mb-1">Reason for rejection:</p>
+                      <p className="text-sm text-gray-700">{deal.athleteNotes}</p>
                     </div>
+                  )}
+                  {deal.reviewedAt && (
+                    <p className="text-xs text-red-600 mt-2">
+                      Rejected on {new Date(deal.reviewedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                  <div className="flex gap-2 mt-3">
+                    <Link
+                      href={`/deals/${deal.id}`}
+                      className="flex-1 py-2 text-center border border-red-300 text-red-700 rounded-lg font-medium hover:bg-red-100 transition-colors text-sm"
+                    >
+                      View Details
+                    </Link>
+                    {wasResubmitted ? (
+                      <Link
+                        href={`/deals/${deal.supersededByDealId}`}
+                        className="flex-1 py-2 text-center bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 transition-colors text-sm"
+                      >
+                        View Resubmission &rarr;
+                      </Link>
+                    ) : (
+                      <Link
+                        href={`/deals/validate?resubmit=${deal.id}`}
+                        className="flex-1 py-2 text-center bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm"
+                      >
+                        Modify & Resubmit
+                      </Link>
+                    )}
                   </div>
-                  <MoneyDisplay amount={deal.value} size="md" />
                 </div>
-                {deal.athleteNotes && (
-                  <div className="bg-white rounded-lg p-3 mt-2">
-                    <p className="text-xs text-gray-500 mb-1">Reason for rejection:</p>
-                    <p className="text-sm text-gray-700">{deal.athleteNotes}</p>
-                  </div>
-                )}
-                {deal.reviewedAt && (
-                  <p className="text-xs text-red-600 mt-2">
-                    Rejected on {new Date(deal.reviewedAt).toLocaleDateString()}
-                  </p>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <Link
-                    href={`/deals/${deal.id}`}
-                    className="flex-1 py-2 text-center border border-red-300 text-red-700 rounded-lg font-medium hover:bg-red-100 transition-colors text-sm"
-                  >
-                    View Details
-                  </Link>
-                  <Link
-                    href={`/deals/validate?resubmit=${deal.id}`}
-                    className="flex-1 py-2 text-center bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm"
-                  >
-                    Modify & Resubmit
-                  </Link>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -282,10 +302,9 @@ export function SubmissionWorkflow({
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-                    <svg className="w-4 h-4 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
+                    <span className="text-sm font-bold text-blue-500">
+                      {deal.brandName.charAt(0)}
+                    </span>
                   </div>
                   <div>
                     <h4 className="font-medium text-gray-900 text-sm">{deal.brandName}</h4>

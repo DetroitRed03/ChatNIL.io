@@ -7,8 +7,14 @@ interface StateRulesModalProps {
   stateName: string;
   hsNilAllowed: boolean;
   canDo: string[];
+  cannotDo?: string[];
+  mustDo?: string[];
   watchOut: string[];
   prohibited: string[];
+  detailedSummary?: string;
+  athleticAssociationName?: string;
+  athleticAssociationUrl?: string;
+  disclaimer?: string;
 }
 
 export function StateRulesModal({
@@ -17,8 +23,14 @@ export function StateRulesModal({
   stateName,
   hsNilAllowed,
   canDo,
+  cannotDo = [],
+  mustDo = [],
   watchOut,
-  prohibited
+  prohibited,
+  detailedSummary,
+  athleticAssociationName,
+  athleticAssociationUrl,
+  disclaimer,
 }: StateRulesModalProps) {
   if (!isOpen) return null;
 
@@ -76,60 +88,133 @@ export function StateRulesModal({
           </div>
 
           {/* What You CAN Do */}
-          <div className="mb-5">
-            <h3 className="font-bold text-green-700 flex items-center gap-2 mb-3">
-              ✅ What You CAN Do
-            </h3>
-            <ul className="space-y-2">
-              {canDo.map((item, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-gray-700">
-                  <span className="text-green-500 mt-0.5">•</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Watch Out */}
-          <div className="mb-5">
-            <h3 className="font-bold text-yellow-700 flex items-center gap-2 mb-3">
-              ⚠️ Watch Out For
-            </h3>
-            <ul className="space-y-2">
-              {watchOut.map((item, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-gray-700">
-                  <span className="text-yellow-500 mt-0.5">•</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Prohibited */}
-          <div className="mb-5">
-            <h3 className="font-bold text-red-700 flex items-center gap-2 mb-3">
-              🚫 Off-Limits Categories
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {prohibited.map((item, idx) => (
-                <span
-                  key={idx}
-                  className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium"
-                >
-                  {item}
-                </span>
-              ))}
+          {canDo.length > 0 && (
+            <div className="mb-5">
+              <h3 className="font-bold text-green-700 flex items-center gap-2 mb-3">
+                ✅ What You CAN Do
+              </h3>
+              <ul className="space-y-2">
+                {canDo.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-gray-700">
+                    <span className="text-green-500 mt-0.5">•</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <p className="text-sm text-gray-500 mt-2">
-              These categories are prohibited for high school athlete sponsorships.
-            </p>
-          </div>
+          )}
+
+          {/* What You CANNOT Do */}
+          {cannotDo.length > 0 && (
+            <div className="mb-5">
+              <h3 className="font-bold text-red-700 flex items-center gap-2 mb-3">
+                🚫 What You CANNOT Do
+              </h3>
+              <ul className="space-y-2">
+                {cannotDo.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-gray-700">
+                    <span className="text-red-500 mt-0.5">•</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* What You MUST Do */}
+          {mustDo.length > 0 && (
+            <div className="mb-5">
+              <h3 className="font-bold text-blue-700 flex items-center gap-2 mb-3">
+                📋 What You MUST Do
+              </h3>
+              <ul className="space-y-2">
+                {mustDo.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-gray-700">
+                    <span className="text-blue-500 mt-0.5">•</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Watch Out / Warnings */}
+          {watchOut.length > 0 && (
+            <div className="mb-5">
+              <h3 className="font-bold text-amber-700 flex items-center gap-2 mb-3">
+                ⚠️ Warnings
+              </h3>
+              <ul className="space-y-2">
+                {watchOut.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-gray-700">
+                    <span className="text-amber-500 mt-0.5">•</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Prohibited Categories */}
+          {prohibited.length > 0 && (
+            <div className="mb-5">
+              <h3 className="font-bold text-red-700 flex items-center gap-2 mb-3">
+                🛑 Off-Limits Categories
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {prohibited.map((item, idx) => (
+                  <span
+                    key={idx}
+                    className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <p className="text-sm text-gray-500 mt-2">
+                These categories are prohibited for high school athlete sponsorships.
+              </p>
+            </div>
+          )}
+
+          {/* Detailed Summary */}
+          {detailedSummary && (
+            <div className="mb-5 p-4 bg-purple-50 rounded-xl border border-purple-100">
+              <h3 className="font-bold text-purple-800 mb-2">Summary</h3>
+              <p className="text-sm text-gray-700 leading-relaxed">{detailedSummary}</p>
+            </div>
+          )}
+
+          {/* Athletic Association */}
+          {athleticAssociationName && (
+            <div className="mb-5">
+              <h3 className="font-bold text-gray-700 mb-2">Athletic Association</h3>
+              {athleticAssociationUrl ? (
+                <a
+                  href={athleticAssociationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium px-4 py-2 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors"
+                >
+                  {athleticAssociationName}
+                  <span>↗</span>
+                </a>
+              ) : (
+                <p className="text-sm text-gray-600">{athleticAssociationName}</p>
+              )}
+            </div>
+          )}
 
           {/* Disclaimer */}
           <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600">
-            <strong>Note:</strong> NIL rules can change. Always check with your school&apos;s
-            athletic department before signing any deal. ChatNIL helps you understand the
-            rules but isn&apos;t legal advice.
+            <strong>Note:</strong>{' '}
+            {disclaimer || (
+              <>
+                NIL rules can change. Always check with your school&apos;s
+                athletic department before signing any deal. ChatNIL helps you understand the
+                rules but isn&apos;t legal advice.
+              </>
+            )}
           </div>
         </div>
 

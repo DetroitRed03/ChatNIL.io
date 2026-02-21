@@ -25,7 +25,10 @@ function getSupabaseAdmin() {
   }
 
   return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false }
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: {
+      fetch: (url: any, opts: any) => fetch(url, { ...opts, cache: 'no-store' as any }),
+    }
   });
 }
 

@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
+import { isAthleteRole } from '@/types/common';
 
 /**
  * AthleteOnlyGuard Component
@@ -42,7 +43,7 @@ export function AthleteOnlyGuard({ children }: AthleteOnlyGuardProps) {
     }
 
     // If user is not an athlete, redirect to appropriate dashboard
-    if (user.role !== 'athlete') {
+    if (!isAthleteRole(user.role)) {
       const redirectPath = user.role === 'agency'
         ? '/agency/dashboard'
         : '/dashboard';
@@ -63,7 +64,7 @@ export function AthleteOnlyGuard({ children }: AthleteOnlyGuardProps) {
   }
 
   // If no user or not an athlete, show loading while redirect happens
-  if (!user || user.role !== 'athlete') {
+  if (!user || !isAthleteRole(user.role)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-primary-50/30 via-white to-accent-50/20">
         <div className="text-center">

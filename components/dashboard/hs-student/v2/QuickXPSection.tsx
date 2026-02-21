@@ -11,6 +11,7 @@ interface QuickXPSectionProps {
   nextProfileField?: string;
   onDailyChallenge: () => void;
   onCompleteProfile: () => void;
+  onQuizzes: () => void;
 }
 
 export function QuickXPSection({
@@ -21,29 +22,8 @@ export function QuickXPSection({
   nextProfileField = 'Instagram',
   onDailyChallenge,
   onCompleteProfile,
+  onQuizzes,
 }: QuickXPSectionProps) {
-  const hasActions = dailyChallengeAvailable || profileIncomplete;
-
-  if (!hasActions) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-green-50 border border-green-200 rounded-xl p-4"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-            <span className="text-2xl">✅</span>
-          </div>
-          <div>
-            <p className="font-bold text-green-800">All caught up!</p>
-            <p className="text-sm text-green-600">Check back tomorrow for more ways to earn XP</p>
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -58,8 +38,8 @@ export function QuickXPSection({
         <span className="text-sm text-gray-500 font-medium">Earn now!</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {dailyChallengeAvailable && (
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {dailyChallengeAvailable ? (
           <QuickXPCard
             icon="💬"
             title="Daily Challenge"
@@ -68,7 +48,24 @@ export function QuickXPSection({
             color="orange"
             onClick={onDailyChallenge}
           />
+        ) : (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+            <span className="text-2xl">✅</span>
+            <div>
+              <p className="font-medium text-green-800">Challenge Done!</p>
+              <p className="text-sm text-green-600">Come back tomorrow</p>
+            </div>
+          </div>
         )}
+
+        <QuickXPCard
+          icon="📚"
+          title="NIL Quizzes"
+          subtitle="Test your knowledge"
+          xp={15}
+          color="purple"
+          onClick={onQuizzes}
+        />
 
         {profileIncomplete && (
           <QuickXPCard
@@ -79,16 +76,6 @@ export function QuickXPSection({
             color="blue"
             onClick={onCompleteProfile}
           />
-        )}
-
-        {!dailyChallengeAvailable && profileIncomplete && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-            <span className="text-2xl">✅</span>
-            <div>
-              <p className="font-medium text-green-800">Challenge Complete!</p>
-              <p className="text-sm text-green-600">Come back tomorrow</p>
-            </div>
-          </div>
         )}
       </div>
     </motion.div>

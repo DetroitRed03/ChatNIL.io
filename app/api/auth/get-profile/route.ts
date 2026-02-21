@@ -63,17 +63,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch social media stats separately to avoid PostgREST relationship cache issues
+    // Fetch social media stats from athlete_public_profiles (primary source)
     console.log('🔍 Fetching social media stats...');
-    const { data: socialStats } = await supabaseAdmin
-      .from('social_media_stats')
-      .select('*')
+    const { data: publicProfileData } = await supabaseAdmin
+      .from('athlete_public_profiles')
+      .select(`
+        instagram_followers, tiktok_followers, twitter_followers, youtube_subscribers,
+        total_followers, avg_engagement_rate,
+        instagram_handle, tiktok_handle, twitter_handle, youtube_channel,
+        instagram_engagement_rate, tiktok_engagement_rate
+      `)
       .eq('user_id', userId)
       .maybeSingle();
 
-    // Attach social stats to profile if available
-    if (socialStats) {
-      profile.social_media_stats = [socialStats];
+    // Build social_media_stats in the format the edit page expects
+    if (publicProfileData) {
+      const hasAnySocial = publicProfileData.instagram_followers || publicProfileData.tiktok_followers ||
+                           publicProfileData.twitter_followers || publicProfileData.youtube_subscribers ||
+                           publicProfileData.instagram_handle || publicProfileData.tiktok_handle ||
+                           publicProfileData.twitter_handle || publicProfileData.youtube_channel;
+
+      if (hasAnySocial) {
+        profile.social_media_stats = {
+          instagram: (publicProfileData.instagram_followers || publicProfileData.instagram_handle) ? {
+            handle: publicProfileData.instagram_handle || '',
+            followers: publicProfileData.instagram_followers || 0,
+            engagement_rate: publicProfileData.instagram_engagement_rate || publicProfileData.avg_engagement_rate || 0,
+          } : null,
+          tiktok: (publicProfileData.tiktok_followers || publicProfileData.tiktok_handle) ? {
+            handle: publicProfileData.tiktok_handle || '',
+            followers: publicProfileData.tiktok_followers || 0,
+            engagement_rate: publicProfileData.tiktok_engagement_rate || publicProfileData.avg_engagement_rate || 0,
+          } : null,
+          twitter: (publicProfileData.twitter_followers || publicProfileData.twitter_handle) ? {
+            handle: publicProfileData.twitter_handle || '',
+            followers: publicProfileData.twitter_followers || 0,
+            engagement_rate: publicProfileData.avg_engagement_rate || 0,
+          } : null,
+          youtube: (publicProfileData.youtube_subscribers || publicProfileData.youtube_channel) ? {
+            handle: publicProfileData.youtube_channel || '',
+            subscribers: publicProfileData.youtube_subscribers || 0,
+          } : null,
+        };
+        profile.total_followers = publicProfileData.total_followers;
+        profile.avg_engagement_rate = publicProfileData.avg_engagement_rate;
+      }
     }
 
     console.log('✅ Profile fetched successfully:', userId);

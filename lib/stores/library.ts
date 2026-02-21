@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { DealAnalysis, DealExtraction, AnalysisStatus } from '@/lib/types/deal-analysis';
 
 export type FileType = 'contract' | 'image' | 'document' | 'other';
 export type ViewMode = 'grid' | 'list';
@@ -64,6 +65,25 @@ export interface LibraryState {
     documents: number;
     other: number;
   };
+
+  // Deal Analysis Hub state
+  analyses: DealAnalysis[];
+  activeAnalysisId: string | null;
+  analysisStreamStatus: AnalysisStatus | null;
+  currentExtraction: DealExtraction | null;
+  analysisFilter: 'all' | 'green' | 'yellow' | 'red';
+  analysisSearchQuery: string;
+
+  // Deal Analysis Hub actions
+  setAnalyses: (analyses: DealAnalysis[]) => void;
+  addAnalysis: (analysis: DealAnalysis) => void;
+  updateAnalysis: (id: string, updates: Partial<DealAnalysis>) => void;
+  setActiveAnalysisId: (id: string | null) => void;
+  setAnalysisStreamStatus: (status: AnalysisStatus | null) => void;
+  setCurrentExtraction: (extraction: DealExtraction | null) => void;
+  setAnalysisFilter: (filter: 'all' | 'green' | 'yellow' | 'red') => void;
+  setAnalysisSearchQuery: (query: string) => void;
+  getFilteredAnalyses: () => DealAnalysis[];
 }
 
 // Helper functions
@@ -217,6 +237,52 @@ export const useLibraryStore = create<LibraryState>()(
           documents: files.filter(f => f.category === 'document').length,
           other: files.filter(f => f.category === 'other').length
         };
+      },
+
+      // Deal Analysis Hub state
+      analyses: [],
+      activeAnalysisId: null,
+      analysisStreamStatus: null,
+      currentExtraction: null,
+      analysisFilter: 'all',
+      analysisSearchQuery: '',
+
+      // Deal Analysis Hub actions
+      setAnalyses: (analyses) => set({ analyses }),
+      addAnalysis: (analysis) =>
+        set((state) => ({
+          analyses: [analysis, ...state.analyses]
+        })),
+      updateAnalysis: (id, updates) =>
+        set((state) => ({
+          analyses: state.analyses.map(a =>
+            a.id === id ? { ...a, ...updates } : a
+          )
+        })),
+      setActiveAnalysisId: (id) => set({ activeAnalysisId: id }),
+      setAnalysisStreamStatus: (status) => set({ analysisStreamStatus: status }),
+      setCurrentExtraction: (extraction) => set({ currentExtraction: extraction }),
+      setAnalysisFilter: (filter) => set({ analysisFilter: filter }),
+      setAnalysisSearchQuery: (query) => set({ analysisSearchQuery: query }),
+      getFilteredAnalyses: () => {
+        const { analyses, analysisFilter, analysisSearchQuery } = get();
+
+        let filtered = analyses.filter(a => a.analysisStatus === 'completed');
+
+        if (analysisFilter !== 'all') {
+          filtered = filtered.filter(a => a.complianceStatus === analysisFilter);
+        }
+
+        if (analysisSearchQuery.trim()) {
+          const q = analysisSearchQuery.toLowerCase();
+          filtered = filtered.filter(a =>
+            a.extractedBrand?.toLowerCase().includes(q) ||
+            a.imageFilename?.toLowerCase().includes(q) ||
+            a.extractedDeliverables?.toLowerCase().includes(q)
+          );
+        }
+
+        return filtered;
       }
     }),
     {

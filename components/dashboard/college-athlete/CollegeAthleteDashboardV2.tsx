@@ -70,8 +70,13 @@ interface Deal {
   issues: DealIssue[];
   submissionStatus: 'not_submitted' | 'pending_review' | 'approved' | 'needs_revision' | 'rejected' | 'response_submitted' | 'conditions_completed';
   submissionDeadline?: string;
+  submittedAt?: string;
+  reviewedAt?: string;
+  athleteNotes?: string;
   startDate?: string;
   endDate?: string;
+  supersededByDealId?: string | null;
+  resubmittedFromDealId?: string | null;
 }
 
 interface ApiTodo {
@@ -796,6 +801,7 @@ export function CollegeAthleteDashboardV2() {
                 submittedAt: d.submittedAt,
                 reviewedAt: d.reviewedAt,
                 athleteNotes: d.athleteNotes,
+                supersededByDealId: d.supersededByDealId,
               }))}
               school={{
                 name: data.user.school.name,

@@ -109,29 +109,65 @@ Be concise and factual. If you can't find recent relevant information, say so.`;
 }
 
 /**
- * Detect if a query would benefit from real-time search
- * Returns true for queries about news, recent events, current trends, etc.
+ * Detect if a query would benefit from real-time web search
+ *
+ * This should be SELECTIVE — only trigger for queries that truly need
+ * current/real-time information. Regular NIL education questions should
+ * be answered from the knowledge base and system prompt, not web search.
+ *
+ * Triggers for:
+ * - Explicit recency words: "latest", "recent", "news", "today", "this week"
+ * - State rules + "rules"/"laws"/"legal" (verify current state laws)
+ * - Brand verification: "is [brand] legit", "is [company] real"
+ * - Specific deal valuations: "how much is [athlete]'s deal worth"
+ * - Rule changes: "new rule", "rule change", "ncaa settlement"
  */
 export function shouldUseRealTimeSearch(query: string): boolean {
-  const realTimeIndicators = [
-    // News and updates
-    'news', 'latest', 'recent', 'new', 'today', 'this week', 'this month',
-    'update', 'updates', 'announced', 'announcement', 'breaking',
-    // Current events
-    'current', 'now', 'happening', 'trending', 'trend', 'trends',
-    // Specific recent topics
-    'deal', 'deals', 'signed', 'signing', 'partnership', 'contract',
-    'regulation', 'rule change', 'policy', 'ncaa', 'settlement',
-    // Market information
-    'market', 'valuation', 'worth', 'value', 'how much',
-    // Athlete-specific (often looking for recent deals)
-    'athlete', 'player', 'college', 'university',
-  ];
-
   const lowerQuery = query.toLowerCase();
 
-  // Check if query contains any real-time indicators
-  return realTimeIndicators.some(indicator => lowerQuery.includes(indicator));
+  // 1. Explicit recency indicators — always trigger
+  const recencyWords = [
+    'latest', 'recent', 'news', 'today', 'this week', 'this month',
+    'this year', 'breaking', 'announced', 'just happened',
+    'trending', 'right now',
+  ];
+  if (recencyWords.some(word => lowerQuery.includes(word))) {
+    return true;
+  }
+
+  // 2. Rule/regulation verification — trigger when asking about current rules
+  const rulePatterns = [
+    /(?:state|current|new)\s+(?:nil\s+)?(?:rules?|laws?|regulations?|policy|policies)/,
+    /(?:rules?|laws?|regulations?)\s+(?:in|for)\s+\w+/,
+    /rule\s+change/,
+    /ncaa\s+(?:settlement|ruling|decision|policy|update)/,
+  ];
+  if (rulePatterns.some(pattern => pattern.test(lowerQuery))) {
+    return true;
+  }
+
+  // 3. Brand/company verification — "is [brand] legit/real/legitimate"
+  const brandVerification = /(?:is|are)\s+[\w\s]+(?:legit|legitimate|real|trustworthy|a scam|safe)/;
+  if (brandVerification.test(lowerQuery)) {
+    return true;
+  }
+
+  // 4. Specific deal valuations — "how much" + deal/worth/paid
+  const dealValuation = /how\s+much\s+(?:is|was|did|are|were).*(?:deal|worth|paid|earn|make|sign)/;
+  if (dealValuation.test(lowerQuery)) {
+    return true;
+  }
+
+  // 5. Market data requests
+  const marketPatterns = [
+    /(?:nil\s+)?market\s+(?:trends?|size|growth|data)/,
+    /average\s+(?:nil\s+)?deal\s+(?:value|size|worth)/,
+  ];
+  if (marketPatterns.some(pattern => pattern.test(lowerQuery))) {
+    return true;
+  }
+
+  return false;
 }
 
 /**

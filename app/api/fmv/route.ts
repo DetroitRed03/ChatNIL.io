@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { calculateFMV } from '@/lib/fmv/fmv-calculator';
+import { isAthleteRole } from '@/types/common';
 import type { User, SocialMediaStat, NILDeal, ScrapedAthleteData } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
         .eq('id', authUser.id)
         .single();
 
-      if (userError || !user || user.role !== 'athlete') {
+      if (userError || !user || !isAthleteRole(user.role)) {
         return NextResponse.json(
           { error: 'User profile not found or not an athlete' },
           { status: 404 }

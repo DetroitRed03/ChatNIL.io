@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
 interface HeaderBarProps {
@@ -23,6 +24,20 @@ export function HeaderBar({
 }: HeaderBarProps) {
   const progressPercent = Math.min((currentXP / xpToNextLevel) * 100, 100);
   const xpRemaining = Math.max(xpToNextLevel - currentXP, 0);
+
+  // Track XP changes to trigger highlight animation
+  const prevXP = useRef(currentXP);
+  const [xpJustChanged, setXpJustChanged] = useState(false);
+
+  useEffect(() => {
+    if (prevXP.current !== currentXP && prevXP.current !== 0) {
+      setXpJustChanged(true);
+      const timer = setTimeout(() => setXpJustChanged(false), 2000);
+      prevXP.current = currentXP;
+      return () => clearTimeout(timer);
+    }
+    prevXP.current = currentXP;
+  }, [currentXP]);
 
   const levelTitles: Record<number, string> = {
     1: 'Rookie',
@@ -69,7 +84,15 @@ export function HeaderBar({
               <span className="text-orange-500 text-lg">⚡</span>
               <span className="font-bold text-gray-900">Level {level}</span>
               <span className="text-gray-300">•</span>
-              <span className="text-gray-600 font-medium">{currentXP} XP</span>
+              <motion.span
+                key={currentXP}
+                className={`font-medium ${xpJustChanged ? 'text-orange-600' : 'text-gray-600'}`}
+                initial={xpJustChanged ? { scale: 1.3, color: '#ea580c' } : false}
+                animate={{ scale: 1, color: xpJustChanged ? '#ea580c' : '#4b5563' }}
+                transition={{ duration: 1.5 }}
+              >
+                {currentXP} XP
+              </motion.span>
             </div>
 
             {/* Progress Bar */}

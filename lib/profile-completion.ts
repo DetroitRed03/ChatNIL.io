@@ -23,19 +23,24 @@ export interface ProfileCompletionResult {
  * Calculate profile completion percentage (0-100)
  *
  * Scoring breakdown:
- * - Personal Info: 20 points (name, email, phone, DOB, bio)
- * - School Info: 15 points (school, year, major, GPA)
- * - Athletic Info: 20 points (sport, position, achievements)
- * - Social Media: 25 points (platform accounts)
+ * - Personal Info: 15 points (name, email, phone, bio)
+ * - School Info: 10 points (school, year, major/GPA)
+ * - Athletic Info: 15 points (sport, position, achievements)
+ * - Social Media: 20 points (platform accounts)
+ * - Interests & Hobbies: 15 points (content interests, causes, hobbies)
  * - NIL Preferences: 10 points (interests, concerns)
- * - Content/Media: 10 points (portfolio items)
+ * - Content/Media: 15 points (portfolio items, NIL preferences)
  */
-export function calculateProfileCompletion(user: any): ProfileCompletionResult {
+export function calculateProfileCompletion(
+  user: any,
+  options?: { nilAllowedInState?: boolean }
+): ProfileCompletionResult {
   let score = 0;
-  const maxScore = 100;
+  const includeContent = options?.nilAllowedInState !== false; // Default true
+  const maxScore = includeContent ? 100 : 85;
   const incompleteSections: ProfileSection[] = [];
 
-  // Personal Info (20 points)
+  // Personal Info (15 points)
   if (user.first_name && user.last_name) {
     score += 5;
   } else {
@@ -58,17 +63,6 @@ export function calculateProfileCompletion(user: any): ProfileCompletionResult {
     });
   }
 
-  if (user.phone) {
-    score += 5;
-  } else {
-    incompleteSections.push({
-      id: 'phone',
-      label: 'Add phone number',
-      boost: 5,
-      category: 'personal',
-    });
-  }
-
   if (user.bio && user.bio.length > 50) {
     score += 5;
   } else {
@@ -80,7 +74,7 @@ export function calculateProfileCompletion(user: any): ProfileCompletionResult {
     });
   }
 
-  // School Info (15 points)
+  // School Info (10 points)
   if (user.school_name) {
     score += 5;
   } else {
@@ -103,53 +97,42 @@ export function calculateProfileCompletion(user: any): ProfileCompletionResult {
     });
   }
 
-  if (user.major || user.gpa) {
-    score += 5;
-  } else {
-    incompleteSections.push({
-      id: 'academic',
-      label: 'Add major or GPA',
-      boost: 5,
-      category: 'school',
-    });
-  }
-
-  // Athletic Info (20 points)
+  // Athletic Info (15 points)
   // Note: Database column is 'sport', not 'primary_sport'
   if (user.sport || user.primary_sport) {
-    score += 7;
+    score += 5;
   } else {
     incompleteSections.push({
       id: 'sport',
       label: 'Add primary sport',
-      boost: 7,
+      boost: 5,
       category: 'athletic',
     });
   }
 
   if (user.position) {
-    score += 7;
+    score += 5;
   } else {
     incompleteSections.push({
       id: 'position',
       label: 'Add position',
-      boost: 7,
+      boost: 5,
       category: 'athletic',
     });
   }
 
   if (user.achievements && Array.isArray(user.achievements) && user.achievements.length > 0) {
-    score += 6;
+    score += 5;
   } else {
     incompleteSections.push({
       id: 'achievements',
       label: 'Add achievements',
-      boost: 6,
+      boost: 5,
       category: 'athletic',
     });
   }
 
-  // Social Media (25 points - 8 points per platform, max 25)
+  // Social Media (20 points - 7 points per platform, max 20)
   // Check both array format (legacy) and object format (current)
   let socialMediaCount = 0;
 
@@ -167,16 +150,50 @@ export function calculateProfileCompletion(user: any): ProfileCompletionResult {
     }
   }
 
-  const socialMediaScore = Math.min(socialMediaCount * 8, 25);
+  const socialMediaScore = Math.min(socialMediaCount * 7, 20);
   score += socialMediaScore;
 
-  if (socialMediaScore < 25) {
-    const remainingPlatforms = Math.ceil((25 - socialMediaScore) / 8);
+  if (socialMediaScore < 20) {
+    const remainingPlatforms = Math.ceil((20 - socialMediaScore) / 7);
     incompleteSections.push({
       id: 'social_media',
       label: `Connect ${remainingPlatforms} more social account${remainingPlatforms > 1 ? 's' : ''}`,
-      boost: 25 - socialMediaScore,
+      boost: 20 - socialMediaScore,
       category: 'social',
+    });
+  }
+
+  // Interests & Hobbies (15 points - 5 each for content interests, causes, hobbies)
+  if (user.content_creation_interests && Array.isArray(user.content_creation_interests) && user.content_creation_interests.length > 0) {
+    score += 5;
+  } else {
+    incompleteSections.push({
+      id: 'content_interests',
+      label: 'Add content creation interests',
+      boost: 5,
+      category: 'nil',
+    });
+  }
+
+  if (user.causes_care_about && Array.isArray(user.causes_care_about) && user.causes_care_about.length > 0) {
+    score += 5;
+  } else {
+    incompleteSections.push({
+      id: 'causes',
+      label: 'Add causes you care about',
+      boost: 5,
+      category: 'nil',
+    });
+  }
+
+  if (user.hobbies && Array.isArray(user.hobbies) && user.hobbies.length > 0) {
+    score += 5;
+  } else {
+    incompleteSections.push({
+      id: 'hobbies',
+      label: 'Add hobbies & lifestyle interests',
+      boost: 5,
+      category: 'nil',
     });
   }
 
@@ -192,30 +209,32 @@ export function calculateProfileCompletion(user: any): ProfileCompletionResult {
     });
   }
 
-  if (user.nil_concerns && Array.isArray(user.nil_concerns) && user.nil_concerns.length > 0) {
+  if (user.nil_preferences && typeof user.nil_preferences === 'object' && Object.keys(user.nil_preferences).length > 0) {
     score += 5;
   } else {
     incompleteSections.push({
-      id: 'nil_concerns',
-      label: 'Add NIL concerns',
+      id: 'nil_preferences',
+      label: 'Set NIL deal preferences',
       boost: 5,
       category: 'nil',
     });
   }
 
-  // Content/Media (10 points)
-  if (user.content_samples && Array.isArray(user.content_samples) && user.content_samples.length > 0) {
-    score += 10;
-  } else {
-    incompleteSections.push({
-      id: 'content',
-      label: 'Upload content samples',
-      boost: 10,
-      category: 'content',
-    });
+  // Content/Media (15 points) — only scored when NIL is allowed in athlete's state
+  if (includeContent) {
+    if (user.content_samples && Array.isArray(user.content_samples) && user.content_samples.length > 0) {
+      score += 15;
+    } else {
+      incompleteSections.push({
+        id: 'content',
+        label: 'Upload content samples',
+        boost: 15,
+        category: 'content',
+      });
+    }
   }
 
-  const percentage = Math.min(Math.round(score), 100);
+  const percentage = Math.min(Math.round((score / maxScore) * 100), 100);
 
   return {
     percentage,

@@ -6,6 +6,7 @@ interface StateRulesCompactProps {
   state: string;
   stateCode: string;
   canDo: string[];
+  mustDo?: string[];
   watchOut: string[];
   prohibited: string[];
   onLearnMore: () => void;
@@ -15,6 +16,7 @@ export function StateRulesCompact({
   state,
   stateCode,
   canDo,
+  mustDo = [],
   watchOut,
   prohibited,
   onLearnMore,
@@ -36,6 +38,14 @@ export function StateRulesCompact({
           <div className="flex items-start gap-2">
             <span className="text-green-500 mt-0.5">✅</span>
             <p className="text-sm text-gray-600">{canDo[0]}</p>
+          </div>
+        )}
+
+        {/* Must Do */}
+        {mustDo.length > 0 && (
+          <div className="flex items-start gap-2">
+            <span className="text-blue-500 mt-0.5">📋</span>
+            <p className="text-sm text-gray-600">{mustDo[0]}</p>
           </div>
         )}
 

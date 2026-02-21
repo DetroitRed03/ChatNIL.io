@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
+
+// Service role client for bypassing RLS
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 // Chapter content - in production, this would come from database
 const CHAPTER_CONTENT: Record<string, {
@@ -18,6 +26,10 @@ const CHAPTER_CONTENT: Record<string, {
     options?: string[];
     correctAnswer?: string;
     explanation: string;
+    // AI coaching fields (text questions only)
+    minChars?: number;
+    guidingPrompts?: string[];
+    coachingContext?: string;
   }>;
 }> = {
   identity: {
@@ -31,13 +43,27 @@ const CHAPTER_CONTENT: Record<string, {
         id: 'identity-1',
         question: 'What 3 words would your teammates use to describe you?',
         type: 'text',
-        explanation: 'Understanding how others see you is the first step to building your brand. These words often become the foundation of how you present yourself to sponsors.'
+        explanation: 'Those words are the start of your personal brand. How others see you often becomes the foundation of how sponsors see you too — character matters as much as stats.',
+        minChars: 30,
+        guidingPrompts: [
+          'Think about what your coach says about you',
+          'What do friends come to you for?',
+          'How would you describe your energy in the locker room?'
+        ],
+        coachingContext: 'The athlete is identifying their personal brand through how others perceive them. Look for self-awareness and specificity in the 3 words they choose.'
       },
       {
         id: 'identity-2',
         question: 'What makes you different from other athletes in your sport?',
         type: 'text',
-        explanation: 'Your unique qualities are what brands look for. It\'s not just about athletic ability - your personality, interests, and story all matter.'
+        explanation: 'What sets you apart is exactly what brands are looking for. Your personality, story, and interests all make you unique — and that\'s your competitive advantage in NIL.',
+        minChars: 40,
+        guidingPrompts: [
+          'What\'s something you do that others in your sport don\'t?',
+          'Think about your background or interests outside sports',
+          'What would fans remember about you?'
+        ],
+        coachingContext: 'The athlete is identifying their unique value proposition. Look for specificity about what differentiates them — personality, background, skills, or interests beyond just athletic ability.'
       },
       {
         id: 'identity-3',
@@ -57,7 +83,14 @@ const CHAPTER_CONTENT: Record<string, {
         id: 'identity-5',
         question: 'If a brand wanted to sponsor you today, what would they get?',
         type: 'text',
-        explanation: 'This is a key question for any NIL deal. Think about your reach (followers), engagement (likes, comments), and authenticity (genuine connection with audience).'
+        explanation: 'Understanding your own value is the first step in any NIL deal. Your character, work ethic, and personal qualities are all part of what makes you worth sponsoring.',
+        minChars: 40,
+        guidingPrompts: [
+          'Think about your social media following and engagement',
+          'What qualities make you a good representative?',
+          'Consider your community involvement'
+        ],
+        coachingContext: 'The athlete is articulating their sponsorship value. Look for awareness of both tangible assets (audience, reach) and intangible qualities (character, work ethic, relatability).'
       }
     ]
   },
@@ -80,7 +113,14 @@ const CHAPTER_CONTENT: Record<string, {
         id: 'business-2',
         question: 'What would be a RED FLAG in an NIL deal offer?',
         type: 'text',
-        explanation: 'Red flags include: pressure to sign quickly, unclear payment terms, exclusive rights to your entire image, no written contract, or deals that seem "too good to be true."'
+        explanation: 'Good instincts! Common red flags include pressure to sign quickly, unclear payment terms, exclusive rights to your entire image, or deals that seem too good to be true. Knowing what to watch for protects you.',
+        minChars: 30,
+        guidingPrompts: [
+          'Think about deals that pressure you to decide quickly',
+          'What if the payment terms are unclear?',
+          'Consider what "too good to be true" looks like'
+        ],
+        coachingContext: 'The athlete is learning to identify predatory or unfair deal terms. Look for awareness of common red flags like rushed timelines, vague compensation, overly broad exclusivity, or unreasonable demands.'
       },
       {
         id: 'business-3',
@@ -101,7 +141,14 @@ const CHAPTER_CONTENT: Record<string, {
         id: 'business-5',
         question: 'What does "exclusivity" mean in an NIL contract?',
         type: 'text',
-        explanation: 'Exclusivity means you can\'t work with competing brands. For example, if you sign an exclusive deal with Nike, you couldn\'t also promote Adidas. Be careful with exclusive deals!'
+        explanation: 'You\'re building real business knowledge! Exclusivity means you can\'t work with competing brands — for example, a Nike deal would prevent you from promoting Adidas. Always think twice before agreeing to exclusivity.',
+        minChars: 30,
+        guidingPrompts: [
+          'Think about what it means to only work with one brand',
+          'What if Nike pays you — can you wear Adidas?',
+          'Consider how exclusivity limits your future options'
+        ],
+        coachingContext: 'The athlete is demonstrating understanding of exclusivity clauses. Look for grasp of the concept that exclusivity restricts working with competing brands and its implications for future deals.'
       }
     ]
   },
@@ -131,7 +178,14 @@ const CHAPTER_CONTENT: Record<string, {
         id: 'money-3',
         question: 'What should you do with the money you earn from NIL deals?',
         type: 'text',
-        explanation: 'Smart approach: 1) Set aside 25-30% for taxes, 2) Save some for emergencies, 3) Invest in your future, 4) Then enjoy some responsibly!'
+        explanation: 'Thinking about this now puts you ahead of most athletes. A solid approach: set aside 25-30% for taxes, save for emergencies, invest in your future, then enjoy some responsibly.',
+        minChars: 35,
+        guidingPrompts: [
+          'Think about taxes — how much should you set aside?',
+          'What about saving for emergencies?',
+          'Consider investing in your future or education'
+        ],
+        coachingContext: 'The athlete is developing financial literacy around NIL earnings. Look for awareness of tax obligations, saving strategies, budgeting, or long-term financial planning beyond just spending.'
       },
       {
         id: 'money-4',
@@ -161,7 +215,14 @@ const CHAPTER_CONTENT: Record<string, {
         id: 'legacy-1',
         question: 'What do you want to be known for AFTER your athletic career ends?',
         type: 'text',
-        explanation: 'Your legacy is what you leave behind. Think about the impact you want to make beyond sports - in your community, industry, or the world.'
+        explanation: 'That\'s a powerful vision. Your legacy is what you leave behind — and the fact that you\'re thinking about it now shows real maturity. This becomes the "why" behind your brand.',
+        minChars: 40,
+        guidingPrompts: [
+          'Think beyond sports — what impact do you want to make?',
+          'What would you want people to say about you at 40?',
+          'Consider your values and what drives you'
+        ],
+        coachingContext: 'The athlete is articulating their long-term vision and legacy beyond athletics. Look for depth of thought about impact, values, and identity beyond their sport.'
       },
       {
         id: 'legacy-2',
@@ -174,7 +235,14 @@ const CHAPTER_CONTENT: Record<string, {
         id: 'legacy-3',
         question: 'What cause or community do you care about most?',
         type: 'text',
-        explanation: 'Brands love athletes who are passionate about giving back. Your causes and values make you more attractive to sponsors who share those values.'
+        explanation: 'That passion is part of what makes you unique. Brands love athletes who care about giving back — your values make you more attractive to sponsors who share them.',
+        minChars: 30,
+        guidingPrompts: [
+          'What issue in your community fires you up?',
+          'Think about who or what you\'d fight for',
+          'Is there a cause connected to your personal story?'
+        ],
+        coachingContext: 'The athlete is identifying causes they care about, which shapes their brand and attracts value-aligned sponsors. Look for genuine passion and personal connection to the cause.'
       },
       {
         id: 'legacy-4',
@@ -188,7 +256,14 @@ const CHAPTER_CONTENT: Record<string, {
         id: 'legacy-5',
         question: 'What\'s one thing you\'ll do this year to build your legacy?',
         type: 'text',
-        explanation: 'Taking action is key! Whether it\'s starting a community project, growing your platform authentically, or developing new skills - every step counts.'
+        explanation: 'Having a concrete plan puts you ahead. Whether it\'s a community project, growing your platform, or developing new skills — every intentional step builds toward your legacy.',
+        minChars: 35,
+        guidingPrompts: [
+          'Think about a project you could start this semester',
+          'Is there a skill you want to develop?',
+          'Consider how you could give back to your community'
+        ],
+        coachingContext: 'The athlete is making a concrete commitment to legacy-building. Look for actionable, specific plans rather than vague intentions. The more specific, the better.'
       }
     ]
   }
@@ -238,8 +313,8 @@ export async function GET(
       return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });
     }
 
-    // Check user's level
-    const { data: profile } = await supabase
+    // Check user's level using service role client
+    const { data: profile } = await supabaseAdmin
       .from('athlete_profiles')
       .select('level')
       .eq('id', user.id)
@@ -255,7 +330,7 @@ export async function GET(
     }
 
     // Get ALL user's progress/answers in this chapter for persistence
-    const { data: allProgress } = await supabase
+    const { data: allProgress } = await supabaseAdmin
       .from('chapter_progress')
       .select('question_index, question_id, answer')
       .eq('user_id', user.id)

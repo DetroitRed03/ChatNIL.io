@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { isAthleteRole } from '@/types/common';
 import {
   checkDealCompliance,
   extractStateCode,
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Verify target is an athlete
-    if (athlete.role !== 'athlete') {
+    if (!isAthleteRole(athlete.role)) {
       return NextResponse.json(
         { error: 'Compliance checks are only available for athletes' },
         { status: 403 }

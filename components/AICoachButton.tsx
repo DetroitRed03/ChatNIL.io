@@ -4,9 +4,13 @@ import { useState } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
+import { getWidgetContent } from '@/lib/chat/role-content';
 
 export function AICoachButton() {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { user } = useAuth();
+  const widget = getWidgetContent(user?.role);
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
@@ -25,19 +29,19 @@ export function AICoachButton() {
                 <Sparkles className="w-5 h-5 text-orange-600" />
               </div>
               <div>
-                <h4 className="font-semibold text-gray-900">AI NIL Coach</h4>
-                <p className="text-xs text-gray-500">Expert guidance 24/7</p>
+                <h4 className="font-semibold text-gray-900">{widget.title}</h4>
+                <p className="text-xs text-gray-500">{widget.subtitle}</p>
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              Ask about contracts, earnings, compliance, taxes, and NIL strategies.
+              {widget.description}
             </p>
             <Link
               href="/chat"
               className="block w-full bg-orange-500 hover:bg-orange-600 text-white text-center font-medium py-2.5 rounded-lg transition-colors"
               onClick={() => setIsExpanded(false)}
             >
-              Start Conversation
+              {widget.cta}
             </Link>
           </motion.div>
         )}
@@ -56,8 +60,8 @@ export function AICoachButton() {
             : 'bg-gradient-to-br from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 shadow-orange-500/30'
           }
         `}
-        title="AI NIL Coach"
-        aria-label="AI NIL Coach"
+        title={widget.title}
+        aria-label={widget.title}
       >
         {isExpanded ? (
           <X className="w-6 h-6 text-white" />

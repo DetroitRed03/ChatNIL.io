@@ -49,6 +49,10 @@ export interface ProfileData {
   username: string;
   first_name: string;
   last_name: string;
+  role?: string;
+  school_level?: string;
+  parent_contact_enabled?: boolean;
+  highlight_video_url?: string;
   bio?: string;
   school_name?: string;
   graduation_year?: number;
@@ -212,7 +216,7 @@ export function formatFMV(value: number): string {
 /**
  * Get profile strength indicator based on completion score
  */
-export function getProfileStrength(score: number): {
+export function getProfileStrength(score: number, isHS?: boolean): {
   label: string;
   color: 'red' | 'yellow' | 'green' | 'emerald';
   icon: string;
@@ -226,7 +230,7 @@ export function getProfileStrength(score: number): {
   if (score >= 40) {
     return { label: 'Fair', color: 'yellow', icon: '•' };
   }
-  return { label: 'Needs Work', color: 'red', icon: '!' };
+  return { label: isHS ? 'Getting Started' : 'Needs Work', color: isHS ? 'yellow' : 'red', icon: isHS ? '•' : '!' };
 }
 
 /**

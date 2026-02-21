@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { isAthleteRole } from '@/types/common';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Verify user is an athlete
-    if (user.role !== 'athlete') {
+    if (!isAthleteRole(user.role)) {
       return NextResponse.json(
         { error: 'FMV visibility is only available for athletes' },
         { status: 403 }

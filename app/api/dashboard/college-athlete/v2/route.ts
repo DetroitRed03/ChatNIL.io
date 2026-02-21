@@ -106,6 +106,8 @@ interface Deal {
   athleteNotes?: string;
   startDate?: string;
   endDate?: string;
+  supersededByDealId?: string | null;
+  resubmittedFromDealId?: string | null;
 }
 
 function getDimensionStatus(score: number): 'good' | 'warning' | 'critical' {
@@ -362,7 +364,9 @@ export async function GET(request: NextRequest) {
         status,
         created_at,
         start_date,
-        end_date
+        end_date,
+        superseded_by_deal_id,
+        resubmitted_from_deal_id
       `)
       .eq('athlete_id', user.id)
       .order('created_at', { ascending: false });
@@ -472,6 +476,8 @@ export async function GET(request: NextRequest) {
         athleteNotes: deal.athlete_notes || undefined,
         startDate: deal.start_date,
         endDate: deal.end_date,
+        supersededByDealId: deal.superseded_by_deal_id || null,
+        resubmittedFromDealId: deal.resubmitted_from_deal_id || null,
       };
     });
 

@@ -206,10 +206,10 @@ export default function NavigationShell({ children }: NavigationShellProps) {
   // Full navigation layout (Header + Sidebar)
   return (
     <>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="h-screen bg-gray-50 flex flex-col overflow-y-hidden overflow-x-auto">
         {showHeader && <HeaderNew />}
 
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-y-hidden overflow-x-auto">
           {showSidebar && (
             showComplianceSidebar ? <ComplianceOfficerSidebar /> : <Sidebar />
           )}
@@ -223,13 +223,13 @@ export default function NavigationShell({ children }: NavigationShellProps) {
                 : '0'
             }}
             className={`
-              flex-1 overflow-auto
+              flex-1 overflow-auto relative
               transition-none
             `}
           >
             {/* Breadcrumb Navigation */}
             {showBreadcrumbs && (
-              <div className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-3">
+              <div className="bg-gray-50/60 border-b border-gray-100 px-4 sm:px-6 lg:px-8 py-2.5">
                 <div className="max-w-7xl mx-auto">
                   <Breadcrumbs items={breadcrumbItems} showHomeIcon={true} />
                 </div>
@@ -256,8 +256,8 @@ export default function NavigationShell({ children }: NavigationShellProps) {
         onClose={() => setShowShortcutsHelp(false)}
       />
 
-      {/* AI Coach Floating Button - All athlete roles */}
-      {isAthlete && <AICoachButton />}
+      {/* AI Coach Floating Button - All authenticated users */}
+      {user && <AICoachButton />}
     </>
   );
 }

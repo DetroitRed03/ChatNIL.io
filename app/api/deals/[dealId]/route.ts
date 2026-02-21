@@ -145,6 +145,7 @@ export async function GET(
 
       // Resubmission tracking
       superseded_by_deal_id: deal.superseded_by_deal_id || null,
+      resubmitted_from_deal_id: deal.resubmitted_from_deal_id || null,
 
       // Notification tracking
       athlete_notified_at: deal.athlete_notified_at,

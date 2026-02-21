@@ -2,7 +2,8 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import SignupRedirectHandler from '@/components/SignupRedirectHandler';
-import { Sparkles, Lightbulb, Shield, TrendingUp, MessageSquare, Loader2, Square, Search, Brain, Newspaper, BookOpen } from 'lucide-react';
+import { Sparkles, MessageSquare, Loader2, Square, Search, Brain, Newspaper, BookOpen } from 'lucide-react';
+import { getChatContent } from '@/lib/chat/role-content';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useOnboardingGate } from '@/hooks/useOnboardingGate';
@@ -19,37 +20,6 @@ interface UploadedFile {
   file: File;
   preview?: string;
 }
-
-// Suggested prompts for the welcome screen
-const EXAMPLE_PROMPTS = [
-  "Explain NIL compliance rules for college athletes",
-  "How do I evaluate a brand deal offer?",
-  "What are the tax implications of NIL income?",
-  "Help me understand NCAA eligibility requirements"
-];
-
-const CAPABILITIES = [
-  {
-    icon: Shield,
-    title: "Compliance Guidance",
-    description: "Get expert advice on NIL regulations and NCAA rules"
-  },
-  {
-    icon: TrendingUp,
-    title: "Deal Evaluation",
-    description: "Analyze brand partnerships and sponsorship opportunities"
-  },
-  {
-    icon: Lightbulb,
-    title: "Educational Resources",
-    description: "Learn about contracts, taxes, and legal requirements"
-  },
-  {
-    icon: Sparkles,
-    title: "Personalized Support",
-    description: "Tailored guidance for athletes, parents, and coaches"
-  }
-];
 
 // Types for streaming events from API
 interface StreamingStatus {
@@ -123,6 +93,7 @@ export default function ChatPage() {
 
   const activeChat = getActiveChat();
   const hasMessages = activeChat && activeChat.messages.length > 0;
+  const chatContent = getChatContent(user?.role);
 
   // Redirect unauthenticated users to homepage
   useEffect(() => {
@@ -422,7 +393,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="absolute inset-0 flex flex-col bg-white overflow-hidden z-10">
       {/* Handle signup redirects that were interrupted by Fast Refresh */}
       <SignupRedirectHandler />
 
@@ -439,10 +410,10 @@ export default function ChatPage() {
                 <h1 className="text-5xl font-bold text-text-primary">ChatNIL</h1>
               </div>
               <p className="text-xl text-text-secondary max-w-2xl mx-auto leading-relaxed">
-                Your AI-Powered NIL Companion
+                {chatContent.headline}
               </p>
               <p className="text-base text-text-tertiary max-w-xl mx-auto mt-3 mb-8">
-                Get expert guidance on Name, Image, and Likeness rules, contract negotiations, tax implications, and eligibility requirements.
+                {chatContent.subheadline}
               </p>
 
               {/* Composer (centered on welcome screen) */}
@@ -465,7 +436,7 @@ export default function ChatPage() {
                 Try asking about
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {EXAMPLE_PROMPTS.map((prompt, index) => (
+                {chatContent.prompts.map((prompt, index) => (
                   <button
                     key={index}
                     onClick={() => handlePromptClick(prompt)}
@@ -483,7 +454,7 @@ export default function ChatPage() {
                 What ChatNIL can do
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {CAPABILITIES.map((capability, index) => {
+                {chatContent.capabilities.map((capability, index) => {
                   const Icon = capability.icon;
                   return (
                     <div
@@ -512,8 +483,8 @@ export default function ChatPage() {
         </div>
       ) : (
         <>
-          {/* Message List - scrollable area */}
-          <div className="flex-1 overflow-y-auto">
+          {/* Message List - flex wrapper lets MessageList handle its own scrolling */}
+          <div className="flex-1 flex flex-col min-h-0">
             <MessageList
               messages={activeChat?.messages || []}
               isTyping={isTyping}

@@ -223,9 +223,9 @@ export async function checkDealCompliance(
     requirements.push('Complete required financial literacy course before signing deals');
   }
 
-  // Check 7: Additional restrictions from rules_summary
-  if ((rules as any).restrictions && (rules as any).restrictions.length > 0) {
-    (rules as any).restrictions.forEach((restriction: string) => {
+  // Check 7: Additional restrictions
+  if (rules.restrictions && rules.restrictions.length > 0) {
+    rules.restrictions.forEach((restriction: string) => {
       warnings.push(`Additional restriction: ${restriction}`);
     });
   }
@@ -255,6 +255,7 @@ export function extractStateCode(input: string): string | null {
     'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
     'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
     'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY',
+    'district of columbia': 'DC', 'washington dc': 'DC', 'washington d.c.': 'DC',
   };
 
   const normalizedInput = input.toLowerCase().trim();

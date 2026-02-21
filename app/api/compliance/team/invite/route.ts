@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { rolePermissionDefaults, ComplianceTeamRole } from '@/types/settings';
+import { sendTeamInvitationEmail, sendInvitationAcceptedEmail } from '@/lib/email/send';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,12 @@ function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
+    {
+      auth: { persistSession: false },
+      global: {
+        fetch: (url: any, opts: any) => fetch(url, { ...opts, cache: 'no-store' as any }),
+      },
+    }
   );
 }
 
@@ -177,8 +183,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // TODO: Send email notification
-    // await sendTeamInviteEmail(email, name, invite.invite_token, institutionName);
+    // Send invitation email (non-blocking)
+    try {
+      const [inviterRes, institutionRes] = await Promise.all([
+        supabase.from('users').select('full_name, email').eq('id', user.id).single(),
+        supabase.from('institutions').select('name').eq('id', institutionId).single(),
+      ]);
+      const inviterName = inviterRes.data?.full_name || inviterRes.data?.email || 'A team member';
+      const teamName = institutionRes.data?.name || 'Compliance Team';
+
+      await sendTeamInvitationEmail(
+        email.toLowerCase(),
+        inviterName,
+        teamName,
+        role || 'officer',
+        invite.invite_token
+      );
+    } catch (emailError) {
+      console.error('Failed to send invite email (invite still created):', emailError);
+    }
 
     return NextResponse.json({ invite });
   } catch (error) {
@@ -292,6 +315,20 @@ export async function PUT(request: NextRequest) {
       .update({ role: 'compliance_officer' })
       .eq('id', user.id);
 
+    // Sync to institution_staff so the member appears in the workload panel
+    // (The workload endpoint reads from institution_staff)
+    await supabase
+      .from('institution_staff')
+      .upsert(
+        {
+          user_id: user.id,
+          institution_id: invite.institution_id,
+          role: 'compliance_officer',
+          title: invite.invitee_name || 'Compliance Officer',
+        },
+        { onConflict: 'user_id,institution_id' }
+      );
+
     // Create compliance settings for new member if they don't exist
     await supabase
       .from('compliance_settings')
@@ -302,6 +339,26 @@ export async function PUT(request: NextRequest) {
         },
         { onConflict: 'user_id' }
       );
+
+    // Notify inviter that the invite was accepted (non-blocking)
+    try {
+      const inviterRes = await supabase
+        .from('users')
+        .select('full_name, email')
+        .eq('id', invite.invited_by)
+        .single();
+
+      if (inviterRes.data?.email) {
+        await sendInvitationAcceptedEmail(
+          inviterRes.data.email,
+          inviterRes.data.full_name || 'Team Admin',
+          invite.invitee_name || user.email || 'New member',
+          user.email || invite.invitee_email
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send acceptance notification:', emailError);
+    }
 
     return NextResponse.json({ success: true, message: 'Welcome to the team!' });
   } catch (error) {

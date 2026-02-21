@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { splitProfileUpdates, ensureAthleteProfile } from '@/lib/profile-field-mapper';
+import { isAthleteRole } from '@/types/common';
 import { triggerMatchmakingForAthlete } from '@/lib/matchmaking-trigger';
 import { generateUniqueUsername } from '@/lib/username-generator';
 import { calculateFMV } from '@/lib/fmv/fmv-calculator';
@@ -22,7 +23,8 @@ function getSupabaseAdmin() {
       global: {
         headers: {
           'X-Client-Info': 'chatnil-admin-api'
-        }
+        },
+        fetch: (url: any, opts: any) => fetch(url, { ...opts, cache: 'no-store' as any }),
       }
     }
   );
@@ -290,7 +292,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ User profile updated successfully');
 
     // If this is an athlete and there are athlete-specific fields, update athlete_profiles
-    if (updatedProfile.role === 'athlete' && Object.keys(athleteUpdates).length > 0) {
+    if (isAthleteRole(updatedProfile.role) && Object.keys(athleteUpdates).length > 0) {
       console.log('🏃 Creating/updating athlete profile...');
 
       // Ensure athlete profile exists
@@ -500,7 +502,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Save social media stats to dedicated table (if provided)
-    if (updatedProfile.role === 'athlete' && onboardingData.social_media_stats && Array.isArray(onboardingData.social_media_stats)) {
+    if (isAthleteRole(updatedProfile.role) && onboardingData.social_media_stats && Array.isArray(onboardingData.social_media_stats)) {
       try {
         console.log('📱 Saving social media stats to dedicated table...');
         const socialStats = onboardingData.social_media_stats;
@@ -546,6 +548,50 @@ export async function POST(request: NextRequest) {
           })
           .eq('user_id', userId);
 
+        // Also update athlete_public_profiles so public profile shows correct totals
+        // NOTE: total_followers is a GENERATED ALWAYS column — auto-calculated from individual platform followers
+        const socialColumns: Record<string, any> = {
+          avg_engagement_rate: avgEngagement,
+          updated_at: new Date().toISOString(),
+        };
+        for (const stat of socialStats) {
+          if (!stat.platform || !stat.handle) continue;
+          const handle = stat.handle.startsWith('@') ? stat.handle : `@${stat.handle}`;
+          if (stat.platform === 'instagram') {
+            socialColumns.instagram_handle = handle;
+            socialColumns.instagram_followers = stat.followers || 0;
+            socialColumns.instagram_engagement_rate = stat.engagement_rate || 0;
+          } else if (stat.platform === 'tiktok') {
+            socialColumns.tiktok_handle = handle;
+            socialColumns.tiktok_followers = stat.followers || 0;
+            socialColumns.tiktok_engagement_rate = stat.engagement_rate || 0;
+          } else if (stat.platform === 'twitter') {
+            socialColumns.twitter_handle = handle;
+            socialColumns.twitter_followers = stat.followers || 0;
+          } else if (stat.platform === 'youtube') {
+            socialColumns.youtube_channel = handle;
+            socialColumns.youtube_subscribers = stat.followers || 0;
+          }
+        }
+
+        const { data: pubUpdated } = await supabaseAdmin
+          .from('athlete_public_profiles')
+          .update(socialColumns)
+          .eq('user_id', userId)
+          .select('id');
+
+        if (!pubUpdated || pubUpdated.length === 0) {
+          await supabaseAdmin.from('athlete_public_profiles').insert({
+            user_id: userId,
+            display_name: `${updatedProfile.first_name || ''} ${updatedProfile.last_name || ''}`.trim() || updatedProfile.username || 'Athlete',
+            sport: updatedProfile.primary_sport || 'Not set',
+            school_name: updatedProfile.school_name || 'Not set',
+            school_level: updatedProfile.school_level || (updatedProfile.role === 'hs_student' ? 'high_school' : 'college'),
+            state: updatedProfile.state || 'Unknown',
+            ...socialColumns,
+          });
+        }
+
         console.log(`✅ Saved ${socialStats.length} social media platforms, total followers: ${totalFollowers}`);
       } catch (socialError) {
         console.warn('⚠️ Failed to save social media stats (non-critical):', socialError);
@@ -554,7 +600,7 @@ export async function POST(request: NextRequest) {
 
     // Auto-trigger matchmaking for athletes (find matching campaigns)
     let matchmakingResults = null;
-    if (updatedProfile.role === 'athlete') {
+    if (isAthleteRole(updatedProfile.role)) {
       try {
         console.log('🔄 Auto-triggering matchmaking for new athlete:', userId);
         matchmakingResults = await triggerMatchmakingForAthlete(userId);
@@ -567,7 +613,7 @@ export async function POST(request: NextRequest) {
 
     // Auto-calculate FMV score for athletes
     let fmvResults = null;
-    if (updatedProfile.role === 'athlete') {
+    if (isAthleteRole(updatedProfile.role)) {
       try {
         console.log('💰 Auto-calculating FMV score for new athlete:', userId);
 

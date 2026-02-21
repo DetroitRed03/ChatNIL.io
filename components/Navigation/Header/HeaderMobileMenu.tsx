@@ -1,6 +1,6 @@
 'use client';
 
-import { Menu, X, LayoutDashboard, User, Settings, LogOut, BookOpen, GraduationCap } from 'lucide-react';
+import { Menu, X, LayoutDashboard, User, Settings, LogOut, BookOpen, GraduationCap, FolderOpen } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -133,6 +133,16 @@ export default function HeaderMobileMenu() {
                   >
                     <BookOpen className="h-5 w-5 mr-3" />
                     Validate Deal
+                  </button>
+                  <button
+                    onClick={() => {
+                      router.push('/library');
+                      setShowMobileMenu(false);
+                    }}
+                    className="flex items-center w-full px-3 py-3 text-sm font-medium text-gray-700 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                  >
+                    <FolderOpen className="h-5 w-5 mr-3" />
+                    Library
                   </button>
                 </>
               )}
