@@ -53,9 +53,9 @@ function SplashPage() {
   };
 
   const handleGetStarted = () => {
-    // If not logged in, prompt to login/signup
+    // If not logged in, redirect to new signup flow
     if (!user) {
-      setAuthModal({ isOpen: true, mode: 'signup' });
+      router.push('/signup');
       return;
     }
     // If logged in, redirect based on role
@@ -103,7 +103,7 @@ function SplashPage() {
             Log in
           </button>
           <button
-            onClick={() => setAuthModal({ isOpen: true, mode: 'signup' })}
+            onClick={() => router.push('/signup')}
             className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors shadow-sm hover:shadow-md"
           >
             Sign up

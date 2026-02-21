@@ -154,7 +154,7 @@ export default function Header() {
                   Welcome Back
                 </button>
                 <button
-                  onClick={() => setAuthModal({ isOpen: true, mode: 'signup' })}
+                  onClick={() => router.push('/signup')}
                   className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium bg-primary-500 text-white rounded-lg sm:rounded-xl hover:bg-primary-600 transition-colors shadow-sm hover:shadow-md"
                 >
                   Get Started
