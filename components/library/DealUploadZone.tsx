@@ -4,6 +4,7 @@ import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, Loader2, CheckCircle, AlertTriangle, Sparkles, FileImage, FileUp } from 'lucide-react';
 import type { AnalysisStatus } from '@/lib/types/deal-analysis';
+import { DEAL_ANALYSIS_MIME_TYPES, DEAL_ANALYSIS_ACCEPT_STRING } from '@/lib/uploads/file-types';
 
 interface DealUploadZoneProps {
   onFileSelected: (file: File) => void;
@@ -42,7 +43,7 @@ export default function DealUploadZone({ onFileSelected, isAnalyzing, currentSta
     if (isAnalyzing) return;
 
     const file = e.dataTransfer?.files?.[0];
-    if (file && file.type.startsWith('image/')) {
+    if (file && DEAL_ANALYSIS_MIME_TYPES.includes(file.type)) {
       onFileSelected(file);
     }
   };
@@ -78,7 +79,7 @@ export default function DealUploadZone({ onFileSelected, isAnalyzing, currentSta
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept={DEAL_ANALYSIS_ACCEPT_STRING}
         className="hidden"
         onChange={handleFileInput}
         disabled={isAnalyzing}
@@ -172,7 +173,7 @@ export default function DealUploadZone({ onFileSelected, isAnalyzing, currentSta
               </button>
 
               <p className="text-xs text-gray-400">
-                JPEG, PNG, WebP, or GIF — Max 10MB
+                PDF, Word, images (JPEG, PNG, WebP) — Max 25MB
               </p>
             </motion.div>
           )}

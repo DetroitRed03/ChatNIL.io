@@ -7,10 +7,12 @@ import Sidebar from '@/components/Navigation/Sidebar';
 import { ComplianceOfficerSidebar } from '@/components/Navigation/Sidebar/ComplianceOfficerSidebar';
 import SearchModal from '@/components/SearchModal';
 import { AICoachButton } from '@/components/AICoachButton';
+import { MobileBottomNav } from '@/components/Navigation/MobileBottomNav';
 import KeyboardShortcutsModal from '@/components/Navigation/KeyboardShortcutsModal';
 import Breadcrumbs from '@/components/Navigation/Breadcrumbs';
 import { useNavigation } from '@/lib/stores/navigation';
 import { useKeyboardShortcuts, createShortcut } from '@/hooks/useKeyboardShortcuts';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { buildBreadcrumbs } from '@/lib/breadcrumb-config';
 import { useState, useMemo } from 'react';
 
@@ -65,6 +67,7 @@ export default function NavigationShell({ children }: NavigationShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { sidebarCollapsed, sidebarWidth, toggleSidebar } = useNavigation();
+  const isDesktop = useMediaQuery('(min-width: 768px)');
   const [showSearch, setShowSearch] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
 
@@ -95,6 +98,9 @@ export default function NavigationShell({ children }: NavigationShellProps) {
 
   // Determine if user is an athlete (any type)
   const isAthlete = user?.role === 'athlete' || user?.role === 'college_athlete' || user?.role === 'hs_student';
+
+  // Show mobile bottom nav for HS students and college athletes
+  const showMobileBottomNav = isAthlete && !isPublicRoute && !isHeaderOnlyRoute && !isNoNavRoute;
 
   // Determine if user is a compliance officer or on compliance routes
   const isComplianceOfficer = user?.role === 'compliance_officer';
@@ -216,7 +222,7 @@ export default function NavigationShell({ children }: NavigationShellProps) {
 
           <main
             style={{
-              marginLeft: showSidebar
+              marginLeft: (showSidebar && isDesktop)
                 ? (showComplianceSidebar
                     ? (sidebarCollapsed ? '48px' : '256px')  // Fixed width for compliance sidebar
                     : (sidebarCollapsed ? '48px' : `${sidebarWidth}px`))
@@ -225,6 +231,7 @@ export default function NavigationShell({ children }: NavigationShellProps) {
             className={`
               flex-1 overflow-auto relative
               transition-none
+              ${showMobileBottomNav ? 'pb-16 md:pb-0' : ''}
             `}
           >
             {/* Breadcrumb Navigation */}
@@ -258,6 +265,9 @@ export default function NavigationShell({ children }: NavigationShellProps) {
 
       {/* AI Coach Floating Button - All authenticated users */}
       {user && <AICoachButton />}
+
+      {/* Mobile Bottom Tab Navigation - Athletes only */}
+      {showMobileBottomNav && <MobileBottomNav />}
     </>
   );
 }

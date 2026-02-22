@@ -1,21 +1,23 @@
 /**
  * POST /api/library/analyze
  *
- * Upload a screenshot and analyze it for NIL deal details.
+ * Upload a document (image, PDF, Word) and analyze it for NIL deal details.
  * Returns an SSE stream with real-time progress events.
  *
- * Flow: Upload → GPT-4o extraction → 6D compliance scoring → store results
+ * Flow: Upload → text extraction (for docs) or Vision (for images) → 6D compliance scoring → store results
  */
 
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import { analyzeScreenshot } from '@/lib/ai/deal-screenshot-analyzer';
+import { analyzeScreenshot, analyzeDocumentText } from '@/lib/ai/deal-screenshot-analyzer';
+import { extractText, cleanExtractedText } from '@/lib/documents/extractor';
 import { calculateComplianceScore } from '@/lib/compliance/calculate-score';
 import type { DealInput, AthleteContext } from '@/lib/compliance/types';
 import type { DealExtraction } from '@/lib/types/deal-analysis';
 import { mapDbRowToAnalysis } from '@/lib/types/deal-analysis';
+import { DEAL_ANALYSIS_MIME_TYPES, isImageMimeType } from '@/lib/uploads/file-types';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -26,8 +28,7 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_SIZE = 25 * 1024 * 1024; // 25MB (increased for PDFs)
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -85,23 +86,25 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Validate file
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  // Validate file type
+  if (!DEAL_ANALYSIS_MIME_TYPES.includes(file.type)) {
     return new Response(
-      JSON.stringify({ error: `Unsupported file type: ${file.type}. Please upload an image (JPEG, PNG, WebP, or GIF).` }),
+      JSON.stringify({ error: `Unsupported file type: ${file.type}. Please upload an image, PDF, or Word document.` }),
       { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
   }
   if (file.size > MAX_SIZE) {
     return new Response(
-      JSON.stringify({ error: 'File too large. Maximum size is 10MB.' }),
+      JSON.stringify({ error: 'File too large. Maximum size is 25MB.' }),
       { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
   }
 
-  // Get image buffer
+  const isImage = isImageMimeType(file.type);
+
+  // Get file buffer
   const arrayBuffer = await file.arrayBuffer();
-  const imageBuffer = Buffer.from(arrayBuffer);
+  const fileBuffer = Buffer.from(arrayBuffer);
   const userId = user.id;
 
   // SSE stream
@@ -115,14 +118,14 @@ export async function POST(request: NextRequest) {
 
       try {
         // Step 1: Upload to storage
-        send({ type: 'status', status: 'uploading', message: 'Uploading screenshot...' });
+        send({ type: 'status', status: 'uploading', message: isImage ? 'Uploading screenshot...' : 'Uploading document...' });
 
-        const fileExt = file.name.split('.').pop() || 'png';
+        const fileExt = file.name.split('.').pop() || 'bin';
         const storagePath = `${userId}/analyses/${crypto.randomUUID()}.${fileExt}`;
 
         const { error: uploadError } = await supabaseAdmin.storage
           .from('user-documents')
-          .upload(storagePath, imageBuffer, {
+          .upload(storagePath, fileBuffer, {
             contentType: file.type,
             upsert: false,
           });
@@ -154,10 +157,30 @@ export async function POST(request: NextRequest) {
         }
         analysisId = row.id;
 
-        // Step 2: GPT-4o extraction
-        send({ type: 'status', status: 'extracting', message: 'AI is analyzing your screenshot...' });
+        // Step 2: Extraction — images use Vision, documents use text extraction + GPT-4o
+        let extraction: DealExtraction;
 
-        const extraction = await analyzeScreenshot(imageBuffer, file.type);
+        if (isImage) {
+          send({ type: 'status', status: 'extracting', message: 'AI is analyzing your screenshot...' });
+          extraction = await analyzeScreenshot(fileBuffer, file.type);
+        } else {
+          send({ type: 'status', status: 'extracting', message: 'Extracting text from document...' });
+
+          // Extract text from PDF/Word/text file
+          const textResult = await extractText(fileBuffer, file.type, file.name);
+          if (!textResult.success || !textResult.document) {
+            throw new Error(textResult.error || 'Could not extract text from document');
+          }
+
+          const documentText = cleanExtractedText(textResult.document.text);
+          if (documentText.length < 10) {
+            throw new Error('Document appears to be empty or unreadable');
+          }
+
+          send({ type: 'status', status: 'extracting', message: 'AI is analyzing your document...' });
+          extraction = await analyzeDocumentText(documentText);
+        }
+
         send({ type: 'extraction', extraction });
 
         // Update DB with extraction

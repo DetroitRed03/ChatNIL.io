@@ -51,23 +51,23 @@ export function HeaderBar({
     <header className="bg-white border-b border-gray-100 px-4 py-3 sticky top-0 z-40">
       <div className="max-w-6xl mx-auto flex justify-between items-center">
         {/* Left: Greeting */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {avatarUrl ? (
             <img
               src={avatarUrl}
               alt={firstName}
-              className="w-10 h-10 rounded-full object-cover"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0"
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white font-bold">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center text-white font-bold text-sm sm:text-base flex-shrink-0">
               {firstName.charAt(0)}
             </div>
           )}
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg font-bold text-gray-900 truncate">
               Hey {firstName}! 👋
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-xs sm:text-sm text-gray-500 truncate">
               {sport} • {school}
             </p>
           </div>
@@ -75,18 +75,18 @@ export function HeaderBar({
 
         {/* Right: Level & XP */}
         <motion.div
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 flex-shrink-0"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
         >
           <div className="text-right">
-            <div className="flex items-center gap-1.5 justify-end">
-              <span className="text-orange-500 text-lg">⚡</span>
-              <span className="font-bold text-gray-900">Level {level}</span>
-              <span className="text-gray-300">•</span>
+            <div className="flex items-center gap-1 sm:gap-1.5 justify-end">
+              <span className="text-orange-500 text-sm sm:text-lg">⚡</span>
+              <span className="font-bold text-gray-900 text-sm sm:text-base">Lv.{level}</span>
+              <span className="hidden sm:inline text-gray-300">•</span>
               <motion.span
                 key={currentXP}
-                className={`font-medium ${xpJustChanged ? 'text-orange-600' : 'text-gray-600'}`}
+                className={`font-medium text-xs sm:text-base ${xpJustChanged ? 'text-orange-600' : 'text-gray-600'}`}
                 initial={xpJustChanged ? { scale: 1.3, color: '#ea580c' } : false}
                 animate={{ scale: 1, color: xpJustChanged ? '#ea580c' : '#4b5563' }}
                 transition={{ duration: 1.5 }}
@@ -96,7 +96,7 @@ export function HeaderBar({
             </div>
 
             {/* Progress Bar */}
-            <div className="w-28 sm:w-36 h-2 bg-gray-100 rounded-full overflow-hidden mt-1">
+            <div className="w-20 sm:w-36 h-1.5 sm:h-2 bg-gray-100 rounded-full overflow-hidden mt-1">
               <motion.div
                 className="h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full"
                 initial={{ width: 0 }}
@@ -105,8 +105,8 @@ export function HeaderBar({
               />
             </div>
 
-            <p className="text-[11px] text-gray-400 mt-0.5">
-              {xpRemaining} XP to Level {level + 1}
+            <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5">
+              {xpRemaining} to Lv.{level + 1}
             </p>
           </div>
 
