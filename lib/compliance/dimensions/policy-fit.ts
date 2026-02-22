@@ -13,6 +13,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { DealInput, AthleteContext, DimensionScore, StateRules, DIMENSION_WEIGHTS, createDimensionScore } from '../types';
+import { STATE_NIL_RULES_MAP } from '@/lib/data/state-nil-rules-2026';
 
 const WEIGHT = DIMENSION_WEIGHTS.POLICY_FIT;
 
@@ -100,7 +101,26 @@ async function getStateRules(stateCode: string): Promise<StateRules> {
     console.error('Error fetching state rules:', error);
   }
 
-  // Default fallback - conservative rules
+  // Try static data before falling back to conservative defaults
+  const staticRule = STATE_NIL_RULES_MAP[stateCode.toUpperCase()];
+  if (staticRule) {
+    return {
+      state_code: staticRule.stateCode,
+      state_name: staticRule.stateName,
+      hs_nil_allowed: staticRule.hsNilAllowed,
+      hs_parental_consent_required: staticRule.hsRequiresParentConsent,
+      hs_school_approval_required: staticRule.hsSchoolCanFacilitate,
+      college_nil_allowed: staticRule.collegeNilAllowed,
+      college_disclosure_required: staticRule.disclosureRequired,
+      college_disclosure_deadline_days: staticRule.disclosureDays ?? 7,
+      prohibited_activities: staticRule.prohibitedCategories,
+      prohibited_deal_types: [],
+      requires_contract: true,
+      requires_disclosure: staticRule.disclosureRequired,
+    };
+  }
+
+  // Final fallback for unknown states - conservative rules
   return {
     state_code: stateCode,
     state_name: stateCode,
