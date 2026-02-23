@@ -393,7 +393,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-white overflow-hidden z-10">
+    <div className="flex flex-col bg-white overflow-hidden h-full">
       {/* Handle signup redirects that were interrupted by Fast Refresh */}
       <SignupRedirectHandler />
 
