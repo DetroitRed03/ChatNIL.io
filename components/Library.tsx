@@ -57,6 +57,7 @@ export default function Library() {
   const [showWizard, setShowWizard] = useState(false);
   const [wizardInitialData, setWizardInitialData] = useState<any>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
   // Load analyses on mount
   useEffect(() => {
@@ -101,6 +102,7 @@ export default function Library() {
 
   const handleFileSelected = async (file: File) => {
     setUploadError(null);
+    setUploadSuccess(null);
     try {
       await startAnalysis(file);
       // Refresh list after completion
@@ -108,6 +110,36 @@ export default function Library() {
     } catch (error: any) {
       console.error('Analysis failed:', error);
       setUploadError(error.message || 'Analysis failed');
+    }
+  };
+
+  const handleNonDealUpload = async (file: File, documentType: string) => {
+    setUploadError(null);
+    setUploadSuccess(null);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('documentType', documentType);
+
+      const res = await fetch('/api/library/upload-document', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      setUploadSuccess('Document saved to your files (no compliance review needed).');
+      setTimeout(() => setUploadSuccess(null), 4000);
+    } catch (error: any) {
+      console.error('Document upload failed:', error);
+      setUploadError(error.message || 'Upload failed');
     }
   };
 
@@ -244,6 +276,7 @@ export default function Library() {
         <div className="mb-8">
           <DealUploadZone
             onFileSelected={handleFileSelected}
+            onNonDealUpload={handleNonDealUpload}
             isAnalyzing={isAnalyzing}
             currentStatus={analysisStreamStatus}
           />
@@ -255,6 +288,16 @@ export default function Library() {
             >
               <AlertTriangle className="w-4 h-4" />
               {uploadError}
+            </motion.p>
+          )}
+          {uploadSuccess && (
+            <motion.p
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-sm text-green-600 mt-2 flex items-center gap-1.5"
+            >
+              <CheckCircle className="w-4 h-4" />
+              {uploadSuccess}
             </motion.p>
           )}
         </div>

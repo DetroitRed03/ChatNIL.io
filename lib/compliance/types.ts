@@ -58,6 +58,21 @@ export interface DimensionScore {
   recommendations: string[];
 }
 
+export interface ComplianceFlag {
+  type: 'fmv' | 'category' | 'state' | 'disclosure' | 'document' | 'policy' | 'consent' | 'other';
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+  isBlocking: boolean; // Only true for prohibited categories, state bans, etc.
+}
+
+export interface FMVAnalysisSummary {
+  estimatedFMV: number;
+  actualAmount: number;
+  ratio: number;
+  severity: 'none' | 'low' | 'medium' | 'high';
+  flag?: string;
+}
+
 export interface ComplianceResult {
   dealId?: string;
   athleteId: string;
@@ -73,6 +88,10 @@ export interface ComplianceResult {
   };
   overallReasonCodes: string[];
   overallRecommendations: string[];
+  flags: ComplianceFlag[];
+  fmvAnalysis?: FMVAnalysisSummary;
+  canBeApproved: boolean;       // false only for hard blockers (prohibited category, state ban)
+  requiresReview: boolean;       // true if any warning/critical flags
   isThirdPartyVerified: boolean;
   payForPlayRisk: 'low' | 'medium' | 'high';
   scoredAt: string;

@@ -9,18 +9,22 @@
  *         (Tax × 0.15) + (BrandSafety × 0.10) + (GuardianConsent × 0.10)
  *
  * STATUS THRESHOLDS:
- * - 🟢 GREEN (80-100): Compliant - proceed with confidence
- * - 🟡 YELLOW (50-79): Issues to address - fixable
- * - 🔴 RED (0-49): Non-compliant - do not proceed
+ * - GREEN (80-100): Compliant - proceed with confidence
+ * - YELLOW (50-79): Issues to address - fixable
+ * - RED (0-49): Non-compliant - do not proceed
+ *
+ * FMV CHECK IS ADVISORY ONLY — it reduces score but never blocks approval.
+ * Only prohibited categories, state bans, and denied guardian consent block deals.
  */
 
-import { DealInput, AthleteContext, ComplianceResult, getStatusFromScore } from './types';
+import { DealInput, AthleteContext, ComplianceResult, ComplianceFlag, FMVAnalysisSummary, getStatusFromScore } from './types';
 import { calculatePolicyFit } from './dimensions/policy-fit';
 import { calculateDocumentHygiene } from './dimensions/document-hygiene';
 import { calculateFMVVerification } from './dimensions/fmv-verification';
 import { calculateTaxReadiness } from './dimensions/tax-readiness';
 import { calculateBrandSafety } from './dimensions/brand-safety';
 import { calculateGuardianConsent } from './dimensions/guardian-consent';
+import { analyzeFMV, estimateAthleteFMV } from './fmv-check';
 
 export async function calculateComplianceScore(
   deal: DealInput,
@@ -85,6 +89,121 @@ export async function calculateComplianceScore(
                                !deal.performanceBased &&
                                brandSafety.score >= 50;
 
+  // --- Build advisory flags with blocking distinction ---
+  const flags: ComplianceFlag[] = [];
+  let canBeApproved = true;
+
+  // FMV Advisory — NEVER blocks
+  const estimatedFMV = estimateAthleteFMV({
+    followers: athlete.followers,
+    sport: athlete.sport,
+    engagementRate: athlete.engagementRate,
+  });
+  const fmvResult = analyzeFMV(deal.compensation, estimatedFMV);
+  let fmvAnalysis: FMVAnalysisSummary | undefined;
+
+  if (fmvResult.flag) {
+    flags.push({
+      type: 'fmv',
+      severity: fmvResult.severity === 'high' ? 'warning' : 'info',
+      message: fmvResult.flag,
+      isBlocking: false,
+    });
+    fmvAnalysis = {
+      estimatedFMV: fmvResult.estimatedFMV,
+      actualAmount: fmvResult.actualAmount,
+      ratio: fmvResult.ratio,
+      severity: fmvResult.severity,
+      flag: fmvResult.flag,
+    };
+  }
+
+  // Prohibited brand category — BLOCKS
+  if (brandSafety.score === 0) {
+    const prohibitedCode = brandSafety.reasonCodes.find(c => c.startsWith('PROHIBITED_BRAND'));
+    if (prohibitedCode) {
+      flags.push({
+        type: 'category',
+        severity: 'critical',
+        message: brandSafety.notes || 'Brand is in a prohibited category for student athletes.',
+        isBlocking: true,
+      });
+      canBeApproved = false;
+    }
+  }
+
+  // State NIL ban for HS — BLOCKS
+  if (policyFit.reasonCodes.includes('STATE_HS_NIL_PROHIBITED')) {
+    flags.push({
+      type: 'state',
+      severity: 'critical',
+      message: `High school NIL is not permitted in ${athlete.state}.`,
+      isBlocking: true,
+    });
+    canBeApproved = false;
+  }
+
+  // Guardian consent denied — BLOCKS
+  if (guardianConsent.reasonCodes.includes('GUARDIAN_CONSENT_DENIED')) {
+    flags.push({
+      type: 'consent',
+      severity: 'critical',
+      message: 'Parent/guardian has denied consent for NIL activities.',
+      isBlocking: true,
+    });
+    canBeApproved = false;
+  }
+
+  // Performance-based compensation — WARNING (not blocking)
+  if (policyFit.reasonCodes.includes('PERFORMANCE_BASED_COMPENSATION')) {
+    flags.push({
+      type: 'policy',
+      severity: 'warning',
+      message: 'Compensation may be tied to athletic performance (pay-for-play risk).',
+      isBlocking: false,
+    });
+  }
+
+  // Booster connected — WARNING
+  if (policyFit.reasonCodes.includes('BOOSTER_CONNECTED')) {
+    flags.push({
+      type: 'policy',
+      severity: 'warning',
+      message: 'Deal appears connected to a booster or collective.',
+      isBlocking: false,
+    });
+  }
+
+  // Missing documents — INFO
+  if (documentHygiene.score < 60) {
+    flags.push({
+      type: 'document',
+      severity: 'info',
+      message: documentHygiene.notes || 'Some documentation is missing or incomplete.',
+      isBlocking: false,
+    });
+  }
+
+  // Guardian consent pending/missing — WARNING
+  if (guardianConsent.reasonCodes.includes('GUARDIAN_CONSENT_PENDING')) {
+    flags.push({
+      type: 'consent',
+      severity: 'warning',
+      message: 'Awaiting parent/guardian approval.',
+      isBlocking: false,
+    });
+  }
+  if (guardianConsent.reasonCodes.includes('GUARDIAN_CONSENT_MISSING')) {
+    flags.push({
+      type: 'consent',
+      severity: 'warning',
+      message: 'Guardian consent required but not on file.',
+      isBlocking: false,
+    });
+  }
+
+  const requiresReview = flags.some(f => f.severity === 'warning' || f.severity === 'critical');
+
   return {
     dealId: deal.id,
     athleteId: athlete.id,
@@ -100,6 +219,10 @@ export async function calculateComplianceScore(
     },
     overallReasonCodes: allReasonCodes,
     overallRecommendations: prioritizeRecommendations(allRecommendations, status),
+    flags,
+    fmvAnalysis,
+    canBeApproved,
+    requiresReview,
     isThirdPartyVerified,
     payForPlayRisk,
     scoredAt: new Date().toISOString()

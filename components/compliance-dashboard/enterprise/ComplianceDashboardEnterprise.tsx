@@ -25,6 +25,9 @@ import { SearchCommand } from './SearchCommand';
 import { DecisionHistoryTab } from './DecisionHistoryTab';
 import { AppealsQueueTab } from './AppealsQueueTab';
 
+// Audit Log Export
+import { AuditLogExport } from '@/components/compliance/AuditLogExport';
+
 // Types
 interface DashboardData {
   institution: { id: string; name: string; logoUrl?: string };
@@ -468,6 +471,7 @@ export function ComplianceDashboardEnterprise() {
               Search
               <kbd className="hidden sm:inline-block px-1.5 py-0.5 bg-white border border-gray-200 rounded text-xs">⌘K</kbd>
             </button>
+            <AuditLogExport />
             <button
               onClick={() => router.push('/compliance/athletes')}
               className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"

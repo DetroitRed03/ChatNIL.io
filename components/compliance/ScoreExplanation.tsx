@@ -57,13 +57,13 @@ const DIMENSIONS: Record<string, {
     },
   },
   fmv_score: {
-    name: 'Fair Market Value',
+    name: 'Fair Market Value (Advisory)',
     weight: '15%',
     noteKey: 'fmv_notes',
     getFallback: (score: number) => {
       if (score >= 80) return 'Compensation within expected market range';
-      if (score >= 60) return 'Compensation slightly above typical rates';
-      return 'Compensation significantly above market rate';
+      if (score >= 60) return 'Compensation slightly above typical rates — advisory only, does not block approval';
+      return 'Compensation significantly above market rate — advisory flag, reviewer can still approve';
     },
   },
   tax_score: {

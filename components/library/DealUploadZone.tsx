@@ -2,12 +2,14 @@
 
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Loader2, CheckCircle, AlertTriangle, Sparkles, FileImage, FileUp } from 'lucide-react';
+import { Upload, Loader2, CheckCircle, AlertTriangle, Sparkles, FileImage, FileUp, ArrowLeft } from 'lucide-react';
 import type { AnalysisStatus } from '@/lib/types/deal-analysis';
-import { DEAL_ANALYSIS_MIME_TYPES, DEAL_ANALYSIS_ACCEPT_STRING } from '@/lib/uploads/file-types';
+import { ACCEPT_STRING, ACCEPTED_MIME_TYPES } from '@/lib/uploads/file-types';
+import { DOCUMENT_CATEGORIES, requiresComplianceReview } from '@/lib/documents/categories';
 
 interface DealUploadZoneProps {
   onFileSelected: (file: File) => void;
+  onNonDealUpload?: (file: File, documentType: string) => void;
   isAnalyzing: boolean;
   currentStatus: AnalysisStatus | null;
 }
@@ -21,9 +23,13 @@ const STATUS_MESSAGES: Record<AnalysisStatus, { icon: any; message: string; colo
   failed: { icon: AlertTriangle, message: 'Analysis failed. Please try again.', color: 'text-red-600' },
 };
 
-export default function DealUploadZone({ onFileSelected, isAnalyzing, currentStatus }: DealUploadZoneProps) {
+export default function DealUploadZone({ onFileSelected, onNonDealUpload, isAnalyzing, currentStatus }: DealUploadZoneProps) {
   const [dragActive, setDragActive] = useState(false);
+  const [documentType, setDocumentType] = useState<string>('');
+  const [showTypeSelector, setShowTypeSelector] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const needsReview = documentType ? requiresComplianceReview(documentType) : true;
 
   const handleDrag = (e: DragEvent) => {
     e.preventDefault();
@@ -43,20 +49,35 @@ export default function DealUploadZone({ onFileSelected, isAnalyzing, currentSta
     if (isAnalyzing) return;
 
     const file = e.dataTransfer?.files?.[0];
-    if (file && DEAL_ANALYSIS_MIME_TYPES.includes(file.type)) {
-      onFileSelected(file);
+    if (file && ACCEPTED_MIME_TYPES.includes(file.type)) {
+      handleFileChosen(file);
     }
   };
 
   const handleFileInput = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      onFileSelected(file);
+      handleFileChosen(file);
     }
-    // Reset input so same file can be re-selected
     if (inputRef.current) inputRef.current.value = '';
   };
 
+  const handleFileChosen = (file: File) => {
+    if (documentType && !needsReview && onNonDealUpload) {
+      // Non-deal document — skip compliance, just store
+      onNonDealUpload(file, documentType);
+      setDocumentType('');
+      setShowTypeSelector(false);
+    } else {
+      // Deal document — run analysis pipeline
+      onFileSelected(file);
+      setDocumentType('');
+      setShowTypeSelector(false);
+    }
+  };
+
+  const dealDocs = Object.values(DOCUMENT_CATEGORIES).filter(c => c.requiresComplianceReview);
+  const otherDocs = Object.values(DOCUMENT_CATEGORIES).filter(c => !c.requiresComplianceReview);
   const statusInfo = currentStatus ? STATUS_MESSAGES[currentStatus] : null;
 
   return (
@@ -79,7 +100,7 @@ export default function DealUploadZone({ onFileSelected, isAnalyzing, currentSta
       <input
         ref={inputRef}
         type="file"
-        accept={DEAL_ANALYSIS_ACCEPT_STRING}
+        accept={ACCEPT_STRING}
         className="hidden"
         onChange={handleFileInput}
         disabled={isAnalyzing}
@@ -88,6 +109,7 @@ export default function DealUploadZone({ onFileSelected, isAnalyzing, currentSta
       <div className="flex flex-col items-center justify-center py-8 px-6 text-center">
         <AnimatePresence mode="wait">
           {isAnalyzing && statusInfo ? (
+            /* --- Analyzing state --- */
             <motion.div
               key="analyzing"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -113,8 +135,6 @@ export default function DealUploadZone({ onFileSelected, isAnalyzing, currentSta
               <p className={`text-lg font-semibold ${statusInfo.color}`}>
                 {statusInfo.message}
               </p>
-
-              {/* Progress bar */}
               {currentStatus !== 'completed' && currentStatus !== 'failed' && (
                 <div className="w-64 h-2 bg-orange-100 rounded-full overflow-hidden">
                   <motion.div
@@ -131,7 +151,78 @@ export default function DealUploadZone({ onFileSelected, isAnalyzing, currentSta
                 </div>
               )}
             </motion.div>
+          ) : showTypeSelector ? (
+            /* --- Document Type Selection --- */
+            <motion.div
+              key="type-selector"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="w-full max-w-2xl"
+            >
+              <button
+                onClick={() => { setShowTypeSelector(false); setDocumentType(''); }}
+                className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                What type of document is this?
+              </h3>
+
+              {/* Deal documents */}
+              <div className="mb-4">
+                <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                  <span className="w-2 h-2 bg-orange-500 rounded-full" />
+                  Deal Documents (compliance review)
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {dealDocs.map(doc => (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      onClick={() => { setDocumentType(doc.id); inputRef.current?.click(); }}
+                      className={`p-3 rounded-lg border text-left transition-all ${
+                        documentType === doc.id
+                          ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-200'
+                          : 'border-gray-200 hover:border-orange-300 hover:bg-orange-50/50'
+                      }`}
+                    >
+                      <span className="font-medium text-sm">{doc.label}</span>
+                      <p className="text-xs text-gray-500 mt-0.5">{doc.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Other documents */}
+              <div>
+                <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                  <span className="w-2 h-2 bg-gray-400 rounded-full" />
+                  Other Documents (no review needed)
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {otherDocs.map(doc => (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      onClick={() => { setDocumentType(doc.id); inputRef.current?.click(); }}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        documentType === doc.id
+                          ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="font-medium text-xs">{doc.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
           ) : (
+            /* --- Idle state (default) --- */
             <motion.div
               key="idle"
               initial={{ opacity: 0, scale: 0.9 }}
@@ -157,20 +248,34 @@ export default function DealUploadZone({ onFileSelected, isAnalyzing, currentSta
                   {dragActive ? 'Drop it right here' : 'Drop or upload any deal document'}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Contracts, DM screenshots, emails, offer letters — we'll handle the rest
+                  Contracts, DM screenshots, emails, offer letters — we&apos;ll handle the rest
                 </p>
               </div>
 
-              <button
-                className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold text-sm shadow-md shadow-orange-200/50 hover:shadow-lg hover:from-orange-600 hover:to-amber-600 transition-all"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  inputRef.current?.click();
-                }}
-              >
-                <Upload className="w-4 h-4 inline mr-2" />
-                Choose File
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-semibold text-sm shadow-md shadow-orange-200/50 hover:shadow-lg hover:from-orange-600 hover:to-amber-600 transition-all"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    inputRef.current?.click();
+                  }}
+                >
+                  <Upload className="w-4 h-4 inline mr-2" />
+                  Analyze Deal
+                </button>
+
+                {onNonDealUpload && (
+                  <button
+                    className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-all"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowTypeSelector(true);
+                    }}
+                  >
+                    Save Other Document
+                  </button>
+                )}
+              </div>
 
               <p className="text-xs text-gray-400">
                 PDF, Word, images (JPEG, PNG, WebP) — Max 25MB

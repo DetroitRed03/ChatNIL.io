@@ -23,6 +23,10 @@ export type { AIAnalysisResult, AIRedFlag, AIKeyTerm } from './ai-analysis';
 // Types
 export * from './types';
 
+// FMV advisory check (separate from dimension scorer)
+export { analyzeFMV, estimateAthleteFMV } from './fmv-check';
+export type { FMVAnalysis } from './fmv-check';
+
 // Individual dimension scorers (for testing or custom scoring)
 export { calculatePolicyFit } from './dimensions/policy-fit';
 export { calculateDocumentHygiene } from './dimensions/document-hygiene';

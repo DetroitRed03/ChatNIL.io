@@ -17,8 +17,17 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { ScoreExplanation } from '@/components/compliance/ScoreExplanation';
+import { FMVWarningBanner } from '@/components/compliance/FMVWarningBanner';
+import { Info } from 'lucide-react';
 
 type Decision = 'approved' | 'approved_with_conditions' | 'rejected' | 'info_requested' | null;
+
+interface ComplianceFlag {
+  type: string;
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+  isBlocking: boolean;
+}
 
 interface DealData {
   id: string;
@@ -56,7 +65,17 @@ interface DealData {
     brand_safety_notes?: string;
     guardian_consent_score: number;
     guardian_consent_notes?: string;
+    flags?: ComplianceFlag[];
+    fmv_analysis?: {
+      estimatedFMV: number;
+      actualAmount: number;
+      ratio: number;
+      severity: 'none' | 'low' | 'medium' | 'high';
+      flag?: string;
+    };
+    can_be_approved?: boolean;
   }>;
+  compliance_decision?: string;
   audit_log?: Array<{
     id: string;
     action: string;
@@ -627,6 +646,79 @@ export default function DealReviewPage() {
           )}
         </div>
 
+        {/* Compliance Flags — advisory vs blocking */}
+        {score?.flags && score.flags.length > 0 && (
+          <div className="mb-6 space-y-3">
+            <h2 className="font-semibold text-gray-500 text-xs uppercase tracking-wide">
+              Compliance Flags
+            </h2>
+            {score.flags.map((flag: ComplianceFlag, index: number) => (
+              <div
+                key={index}
+                className={`p-3 rounded-lg border ${
+                  flag.isBlocking
+                    ? 'bg-red-50 border-red-200'
+                    : flag.severity === 'warning'
+                      ? 'bg-yellow-50 border-yellow-200'
+                      : 'bg-blue-50 border-blue-200'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  {flag.isBlocking ? (
+                    <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  ) : flag.severity === 'warning' ? (
+                    <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                  ) : (
+                    <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                  )}
+                  <div>
+                    <p className="font-medium text-sm">
+                      {flag.type.toUpperCase()}
+                      {!flag.isBlocking && (
+                        <span className="ml-2 text-xs font-normal opacity-75">
+                          (Advisory — can still approve)
+                        </span>
+                      )}
+                      {flag.isBlocking && (
+                        <span className="ml-2 text-xs font-normal text-red-600">
+                          (Blocking)
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm mt-1">{flag.message}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* FMV Advisory Banner */}
+        {score?.fmv_analysis && (
+          <div className="mb-6">
+            <FMVWarningBanner fmvAnalysis={score.fmv_analysis} />
+          </div>
+        )}
+
+        {/* Approval Status */}
+        {score && score.can_be_approved === false && (
+          <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+            <div className="flex items-start gap-3">
+              <XCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h3 className="font-semibold text-red-800">Cannot Be Approved</h3>
+                <p className="text-sm text-red-700 mt-1">
+                  This deal has blocking issues:{' '}
+                  {score.flags
+                    ?.filter((f: ComplianceFlag) => f.isBlocking)
+                    .map((f: ComplianceFlag) => f.type)
+                    .join(', ')}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Deal Details */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-6">
           <h2 className="font-semibold text-gray-500 text-xs uppercase tracking-wide mb-4">
@@ -695,10 +787,12 @@ export default function DealReviewPage() {
 
           {/* Decision Options */}
           <div className="space-y-3 mb-6">
-            <label className={`flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer transition-all ${
-              decision === 'approved'
-                ? 'border-green-500 bg-green-50'
-                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+            <label className={`flex items-center gap-4 p-4 border-2 rounded-xl transition-all ${
+              score?.can_be_approved === false
+                ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                : decision === 'approved'
+                  ? 'border-green-500 bg-green-50 cursor-pointer'
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer'
             }`}>
               <input
                 type="radio"
@@ -706,6 +800,7 @@ export default function DealReviewPage() {
                 value="approved"
                 checked={decision === 'approved'}
                 onChange={() => setDecision('approved')}
+                disabled={score?.can_be_approved === false}
                 className="w-5 h-5 text-green-500 focus:ring-green-500"
               />
               <div className="flex-1">
@@ -713,7 +808,11 @@ export default function DealReviewPage() {
                   <CheckCircle className="w-5 h-5 text-green-600" />
                   <span className="font-medium text-green-700">Approve</span>
                 </div>
-                <p className="text-sm text-gray-500 mt-1">Deal meets all compliance requirements</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {score?.can_be_approved === false
+                    ? 'Cannot approve — blocking issues detected'
+                    : 'Deal meets all compliance requirements'}
+                </p>
               </div>
             </label>
 

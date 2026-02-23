@@ -37,6 +37,7 @@ import {
 } from '@/components/profile/shared';
 import { ProfileSectionCard } from '@/components/profile/edit/ProfileSectionCard';
 import { PortfolioManagementSection } from '@/components/portfolio/PortfolioManagementSection';
+import { ProfileVisibilityToggle } from '@/components/profile/ProfileVisibilityToggle';
 
 export default function ProfileEditPage() {
   const { user } = useAuth();
@@ -511,6 +512,29 @@ export default function ProfileEditPage() {
               </p>
             )}
           </Card>
+
+          {/* Profile Visibility Toggle */}
+          {profile && (
+            <ProfileVisibilityToggle
+              profile={{
+                avatar_url: profile.avatar_url,
+                profile_photo_url: profile.profile_photo_url,
+                bio: profile.bio,
+                sport: profile.primary_sport,
+                primary_sport: profile.primary_sport,
+                school: profile.school_name,
+                school_name: profile.school_name,
+                social_media_stats: profile.social_media_stats,
+                is_public: profile.is_public,
+                role: profile.role,
+                parent_consent_given: profile.parent_consent_given,
+                username: profile.username,
+              }}
+              onUpdate={(isPublic) => {
+                setProfile((prev: any) => prev ? { ...prev, is_public: isPublic } : prev);
+              }}
+            />
+          )}
 
           {/* Profile Sections - Vertical Scrollable */}
           <div className="space-y-6">

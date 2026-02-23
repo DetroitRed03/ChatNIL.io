@@ -214,17 +214,35 @@ export async function POST(
       });
     }
 
-    // Log to audit trail
-    const auditAction = decision === 'approved' ? 'Deal approved' :
-                        decision === 'approved_with_conditions' ? 'Deal approved with conditions' :
-                        decision === 'rejected' ? 'Deal rejected' :
-                        'Additional information requested';
+    // Log to audit trail (enhanced with new columns)
+    const auditAction = decision === 'approved' ? 'deal_approved' :
+                        decision === 'approved_with_conditions' ? 'deal_approved_conditional' :
+                        decision === 'rejected' ? 'deal_rejected' :
+                        'info_requested';
+
+    // Determine academic year
+    const now = new Date();
+    const acadYear = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
+    const academicYear = `${acadYear}-${acadYear + 1}`;
 
     await supabaseAdmin.from('compliance_audit_log').insert({
       deal_id: dealId,
       athlete_id: deal.athlete_id,
       action: auditAction,
       performed_by: user.id,
+      user_name: officer?.username || user.email,
+      user_email: user.email,
+      user_role: officer?.role,
+      previous_status: deal.status,
+      new_status: statusMap[decision],
+      decision,
+      internal_note: internalNotes || null,
+      athlete_note: athleteNotes || null,
+      metadata: {
+        overrideScore: overrideScore || null,
+      },
+      institution_id: officer?.institution_id,
+      academic_year: academicYear,
       details: {
         decision,
         athleteNotes: athleteNotes || null,
