@@ -51,37 +51,37 @@ export function ComplianceStatusBanner({
       whileHover={{ scale: 1.005 }}
       transition={{ type: 'spring', stiffness: 300 }}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-            <span className="text-3xl">{config.icon}</span>
+          <div className="w-12 h-12 md:w-16 md:h-16 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm flex-shrink-0">
+            <span className="text-2xl md:text-3xl">{config.icon}</span>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-medium text-white/80 uppercase tracking-wider">
+              <h2 className="text-xs md:text-sm font-medium text-white/80 uppercase tracking-wider">
                 Compliance Status
               </h2>
             </div>
-            <p className="text-2xl font-bold">
+            <p className="text-xl md:text-2xl font-bold">
               {status === 'green' ? '🟢' : status === 'yellow' ? '🟡' : '🔴'} {config.label}
             </p>
             <p className="text-white/80 text-sm">{config.description}</p>
           </div>
         </div>
 
-        <div className="flex gap-6 text-right">
+        <div className="flex gap-4 md:gap-6 text-right">
           <div>
             <p className="text-white/70 text-xs uppercase tracking-wider">Active Deals</p>
-            <p className="text-2xl font-bold">{activeDeals}</p>
+            <p className="text-xl md:text-2xl font-bold">{activeDeals}</p>
           </div>
           <div>
             <p className="text-white/70 text-xs uppercase tracking-wider">Total Earnings</p>
-            <p className="text-2xl font-bold">{formattedEarnings}</p>
+            <p className="text-xl md:text-2xl font-bold">{formattedEarnings}</p>
           </div>
           {issueCount > 0 && (
             <div>
               <p className="text-white/70 text-xs uppercase tracking-wider">Issues</p>
-              <p className="text-2xl font-bold text-red-200">{issueCount}</p>
+              <p className="text-xl md:text-2xl font-bold text-red-200">{issueCount}</p>
             </div>
           )}
         </div>

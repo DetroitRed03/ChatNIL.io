@@ -64,3 +64,20 @@ export type { TiltCardProps } from './TiltCard';
 
 export { StatCard } from './StatCard';
 export type { StatCardProps } from './StatCard';
+
+// Responsive components
+export { ResponsiveTable } from './ResponsiveTable';
+export type { ResponsiveTableProps, Column } from './ResponsiveTable';
+
+export { ResponsiveModal } from './ResponsiveModal';
+
+export { CardGrid } from './CardGrid';
+
+export { FormField } from './FormField';
+
+export { PageHeader } from './PageHeader';
+
+export { MobileTabs } from './MobileTabs';
+
+export { EmptyState } from './EmptyState';
+export type { EmptyStateProps } from './EmptyState';

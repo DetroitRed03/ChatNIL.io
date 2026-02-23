@@ -89,7 +89,7 @@ export function BadgeShowcase({ earnedBadges, totalBadges }: BadgeShowcaseProps)
         ) : (
           <>
             {/* Badge Grid */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
               {displayBadges.map((badge, index) => {
                 const isEarned = earnedIds.has(badge.id);
                 const earnedBadge = earnedBadges.find(b => b.id === badge.id);

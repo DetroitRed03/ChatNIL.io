@@ -43,14 +43,14 @@ export function ChapterCard({
     >
       {/* Current Badge */}
       {isCurrent && (
-        <div className="absolute -top-2 -right-2 bg-purple-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+        <div className="absolute -top-2 -right-2 bg-purple-500 text-white text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full font-bold">
           CURRENT
         </div>
       )}
 
       {/* Complete Badge */}
       {isComplete && (
-        <div className="absolute -top-2 -right-2 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+        <div className="absolute -top-2 -right-2 bg-green-500 text-white text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full font-bold">
           ✓ DONE
         </div>
       )}

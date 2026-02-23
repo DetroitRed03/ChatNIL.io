@@ -82,7 +82,7 @@ export function SubmissionWorkflow({
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
         <div className="bg-orange-50 rounded-xl p-3 text-center">
           <p className="text-2xl font-bold text-orange-600">{pendingDeals.length}</p>
           <p className="text-xs text-orange-700">Need to Report</p>

@@ -86,7 +86,7 @@ export function QuickStats({
   }
 
   return (
-    <div className={`grid grid-cols-2 md:grid-cols-${stats.length} gap-4 ${className}`}>
+    <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 ${className}`}>
       {stats.map((stat, index) => (
         <button
           key={index}
