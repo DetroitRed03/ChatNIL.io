@@ -49,6 +49,10 @@ function SplashPage() {
   });
 
   const handlePromptClick = (prompt: string) => {
+    if (!user) {
+      router.push('/signup');
+      return;
+    }
     setInputValue(prompt);
   };
 
