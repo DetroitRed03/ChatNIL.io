@@ -78,59 +78,73 @@ export function AuditLogExport({ athleteId, dealId }: AuditLogExportProps) {
             onClick={() => setShowOptions(false)}
           />
 
-          <div className="fixed inset-0 flex items-start justify-center pt-[120px] z-50 pointer-events-none">
-            <div className="bg-white border rounded-xl shadow-2xl p-5 w-[340px] pointer-events-auto">
-              <h3 className="font-semibold mb-3 text-base">Export Options</h3>
+          <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+            <div className="bg-white border rounded-2xl shadow-2xl p-8 w-[520px] max-w-[90vw] pointer-events-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-semibold text-lg">Export Audit Log</h3>
+                <button
+                  onClick={() => setShowOptions(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                >
+                  &times;
+                </button>
+              </div>
 
               {/* Date Range */}
-              <div className="space-y-2 mb-4">
-                <label className="block text-sm text-gray-600">Date Range (optional)</label>
-                <div className="flex gap-2">
-                  <input
-                    type="date"
-                    value={dateRange.startDate}
-                    onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-                    className="flex-1 px-3 py-2 border rounded-lg text-sm"
-                  />
-                  <input
-                    type="date"
-                    value={dateRange.endDate}
-                    onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-                    className="flex-1 px-3 py-2 border rounded-lg text-sm"
-                  />
+              <div className="space-y-3 mb-6">
+                <label className="block text-sm font-medium text-gray-700">Date Range (optional)</label>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={dateRange.startDate}
+                      onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+                      className="w-full px-4 py-2.5 border rounded-lg text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={dateRange.endDate}
+                      onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
+                      className="w-full px-4 py-2.5 border rounded-lg text-sm"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Export Buttons */}
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <button
                   onClick={() => handleExport('csv')}
                   disabled={!!exporting}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 text-sm font-medium"
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 font-medium"
                 >
                   {exporting === 'csv' ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <FileSpreadsheet className="w-4 h-4" />
+                    <FileSpreadsheet className="w-5 h-5" />
                   )}
-                  CSV
+                  Export CSV
                 </button>
 
                 <button
                   onClick={() => handleExport('pdf')}
                   disabled={!!exporting}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 text-sm font-medium"
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 font-medium"
                 >
                   {exporting === 'pdf' ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <FileText className="w-4 h-4" />
+                    <FileText className="w-5 h-5" />
                   )}
-                  Report
+                  Export Report
                 </button>
               </div>
 
-              <p className="text-xs text-gray-500 mt-3">
+              <p className="text-sm text-gray-500 mt-4 text-center">
                 CSV includes all data. Report limited to 500 entries.
               </p>
             </div>
