@@ -5,6 +5,17 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+function safeString(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+function safeName(val: unknown): string {
+  const s = safeString(val);
+  return s.trim() || '';
+}
+
 // Create admin client for database operations (bypasses RLS)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -149,7 +160,7 @@ export async function GET(request: NextRequest) {
     const athleteIds = Array.from(new Set(deals?.map(d => d.athlete_id) || []));
     const { data: athletes } = await supabaseAdmin
       .from('athlete_profiles')
-      .select('user_id, username, sport')
+      .select('user_id, username, full_name, sport')
       .in('user_id', athleteIds);
 
     const athleteMap = new Map(athletes?.map(a => [a.user_id, a]) || []);
@@ -158,7 +169,7 @@ export async function GET(request: NextRequest) {
     const decisionByIds = Array.from(new Set(deals?.filter(d => d.compliance_decision_by).map(d => d.compliance_decision_by) || []));
     const { data: deciders } = await supabaseAdmin
       .from('athlete_profiles')
-      .select('user_id, username')
+      .select('user_id, username, full_name')
       .in('user_id', decisionByIds);
 
     const deciderMap = new Map(deciders?.map(d => [d.user_id, d]) || []);
@@ -172,18 +183,18 @@ export async function GET(request: NextRequest) {
       return {
         id: deal.id,
         dealId: deal.id,
-        dealTitle: deal.third_party_name || deal.brand_name || deal.deal_title,
+        dealTitle: safeString(deal.third_party_name) || safeString(deal.brand_name) || safeString(deal.deal_title) || 'Unknown Deal',
         athleteId: deal.athlete_id,
-        athleteName: athlete?.username || 'Unknown',
-        sport: athlete?.sport || 'Unknown',
+        athleteName: safeName(athlete?.full_name) || safeName(athlete?.username) || 'Unknown',
+        sport: safeString(athlete?.sport) || 'Unknown',
         amount: deal.compensation_amount,
-        decision: deal.compliance_decision,
+        decision: safeString(deal.compliance_decision),
         decisionAt: deal.compliance_decision_at,
         decisionBy: deal.compliance_decision_by,
-        decisionByName: decider?.username || 'Unknown',
+        decisionByName: safeName(decider?.full_name) || safeName(decider?.username) || 'Unknown',
         complianceScore: score?.total_score || null,
         complianceStatus: score?.status || null,
-        athleteNotes: deal.athlete_notes,
+        athleteNotes: safeString(deal.athlete_notes),
         athleteViewedAt: deal.athlete_viewed_decision_at,
         hasActiveAppeal: deal.has_active_appeal,
         appealCount: deal.appeal_count,

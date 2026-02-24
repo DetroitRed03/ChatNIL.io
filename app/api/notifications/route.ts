@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createClient as createAuthClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,22 +18,18 @@ function getSupabaseClient() {
   );
 }
 
-async function getAuthenticatedUserId(request: NextRequest): Promise<string | null> {
-  const userIdHeader = request.headers.get('X-User-ID');
-  if (userIdHeader) {
-    return userIdHeader;
-  }
-
+async function getAuthenticatedUserId(): Promise<string | null> {
   try {
-    const authClient = await createAuthClient();
-    const { data: { user }, error } = await authClient.auth.getUser();
-    if (user && !error) {
-      return user.id;
-    }
-  } catch (e) {
-    console.log('Cookie auth failed');
-  }
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('sb-access-token')?.value;
+    if (!accessToken) return null;
 
+    const supabase = getSupabaseClient();
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+    if (user && !error) return user.id;
+  } catch {
+    // Auth failed
+  }
   return null;
 }
 
@@ -42,7 +38,7 @@ async function getAuthenticatedUserId(request: NextRequest): Promise<string | nu
  */
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId(request);
+    const userId = await getAuthenticatedUserId();
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized - please log in' },
@@ -106,7 +102,7 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId(request);
+    const userId = await getAuthenticatedUserId();
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized - please log in' },

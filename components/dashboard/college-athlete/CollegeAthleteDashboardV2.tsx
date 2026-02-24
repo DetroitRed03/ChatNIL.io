@@ -21,6 +21,9 @@ import { ActionCenterSection } from './action-center';
 // Tax Tracker
 import { TaxTrackerSection } from './tax-tracker';
 
+// Reminders
+import { RemindersSection } from './reminders';
+
 // Compliance Submission
 import { SubmissionWorkflow } from './compliance-submission';
 
@@ -142,6 +145,19 @@ interface DashboardData {
     nilAllowed: boolean;
     disclosureDeadlineDays: number;
     prohibitedCategories: string[];
+  };
+  reminders: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    reminderDate: string;
+    reminderType: string;
+    relatedDealId?: string;
+  }>;
+  notificationBadge: {
+    unreadNotifications: number;
+    pendingReminders: number;
+    total: number;
   };
 }
 
@@ -406,7 +422,11 @@ export function CollegeAthleteDashboardV2() {
       }
     }
 
-    if (actionLabel.includes('report') || actionLabel.includes('submit')) {
+    if (actionLabel.includes('review contract') || actionLabel.includes('review deal')) {
+      if (dealId) {
+        router.push(`/deals/${dealId}`);
+      }
+    } else if (actionLabel.includes('report') || actionLabel.includes('submit')) {
       if (dealId && selectedDeal) {
         setShowComplianceSubmit(true);
       }
@@ -421,8 +441,11 @@ export function CollegeAthleteDashboardV2() {
       setShowReminder(true);
     } else if (actionLabel.includes('guideline')) {
       setShowGuidelines(true);
+    } else if (dealId) {
+      // Fallback: any unrecognized action with a dealId navigates to the deal
+      router.push(`/deals/${dealId}`);
     }
-  }, [data, selectedDeal]);
+  }, [data, selectedDeal, router]);
 
   // Handle dismiss todo
   const handleDismissTodo = useCallback(async (todoId: string) => {
@@ -437,6 +460,38 @@ export function CollegeAthleteDashboardV2() {
       }
     } catch (err) {
       console.error('Failed to dismiss todo:', err);
+    }
+  }, [fetchDashboardData]);
+
+  // Handle complete reminder
+  const handleCompleteReminder = useCallback(async (reminderId: string) => {
+    try {
+      const response = await fetch('/api/reminders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reminder_id: reminderId, action: 'complete' }),
+      });
+      if (response.ok) {
+        await fetchDashboardData();
+      }
+    } catch (err) {
+      console.error('Failed to complete reminder:', err);
+    }
+  }, [fetchDashboardData]);
+
+  // Handle dismiss reminder
+  const handleDismissReminder = useCallback(async (reminderId: string) => {
+    try {
+      const response = await fetch('/api/reminders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reminder_id: reminderId, action: 'dismiss' }),
+      });
+      if (response.ok) {
+        await fetchDashboardData();
+      }
+    } catch (err) {
+      console.error('Failed to dismiss reminder:', err);
     }
   }, [fetchDashboardData]);
 
@@ -645,6 +700,20 @@ export function CollegeAthleteDashboardV2() {
               </motion.div>
             )}
 
+            {/* My Reminders */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+            >
+              <RemindersSection
+                reminders={data.reminders || []}
+                onComplete={handleCompleteReminder}
+                onDismiss={handleDismissReminder}
+                onSetReminder={() => setShowReminder(true)}
+              />
+            </motion.div>
+
             {/* Two Column: Tax Tracker + Quick Stats */}
             <div className="grid md:grid-cols-2 gap-4">
               <motion.div
@@ -653,7 +722,13 @@ export function CollegeAthleteDashboardV2() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
               >
-                <TaxTrackerSection taxData={data.tax} />
+                <TaxTrackerSection
+                  taxData={data.tax}
+                  onSetReminder={(data) => {
+                    setReminderData(data);
+                    setShowReminder(true);
+                  }}
+                />
               </motion.div>
 
               <motion.div

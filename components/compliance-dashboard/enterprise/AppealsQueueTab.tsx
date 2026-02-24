@@ -3,24 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { AppealReviewModal } from './AppealReviewModal';
+import { AppealCard } from '@/components/compliance/AppealCard';
+import type { Appeal } from '@/components/compliance/AppealCard';
 
-interface Appeal {
-  id: string;
-  dealId: string;
-  dealTitle: string;
-  amount: number;
-  athleteId: string;
-  athleteName: string;
-  sport: string;
-  originalDecision: string;
-  originalDecisionAt: string;
-  appealReason: string;
-  appealDocuments: string[];
-  additionalContext?: string;
-  submittedAt: string;
-  status: string;
-  daysOpen: number;
-}
+export type { Appeal };
 
 interface AppealsSummary {
   total: number;
@@ -200,75 +186,89 @@ export function AppealsQueueTab({ onRefreshDashboard }: AppealsQueueTabProps) {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {appeals.map((appeal) => (
-            <div
-              key={appeal.id}
-              className="bg-white rounded-lg border border-gray-200 p-4 hover:border-orange-200 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  {/* Header row */}
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-medium text-gray-900">{appeal.athleteName}</h3>
-                    <span className="text-sm text-gray-500">{appeal.sport}</span>
-                    {getUrgencyBadge(appeal.daysOpen)}
-                  </div>
+        <>
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-3">
+            {appeals.map((appeal) => (
+              <AppealCard
+                key={appeal.id}
+                appeal={appeal}
+                onReview={handleReviewAppeal}
+              />
+            ))}
+          </div>
 
-                  {/* Deal info */}
-                  <div className="flex items-center gap-4 mb-3">
-                    <p className="text-sm text-gray-600 truncate max-w-[300px]" title={appeal.dealTitle}>
-                      {appeal.dealTitle}
-                    </p>
-                    <span className="text-sm font-medium text-gray-900">
-                      {formatAmount(appeal.amount)}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">Original:</span>
-                      {getDecisionBadge(appeal.originalDecision)}
+          {/* Desktop List */}
+          <div className="hidden md:block space-y-3">
+            {appeals.map((appeal) => (
+              <div
+                key={appeal.id}
+                className="bg-white rounded-lg border border-gray-200 p-4 hover:border-orange-200 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    {/* Header row */}
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="font-medium text-gray-900">{appeal.athleteName}</h3>
+                      <span className="text-sm text-gray-500">{appeal.sport}</span>
+                      {getUrgencyBadge(appeal.daysOpen)}
+                    </div>
+
+                    {/* Deal info */}
+                    <div className="flex items-center gap-4 mb-3">
+                      <p className="text-sm text-gray-600 truncate max-w-[300px]" title={appeal.dealTitle}>
+                        {appeal.dealTitle}
+                      </p>
+                      <span className="text-sm font-medium text-gray-900">
+                        {formatAmount(appeal.amount)}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Original:</span>
+                        {getDecisionBadge(appeal.originalDecision)}
+                      </div>
+                    </div>
+
+                    {/* Appeal reason preview */}
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-xs text-gray-500 mb-1">Appeal Reason:</p>
+                      <p className="text-sm text-gray-700 line-clamp-2">
+                        {appeal.appealReason}
+                      </p>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+                      <span>Submitted {formatDate(appeal.submittedAt)}</span>
+                      {appeal.appealDocuments.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                          </svg>
+                          {appeal.appealDocuments.length} attachment{appeal.appealDocuments.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded-full ${
+                        appeal.status === 'under_review'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {appeal.status === 'under_review' ? 'Under Review' : 'New'}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Appeal reason preview */}
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">Appeal Reason:</p>
-                    <p className="text-sm text-gray-700 line-clamp-2">
-                      {appeal.appealReason}
-                    </p>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-                    <span>Submitted {formatDate(appeal.submittedAt)}</span>
-                    {appeal.appealDocuments.length > 0 && (
-                      <span className="flex items-center gap-1">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                        </svg>
-                        {appeal.appealDocuments.length} attachment{appeal.appealDocuments.length !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    <span className={`px-2 py-0.5 rounded-full ${
-                      appeal.status === 'under_review'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {appeal.status === 'under_review' ? 'Under Review' : 'New'}
-                    </span>
-                  </div>
+                  {/* Action button */}
+                  <button
+                    onClick={() => handleReviewAppeal(appeal)}
+                    className="px-4 py-2.5 min-h-[44px] bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 transition-colors shrink-0"
+                  >
+                    Review
+                  </button>
                 </div>
-
-                {/* Action button */}
-                <button
-                  onClick={() => handleReviewAppeal(appeal)}
-                  className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 transition-colors shrink-0"
-                >
-                  Review
-                </button>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Review Modal */}

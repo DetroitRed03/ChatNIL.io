@@ -120,6 +120,62 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('sb-access-token')?.value;
+
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { reminder_id, action } = body;
+
+    if (!reminder_id || !['complete', 'dismiss'].includes(action)) {
+      return NextResponse.json(
+        { error: 'reminder_id and action (complete|dismiss) are required' },
+        { status: 400 }
+      );
+    }
+
+    const updateData: Record<string, string> = {
+      status: action === 'complete' ? 'completed' : 'dismissed',
+    };
+    if (action === 'complete') {
+      updateData.completed_at = new Date().toISOString();
+    } else {
+      updateData.dismissed_at = new Date().toISOString();
+    }
+
+    const { error: updateError } = await supabase
+      .from('user_reminders')
+      .update(updateData)
+      .eq('id', reminder_id)
+      .eq('user_id', user.id);
+
+    if (updateError) {
+      console.error('Update reminder failed:', updateError);
+      return NextResponse.json({ error: 'Failed to update reminder' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Update reminder error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Get auth token from cookies

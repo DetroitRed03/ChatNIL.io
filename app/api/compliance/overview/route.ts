@@ -5,6 +5,17 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+function safeString(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+function safeName(val: unknown): string {
+  const s = safeString(val);
+  return s.trim() || '';
+}
+
 // Create admin client for database operations (bypasses RLS)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -133,7 +144,7 @@ export async function GET(request: NextRequest) {
           if (score.status === 'red' || (score.status === 'yellow' && worstStatus === 'green')) {
             worstStatus = score.status;
             worstScore = score.total_score;
-            topIssue = score.reason_codes?.[0] || 'Compliance issue detected';
+            topIssue = safeString(score.reason_codes?.[0]) || 'Compliance issue detected';
             worstDealId = deal.id;
           }
         }
@@ -146,8 +157,8 @@ export async function GET(request: NextRequest) {
           deadlines.push({
             id: deal.id,
             athleteId: athlete.id,
-            athleteName: athlete.username || athlete.full_name || 'Unknown',
-            thirdPartyName: deal.third_party_name,
+            athleteName: safeName(athlete.full_name) || safeName(athlete.username) || 'Unknown',
+            thirdPartyName: safeString(deal.third_party_name) || 'Unknown',
             dueInDays,
             compensation: deal.compensation_amount || 0
           });
@@ -163,7 +174,7 @@ export async function GET(request: NextRequest) {
         sportStats[sport].yellow++;
         alerts.push({
           id: athlete.id,
-          name: athlete.username || athlete.full_name || 'Unknown',
+          name: safeName(athlete.full_name) || safeName(athlete.username) || 'Unknown',
           sport,
           status: 'yellow',
           topIssue,
@@ -175,7 +186,7 @@ export async function GET(request: NextRequest) {
         sportStats[sport].red++;
         alerts.push({
           id: athlete.id,
-          name: athlete.username || athlete.full_name || 'Unknown',
+          name: safeName(athlete.full_name) || safeName(athlete.username) || 'Unknown',
           sport,
           status: 'red',
           topIssue,

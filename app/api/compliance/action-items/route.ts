@@ -5,6 +5,17 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+function safeString(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+function safeName(val: unknown): string {
+  const s = safeString(val);
+  return s.trim() || '';
+}
+
 // Create admin client for database operations (bypasses RLS)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -195,17 +206,17 @@ export async function GET(request: NextRequest) {
         return {
           id: deal.id,
           athleteId: athlete?.id || '',
-          athleteName: athlete?.username || 'Unknown',
+          athleteName: safeName(athlete?.full_name) || safeName(athlete?.username) || 'Unknown',
           dealId: deal.id,
-          dealTitle: deal.deal_title || deal.third_party_name || 'Untitled Deal',
+          dealTitle: safeString(deal.deal_title) || safeString(deal.third_party_name) || 'Untitled Deal',
           severity,
-          issue: score?.reason_codes?.[0] || (score?.status === 'red' ? 'Critical compliance issue' : 'Needs review'),
+          issue: safeString(score?.reason_codes?.[0]) || (score?.status === 'red' ? 'Critical compliance issue' : 'Needs review'),
           amount: parseFloat(deal.compensation_amount) || 0,
           action: severity === 'critical' ? 'REVIEW NOW' : 'Review required',
-          sport: athlete?.sport || 'Unknown',
+          sport: safeString(athlete?.sport) || 'Unknown',
           dueDate: deal.created_at,
           assignedTo: assignment?.assigned_to || null,
-          assignedToName: assignment?.assigned_to ? teamNamesMap.get(assignment.assigned_to) : null
+          assignedToName: assignment?.assigned_to ? safeString(teamNamesMap.get(assignment.assigned_to)) : null
         };
       });
 

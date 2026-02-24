@@ -24,6 +24,7 @@ export * from './protected-deals';
 export * from './action-center';
 export * from './tax-tracker';
 export * from './compliance-submission';
+export * from './reminders';
 
 // Legacy V1 Components (keep for backwards compatibility)
 export { CollegeAthleteDashboard } from './CollegeAthleteDashboard';

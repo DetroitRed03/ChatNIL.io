@@ -3,6 +3,13 @@
 import { motion } from 'framer-motion';
 import { Clock, AlertTriangle, Calendar, DollarSign } from 'lucide-react';
 
+function safe(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+
 interface Deadline {
   id: string;
   athleteId: string;
@@ -106,10 +113,10 @@ export function DeadlineTracker({ urgent, upcoming, deals, onViewDeal }: Deadlin
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-gray-900 truncate">{deal.athleteName}</span>
+                  <span className="font-medium text-gray-900 truncate">{safe(deal.athleteName)}</span>
                   {getDueBadge(deal.dueInDays)}
                 </div>
-                <p className="text-sm text-gray-500 truncate">{deal.thirdPartyName}</p>
+                <p className="text-sm text-gray-500 truncate">{safe(deal.thirdPartyName)}</p>
               </div>
               <div className="text-right flex-shrink-0">
                 <div className="flex items-center gap-1 text-gray-700">

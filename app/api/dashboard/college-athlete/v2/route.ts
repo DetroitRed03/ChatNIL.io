@@ -566,6 +566,56 @@ export async function GET(request: NextRequest) {
     const urgencyOrder = { urgent: 0, soon: 1, later: 2 };
     todos.sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency]);
 
+    // Get user's pending reminders
+    let reminders: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      reminderDate: string;
+      reminderType: string;
+      relatedDealId?: string;
+    }> = [];
+
+    try {
+      const { data: dbReminders } = await supabaseAdmin
+        .from('user_reminders')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .order('reminder_date', { ascending: true });
+
+      if (dbReminders) {
+        reminders = dbReminders.map((r: Record<string, unknown>) => ({
+          id: r.id as string,
+          title: r.title as string,
+          description: r.description as string | undefined,
+          reminderDate: r.reminder_date as string,
+          reminderType: r.reminder_type as string,
+          relatedDealId: r.related_deal_id as string | undefined,
+        }));
+      }
+    } catch {
+      // Table may not exist yet
+    }
+
+    // Get unread notification count
+    let unreadNotificationCount = 0;
+    try {
+      const { count } = await supabaseAdmin
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false);
+      unreadNotificationCount = count || 0;
+    } catch {
+      // Table may not exist
+    }
+
+    const now = new Date();
+    const dueRemindersCount = reminders.filter(r =>
+      new Date(r.reminderDate) <= now
+    ).length;
+
     // Build response
     const dashboardData = {
       // User info
@@ -618,6 +668,16 @@ export async function GET(request: NextRequest) {
         nilAllowed: stateRules.nilAllowed,
         disclosureDeadlineDays: stateRules.disclosureDeadlineDays,
         prohibitedCategories: stateRules.prohibitedCategories,
+      },
+
+      // Reminders
+      reminders,
+
+      // Notification badge counts
+      notificationBadge: {
+        unreadNotifications: unreadNotificationCount,
+        pendingReminders: dueRemindersCount,
+        total: unreadNotificationCount + dueRemindersCount,
       },
     };
 

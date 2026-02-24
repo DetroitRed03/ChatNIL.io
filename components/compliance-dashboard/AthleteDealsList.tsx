@@ -3,6 +3,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, AlertCircle, CheckCircle, ChevronDown, ChevronUp, DollarSign, Calendar, Shield, Sparkles, Info } from 'lucide-react';
+
+function safe(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
 import { ScoreBadge } from '@/components/compliance/ScoreBadge';
 
 interface AIAnalysisResult {
@@ -176,7 +183,7 @@ export function AthleteDealsList({ deals, onViewDeal, onReviewDeal }: AthleteDea
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-gray-900">{deal.thirdPartyName}</span>
+                  <span className="font-medium text-gray-900">{safe(deal.thirdPartyName)}</span>
                   {getStatusBadge(deal.status)}
                   {getDealStatusBadge(deal.dealStatus)}
                   {deal.hasOverride && (
@@ -192,7 +199,7 @@ export function AthleteDealsList({ deals, onViewDeal, onReviewDeal }: AthleteDea
                   )}
                 </div>
                 {deal.topIssue && (deal.status === 'red' || deal.status === 'yellow') && (
-                  <p className="text-sm text-gray-500 mt-1 truncate">{deal.topIssue}</p>
+                  <p className="text-sm text-gray-500 mt-1 truncate">{safe(deal.topIssue)}</p>
                 )}
               </div>
 
@@ -205,7 +212,7 @@ export function AthleteDealsList({ deals, onViewDeal, onReviewDeal }: AthleteDea
                   <ScoreBadge
                     totalScore={deal.score}
                     status={deal.status as 'green' | 'yellow' | 'red'}
-                    issues={deal.topIssue ? [deal.topIssue] : []}
+                    issues={deal.topIssue ? [safe(deal.topIssue)] : []}
                   />
                 )}
               </div>
@@ -247,7 +254,7 @@ export function AthleteDealsList({ deals, onViewDeal, onReviewDeal }: AthleteDea
                       {deal.topIssue && (
                         <div className="mt-4 pt-4 border-t border-gray-200">
                           <p className="text-xs text-gray-500 mb-1">Top Issue</p>
-                          <p className="text-sm text-gray-700">{deal.topIssue}</p>
+                          <p className="text-sm text-gray-700">{safe(deal.topIssue)}</p>
                         </div>
                       )}
 

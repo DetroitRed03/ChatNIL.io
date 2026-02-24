@@ -5,6 +5,17 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+function safeString(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+function safeName(val: unknown): string {
+  const s = safeString(val);
+  return s.trim() || '';
+}
+
 // Create admin client for database operations (bypasses RLS)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -156,7 +167,7 @@ export async function POST(request: NextRequest) {
           details: {
             message: `Score overridden from ${currentScore.status.toUpperCase()} to ${newStatus.toUpperCase()}`,
             actor: 'officer',
-            actorName: officer.username || officer.full_name || 'Compliance Officer',
+            actorName: safeName(officer.full_name) || safeName(officer.username) || 'Compliance Officer',
             originalStatus: currentScore.status,
             newStatus,
             reason

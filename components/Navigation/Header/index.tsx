@@ -4,14 +4,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import HeaderLogo from './HeaderLogo';
 import HeaderAuthButtons from './HeaderAuthButtons';
 import HeaderUserMenu from './HeaderUserMenu';
-import HeaderMobileMenu from './HeaderMobileMenu';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 /**
  * Header Component
  *
  * Top navigation bar that's always visible.
  * Displays logo, auth buttons (when logged out), or user menu (when logged in).
- * Includes mobile menu for smaller screens.
+ * Uses avatar dropdown for all authenticated navigation (no hamburger menu).
  *
  * This is a refactored version using compound component pattern.
  */
@@ -24,13 +24,13 @@ export default function HeaderNew() {
       <div className="max-w-7xl mx-auto flex items-center justify-end">
         {/* Right Side - Auth Buttons or User Menu */}
         <div className="flex items-center space-x-2 sm:space-x-3">
-          {/* Mobile Menu Button (only show when logged in) */}
-          <HeaderMobileMenu />
-
           {!user ? (
             <HeaderAuthButtons />
           ) : (
-            <HeaderUserMenu />
+            <>
+              <NotificationBell />
+              <HeaderUserMenu />
+            </>
           )}
         </div>
       </div>

@@ -3,6 +3,13 @@
 import { motion } from 'framer-motion';
 import { AlertTriangle, AlertCircle, ChevronRight } from 'lucide-react';
 
+function safe(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+
 interface AlertAthlete {
   id: string;
   name: string;
@@ -106,13 +113,13 @@ export function NeedsAttentionList({
               {getStatusIcon(athlete.status)}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-900">{athlete.name}</span>
+                  <span className="font-medium text-gray-900">{safe(athlete.name)}</span>
                   {getStatusBadge(athlete.status)}
                 </div>
-                <p className="text-sm text-gray-500 truncate">{athlete.topIssue}</p>
+                <p className="text-sm text-gray-500 truncate">{safe(athlete.topIssue)}</p>
               </div>
               <div className="text-right flex-shrink-0">
-                <p className="text-sm font-medium text-gray-900">{athlete.sport}</p>
+                <p className="text-sm font-medium text-gray-900">{safe(athlete.sport)}</p>
                 <p className="text-xs text-gray-500">Score: {athlete.score}</p>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />

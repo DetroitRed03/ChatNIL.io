@@ -5,6 +5,17 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+function safeString(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+function safeName(val: unknown): string {
+  const s = safeString(val);
+  return s.trim() || '';
+}
+
 // Create admin client for database operations (bypasses RLS)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -161,12 +172,12 @@ export async function GET(
 
       return {
         id: deal.id,
-        thirdPartyName: deal.third_party_name,
+        thirdPartyName: safeString(deal.third_party_name) || 'Unknown',
         compensation: deal.compensation_amount || 0,
         score: score?.total_score || null,
         status: score?.status || 'pending',
         dealStatus: deal.status || 'active',
-        topIssue: score?.reason_codes?.[0] || null,
+        topIssue: safeString(score?.reason_codes?.[0]) || null,
         submittedAt: deal.created_at,
         hasOverride: overrides.some(o => o.deal_id === deal.id),
         // AI Analysis fields
@@ -184,8 +195,8 @@ export async function GET(
     return NextResponse.json({
       athlete: {
         id: athlete.id,
-        name: athlete.username || athlete.full_name || 'Unknown',
-        sport: athlete.sport || 'Unknown',
+        name: safeName(athlete.full_name) || safeName(athlete.username) || 'Unknown',
+        sport: safeString(athlete.sport) || 'Unknown',
         year: athlete.year || 'Unknown',
         institution: officer.school_name || officer.school || 'Unknown Institution',
         athleteId: `ATH-${athlete.id.substring(0, 8).toUpperCase()}`,

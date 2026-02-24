@@ -81,3 +81,9 @@ export { MobileTabs } from './MobileTabs';
 
 export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
+
+// Mobile-first components
+export { SlideOutPanel } from './SlideOutPanel';
+
+export { TouchButton } from './TouchButton';
+export type { TouchButtonProps } from './TouchButton';

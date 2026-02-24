@@ -4,6 +4,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
+// Safety: ensure value is a renderable string (prevents "Objects are not valid as React child" errors)
+function safe(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+
 // Existing components
 import { ProgramHealthCard } from '../ProgramHealthCard';
 import { ThisWeekCard } from '../ThisWeekCard';
@@ -27,6 +35,10 @@ import { AppealsQueueTab } from './AppealsQueueTab';
 
 // Audit Log Export
 import { AuditLogExport } from '@/components/compliance/AuditLogExport';
+
+// Mobile components
+import { ActionItemCard } from '@/components/compliance/ActionItemCard';
+import type { ActionItem as ActionItemCardType } from '@/components/compliance/ActionItemCard';
 
 // Types
 interface DashboardData {
@@ -118,6 +130,12 @@ export function ComplianceDashboardEnterprise() {
   type DashboardTab = 'action_required' | 'decision_history' | 'appeals_queue';
   const [activeTab, setActiveTab] = useState<DashboardTab>('action_required');
   const [appealsCount, setAppealsCount] = useState(0);
+
+  // Scroll to top when switching tabs
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (main) main.scrollTo({ top: 0 });
+  }, [activeTab]);
 
   // Get access token helper
   const getAccessToken = async () => {
@@ -438,6 +456,20 @@ export function ComplianceDashboardEnterprise() {
 
   if (!dashboardData) return null;
 
+  // Map dashboard action items to mobile card format
+  const mapToCardItem = (item: ActionItem): ActionItemCardType => ({
+    id: item.id,
+    athleteName: safe(item.athleteName),
+    athleteId: item.athleteId,
+    companyName: safe(item.dealTitle),
+    amount: item.amount,
+    riskScore: item.severity === 'critical' ? 75 : 45,
+    status: item.severity === 'critical' ? 'critical' : 'urgent',
+    submittedAt: item.dueDate || new Date().toISOString(),
+    sport: safe(item.sport),
+    dealType: safe(item.action),
+  });
+
   // Empty state
   if (dashboardData.isEmpty && !skipOnboarding) {
     return (
@@ -453,37 +485,41 @@ export function ComplianceDashboardEnterprise() {
   return (
     <div className="min-h-screen bg-gray-50" data-testid="compliance-dashboard-enterprise">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{dashboardData.institution.name}</h1>
-            <p className="text-sm text-gray-500">Compliance Dashboard</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Search Button */}
-            <button
-              onClick={() => setShowSearchCommand(true)}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              Search
-              <kbd className="hidden sm:inline-block px-1.5 py-0.5 bg-white border border-gray-200 rounded text-xs">⌘K</kbd>
-            </button>
-            <AuditLogExport />
-            <button
-              onClick={() => router.push('/compliance/athletes')}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
-            >
-              View All Athletes
-            </button>
-            <button
-              onClick={() => router.push('/compliance/import')}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
-            >
-              Import Athletes
-            </button>
+      <header className="bg-white border-b border-gray-200 px-4 md:px-6 py-4">
+        <div className="max-w-[1600px] mx-auto">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-lg md:text-2xl font-bold text-gray-900 truncate">{dashboardData.institution.name}</h1>
+              <p className="text-xs md:text-sm text-gray-500">Compliance Dashboard</p>
+            </div>
+            <div className="flex items-center gap-2 md:gap-3">
+              {/* Search Button */}
+              <button
+                onClick={() => setShowSearchCommand(true)}
+                className="flex items-center gap-2 p-2.5 md:px-3 md:py-2 min-h-[44px] text-sm text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <svg className="w-5 h-5 md:w-4 md:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span className="hidden md:inline">Search</span>
+                <kbd className="hidden lg:inline-block px-1.5 py-0.5 bg-white border border-gray-200 rounded text-xs">⌘K</kbd>
+              </button>
+              <div className="hidden sm:block">
+                <AuditLogExport />
+              </div>
+              <button
+                onClick={() => router.push('/compliance/athletes')}
+                className="hidden md:block px-4 py-2 min-h-[44px] text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+              >
+                View All Athletes
+              </button>
+              <button
+                onClick={() => router.push('/compliance/import')}
+                className="hidden md:block px-4 py-2 min-h-[44px] bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+              >
+                Import Athletes
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -615,26 +651,70 @@ export function ComplianceDashboardEnterprise() {
                   onClearFilters={handleClearFilters}
                 />
 
-                {/* Action Items Table */}
-                <ActionRequiredTable
-                  items={actionItems}
-                  selectedIds={selectedIds}
-                  onSelectionChange={setSelectedIds}
-                  onItemClick={(item) => router.push(`/compliance/deals/${item.dealId}/review`)}
-                  onAssign={(itemId) => {
-                    setAssignmentItemId(itemId);
-                    setSelectedIds(new Set([itemId]));
-                    setShowAssignmentModal(true);
-                  }}
-                  page={page}
-                  pageSize={pageSize}
-                  totalItems={totalItems}
-                  onPageChange={setPage}
-                  onPageSizeChange={(size) => {
-                    setPageSize(size);
-                    setPage(1);
-                  }}
-                />
+                {/* Mobile: Action Item Cards with slide-out panels */}
+                <div className="md:hidden space-y-3">
+                  {actionItems.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p className="text-sm">No action items match your filters</p>
+                    </div>
+                  ) : (
+                    actionItems.map((item) => (
+                      <ActionItemCard
+                        key={item.id}
+                        item={mapToCardItem(item)}
+                        onApprove={(id) => handleBulkAction('approve', { itemIds: [id] })}
+                        onReject={(id) => handleBulkAction('reject', { itemIds: [id] })}
+                        onRequestInfo={() => router.push(`/compliance/deals/${item.dealId}/review`)}
+                      />
+                    ))
+                  )}
+                  {totalItems > pageSize && (
+                    <div className="flex items-center justify-between pt-2">
+                      <p className="text-sm text-gray-500">
+                        {((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, totalItems)} of {totalItems}
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setPage(Math.max(1, page - 1))}
+                          disabled={page === 1}
+                          className="px-3 py-2 min-h-[44px] text-sm bg-gray-100 rounded-lg disabled:opacity-50"
+                        >
+                          Prev
+                        </button>
+                        <button
+                          onClick={() => setPage(page + 1)}
+                          disabled={page * pageSize >= totalItems}
+                          className="px-3 py-2 min-h-[44px] text-sm bg-gray-100 rounded-lg disabled:opacity-50"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop: Action Items Table */}
+                <div className="hidden md:block">
+                  <ActionRequiredTable
+                    items={actionItems}
+                    selectedIds={selectedIds}
+                    onSelectionChange={setSelectedIds}
+                    onItemClick={(item) => router.push(`/compliance/deals/${item.dealId}/review`)}
+                    onAssign={(itemId) => {
+                      setAssignmentItemId(itemId);
+                      setSelectedIds(new Set([itemId]));
+                      setShowAssignmentModal(true);
+                    }}
+                    page={page}
+                    pageSize={pageSize}
+                    totalItems={totalItems}
+                    onPageChange={setPage}
+                    onPageSizeChange={(size) => {
+                      setPageSize(size);
+                      setPage(1);
+                    }}
+                  />
+                </div>
               </>
             )}
 

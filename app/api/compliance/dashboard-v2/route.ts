@@ -5,6 +5,17 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+function safeString(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+function safeName(val: unknown): string {
+  const s = safeString(val);
+  return s.trim() || '';
+}
+
 // Create admin client for database operations (bypasses RLS)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -139,7 +150,7 @@ export async function GET(request: NextRequest) {
     // Combine athletes with their deals
     const athletes = (athleteProfiles || []).map(athlete => ({
       ...athlete,
-      full_name: athlete.username, // Use username as display name
+      full_name: safeName(athlete.full_name) || safeName(athlete.username) || 'Unknown', // Prefer display name over username
       nil_deals: dealsByAthleteId.get(athlete.user_id) || []
     }));
 
@@ -251,10 +262,10 @@ export async function GET(request: NextRequest) {
           recentActivity.push({
             id: deal.id,
             type: 'deal_submitted',
-            description: `${athlete.full_name || athlete.username} submitted deal with ${deal.third_party_name || deal.deal_title}`,
+            description: `${athlete.full_name || athlete.username} submitted deal with ${safeString(deal.third_party_name) || safeString(deal.deal_title) || 'a deal'}`,
             timestamp: deal.created_at,
             athleteName: athlete.full_name || athlete.username,
-            dealName: deal.third_party_name || deal.deal_title
+            dealName: safeString(deal.third_party_name) || safeString(deal.deal_title) || 'Unknown Deal'
           });
         } else if (dealDate >= twoWeeksAgo) {
           lastWeekDeals.push({ ...deal, score });
@@ -274,10 +285,12 @@ export async function GET(request: NextRequest) {
             athleteId: athlete.id,
             athleteName: athlete.full_name || athlete.username,
             dealId: deal.id,
+            dealTitle: safeString(deal.deal_title) || safeString(deal.third_party_name) || 'Untitled Deal',
             severity: 'warning',
-            issue: score?.reason_codes?.[0] || 'Needs review',
+            issue: safeString(score?.reason_codes?.[0]) || 'Needs review',
             amount: parseFloat(deal.compensation_amount) || 0,
             action: 'Review required',
+            sport: safeString(athlete.sport) || 'Unknown',
             dueDate: deal.created_at
           });
         } else if (status === 'red') {
@@ -290,10 +303,12 @@ export async function GET(request: NextRequest) {
             athleteId: athlete.id,
             athleteName: athlete.full_name || athlete.username,
             dealId: deal.id,
+            dealTitle: safeString(deal.deal_title) || safeString(deal.third_party_name) || 'Untitled Deal',
             severity: 'critical',
-            issue: score?.reason_codes?.[0] || 'Critical compliance issue',
+            issue: safeString(score?.reason_codes?.[0]) || 'Critical compliance issue',
             amount: parseFloat(deal.compensation_amount) || 0,
             action: 'REVIEW NOW',
+            sport: safeString(athlete.sport) || 'Unknown',
             dueDate: deal.created_at
           });
         }
@@ -367,7 +382,7 @@ export async function GET(request: NextRequest) {
           id: deal.id,
           athleteId: athlete.id,
           athleteName: athlete.full_name || athlete.username,
-          dealName: deal.third_party_name || deal.deal_title,
+          dealName: safeString(deal.third_party_name) || safeString(deal.deal_title) || 'Unknown Deal',
           amount: parseFloat(deal.compensation_amount) || 0,
           deadline: deadline.toISOString()
         };

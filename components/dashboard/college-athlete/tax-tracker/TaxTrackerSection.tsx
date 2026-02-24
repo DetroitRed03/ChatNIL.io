@@ -24,11 +24,13 @@ interface TaxTrackerSectionProps {
     nextDueDate: string;
     nextDueAmount: number;
   };
+  onSetReminder?: (data: { type: string; title: string; date: string }) => void;
   className?: string;
 }
 
 export function TaxTrackerSection({
   taxData,
+  onSetReminder,
   className = ''
 }: TaxTrackerSectionProps) {
   const [showBreakdown, setShowBreakdown] = useState(false);
@@ -113,7 +115,14 @@ export function TaxTrackerSection({
                 <DateCountdown date={nextQuarter.dueDate} urgentThresholdDays={7} />
               </div>
             </div>
-            <button className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium text-sm hover:bg-orange-600 transition-colors">
+            <button
+              onClick={() => onSetReminder?.({
+                type: 'tax_payment',
+                title: `${nextQuarter.quarterName} tax payment`,
+                date: nextQuarter.dueDate,
+              })}
+              className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium text-sm hover:bg-orange-600 transition-colors"
+            >
               Set Reminder
             </button>
           </div>

@@ -264,7 +264,7 @@ export default function ComplianceTeamPage() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/compliance')}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -413,13 +413,13 @@ export default function ComplianceTeamPage() {
                               removeMember(member.id);
                             }}
                             disabled={removingId === member.id}
-                            className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                            className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 disabled:opacity-50"
                             title="Remove member"
                           >
                             {removingId === member.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <Loader2 className="w-5 h-5 animate-spin" />
                             ) : (
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-5 h-5" />
                             )}
                           </button>
                         )}
@@ -495,15 +495,15 @@ export default function ComplianceTeamPage() {
                     </span>
                     <button
                       onClick={() => copyInviteLink(invite.invite_token)}
-                      className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                      className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                       title="Copy invite link"
                     >
-                      <Copy className="w-4 h-4" />
+                      <Copy className="w-5 h-5" />
                     </button>
                     <button
                       onClick={() => cancelInvite(invite.id)}
                       disabled={cancellingId === invite.id}
-                      className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                      className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 disabled:opacity-50"
                       title="Cancel invite"
                     >
                       {cancellingId === invite.id ? (
@@ -528,7 +528,7 @@ export default function ComplianceTeamPage() {
               <h2 className="text-lg font-bold">Invite Team Member</h2>
               <button
                 onClick={() => setShowInviteModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
+                className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>

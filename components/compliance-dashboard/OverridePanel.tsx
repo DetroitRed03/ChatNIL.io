@@ -4,6 +4,13 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Shield, ChevronDown, Loader2 } from 'lucide-react';
 
+function safe(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+
 interface AthleteDeal {
   id: string;
   thirdPartyName: string;
@@ -128,7 +135,7 @@ export function OverridePanel({ deals, onOverride, isSubmitting }: OverridePanel
               <option value="">Choose a deal...</option>
               {overridableDeals.map(deal => (
                 <option key={deal.id} value={deal.id}>
-                  {deal.thirdPartyName} ({deal.status.toUpperCase()}) - Score: {deal.score || 'N/A'}
+                  {safe(deal.thirdPartyName)} ({deal.status.toUpperCase()}) - Score: {deal.score || 'N/A'}
                 </option>
               ))}
             </select>
@@ -140,7 +147,7 @@ export function OverridePanel({ deals, onOverride, isSubmitting }: OverridePanel
         {selectedDeal && (
           <div className="p-3 bg-gray-50 rounded-lg">
             <div className="flex items-center justify-between mb-2">
-              <span className="font-medium text-gray-900">{selectedDeal.thirdPartyName}</span>
+              <span className="font-medium text-gray-900">{safe(selectedDeal.thirdPartyName)}</span>
               <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                 selectedDeal.status === 'red'
                   ? 'bg-red-100 text-red-700'
@@ -151,7 +158,7 @@ export function OverridePanel({ deals, onOverride, isSubmitting }: OverridePanel
             </div>
             <p className="text-sm text-gray-600">Current Score: {selectedDeal.score || 'N/A'}</p>
             {selectedDeal.topIssue && (
-              <p className="text-sm text-gray-500 mt-1">{selectedDeal.topIssue}</p>
+              <p className="text-sm text-gray-500 mt-1">{safe(selectedDeal.topIssue)}</p>
             )}
           </div>
         )}

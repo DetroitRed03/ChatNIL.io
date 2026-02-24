@@ -5,6 +5,17 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+function safeString(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+function safeName(val: unknown): string {
+  const s = safeString(val);
+  return s.trim() || '';
+}
+
 // Create admin client for database operations (bypasses RLS)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -102,7 +113,7 @@ export async function GET(request: NextRequest) {
         }
 
         rows.push({
-          athlete_name: athlete.username || athlete.full_name || 'Unknown',
+          athlete_name: safeName(athlete.full_name) || safeName(athlete.username) || 'Unknown',
           athlete_email: athlete.email || '',
           sport: athlete.sport || 'Unknown',
           third_party: deal.third_party_name || '',

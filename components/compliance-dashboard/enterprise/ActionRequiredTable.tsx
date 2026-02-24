@@ -2,6 +2,13 @@
 
 import { useState, useCallback, useMemo } from 'react';
 
+function safe(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+
 interface ActionItem {
   id: string;
   athleteId: string;
@@ -171,15 +178,15 @@ export function ActionRequiredTable({
                     onClick={() => onItemClick(item)}
                     className="text-left hover:text-orange-600 transition-colors"
                   >
-                    <div className="font-medium text-gray-900">{item.athleteName}</div>
-                    <div className="text-xs text-gray-500">{item.sport}</div>
+                    <div className="font-medium text-gray-900">{safe(item.athleteName)}</div>
+                    <div className="text-xs text-gray-500">{safe(item.sport)}</div>
                   </button>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="text-sm text-gray-900">{item.dealTitle}</span>
+                  <span className="text-sm text-gray-900">{safe(item.dealTitle)}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="text-sm text-gray-600 line-clamp-2">{item.issue}</span>
+                  <span className="text-sm text-gray-600 line-clamp-2">{safe(item.issue)}</span>
                 </td>
                 <td className="px-4 py-3">
                   <span className="text-sm font-medium text-gray-900">{formatCurrency(item.amount)}</span>
@@ -207,10 +214,10 @@ export function ActionRequiredTable({
                 <td className="px-4 py-3">
                   <button
                     onClick={() => onItemClick(item)}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100 transition-colors"
+                    className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
                     title="View details"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>

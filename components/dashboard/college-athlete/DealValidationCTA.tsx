@@ -14,7 +14,7 @@ export function DealValidationCTA({ onClick, disabled }: DealValidationCTAProps)
       data-testid="validate-deal-cta"
       onClick={onClick}
       disabled={disabled}
-      className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700
+      className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700
                  text-white font-semibold py-4 px-6 rounded-xl shadow-lg
                  flex items-center justify-center gap-3
                  disabled:opacity-50 disabled:cursor-not-allowed

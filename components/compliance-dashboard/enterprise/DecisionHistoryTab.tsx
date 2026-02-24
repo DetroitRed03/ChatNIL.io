@@ -2,24 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { DecisionHistoryCard } from '@/components/compliance/DecisionHistoryCard';
+import type { DecisionRecord } from '@/components/compliance/DecisionHistoryCard';
 
-interface DecisionRecord {
-  id: string;
-  dealId: string;
-  dealTitle: string;
-  athleteId: string;
-  athleteName: string;
-  sport: string;
-  amount: number;
-  decision: string;
-  decisionAt: string;
-  decisionBy: string;
-  athleteNotes: string | null;
-  athleteNotifiedAt: string | null;
-  athleteViewedAt: string | null;
-  hasActiveAppeal: boolean;
-  appealCount: number;
-}
+export type { DecisionRecord };
 
 interface DecisionHistoryTabProps {
   onViewDeal: (dealId: string) => void;
@@ -155,16 +141,16 @@ export function DecisionHistoryTab({ onViewDeal }: DecisionHistoryTabProps) {
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Decision:</label>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <label className="text-sm text-gray-600 shrink-0">Decision:</label>
           <select
             value={decisionFilter}
             onChange={(e) => {
               setDecisionFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="px-3 py-2.5 min-h-[44px] text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 w-full sm:w-auto"
           >
             <option value="all">All Decisions</option>
             <option value="approved">Approved</option>
@@ -174,15 +160,15 @@ export function DecisionHistoryTab({ onViewDeal }: DecisionHistoryTabProps) {
           </select>
         </div>
 
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Athlete Status:</label>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <label className="text-sm text-gray-600 shrink-0">Status:</label>
           <select
             value={athleteStatusFilter}
             onChange={(e) => {
               setAthleteStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="px-3 py-2.5 min-h-[44px] text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 w-full sm:w-auto"
           >
             <option value="all">All</option>
             <option value="viewed">Viewed</option>
@@ -191,13 +177,30 @@ export function DecisionHistoryTab({ onViewDeal }: DecisionHistoryTabProps) {
           </select>
         </div>
 
-        <span className="text-sm text-gray-500 ml-auto">
+        <span className="text-sm text-gray-500 sm:ml-auto">
           {totalDecisions} decision{totalDecisions !== 1 ? 's' : ''} total
         </span>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* Mobile Cards */}
+      <div className="md:hidden space-y-3">
+        {decisions.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 text-sm">
+            No decisions found matching your filters.
+          </div>
+        ) : (
+          decisions.map((record) => (
+            <DecisionHistoryCard
+              key={record.id}
+              record={record}
+              onViewDeal={onViewDeal}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden md:block bg-white rounded-lg border border-gray-200 overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -287,14 +290,14 @@ export function DecisionHistoryTab({ onViewDeal }: DecisionHistoryTabProps) {
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2.5 min-h-[44px] text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Previous
             </button>
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2.5 min-h-[44px] text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next
             </button>

@@ -6,6 +6,17 @@ import { createAppealResolutionNotification } from '@/lib/compliance/notificatio
 
 export const dynamic = 'force-dynamic';
 
+function safeString(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object' && val !== null && 'name' in val) return String((val as Record<string, unknown>).name);
+  return String(val);
+}
+function safeName(val: unknown): string {
+  const s = safeString(val);
+  return s.trim() || '';
+}
+
 // Create admin client for database operations (bypasses RLS)
 // CRITICAL: Must disable Next.js fetch caching to prevent stale reads
 const supabaseAdmin = createClient(
@@ -99,7 +110,7 @@ export async function GET(request: NextRequest) {
         .in('id', dealIds),
       supabaseAdmin
         .from('athlete_profiles')
-        .select('user_id, username, sport')
+        .select('user_id, username, full_name, sport')
         .in('user_id', athleteIds),
     ]);
 
@@ -117,16 +128,16 @@ export async function GET(request: NextRequest) {
       return {
         id: appeal.id,
         dealId: appeal.deal_id,
-        dealTitle: deal?.third_party_name || deal?.brand_name || deal?.deal_title || 'Unknown Deal',
+        dealTitle: safeString(deal?.third_party_name) || safeString(deal?.brand_name) || safeString(deal?.deal_title) || 'Unknown Deal',
         amount: deal?.compensation_amount || 0,
         athleteId: appeal.athlete_id,
-        athleteName: athlete?.username || 'Unknown',
-        sport: athlete?.sport || 'Unknown',
-        originalDecision: appeal.original_decision,
+        athleteName: safeName(athlete?.full_name) || safeName(athlete?.username) || 'Unknown',
+        sport: safeString(athlete?.sport) || 'Unknown',
+        originalDecision: safeString(appeal.original_decision),
         originalDecisionAt: appeal.original_decision_at,
-        appealReason: appeal.appeal_reason,
-        appealDocuments: appeal.appeal_documents || [],
-        additionalContext: appeal.additional_context,
+        appealReason: safeString(appeal.appeal_reason),
+        appealDocuments: (appeal.appeal_documents || []).map((d: unknown) => safeString(d)),
+        additionalContext: safeString(appeal.additional_context),
         submittedAt: appeal.submitted_at,
         status: appeal.status,
         daysOpen,

@@ -7,14 +7,13 @@ import Sidebar from '@/components/Navigation/Sidebar';
 import { ComplianceOfficerSidebar } from '@/components/Navigation/Sidebar/ComplianceOfficerSidebar';
 import SearchModal from '@/components/SearchModal';
 import { AICoachButton } from '@/components/AICoachButton';
-import { MobileBottomNav } from '@/components/Navigation/MobileBottomNav';
 import KeyboardShortcutsModal from '@/components/Navigation/KeyboardShortcutsModal';
 import Breadcrumbs from '@/components/Navigation/Breadcrumbs';
 import { useNavigation } from '@/lib/stores/navigation';
 import { useKeyboardShortcuts, createShortcut } from '@/hooks/useKeyboardShortcuts';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { buildBreadcrumbs } from '@/lib/breadcrumb-config';
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 /**
  * NavigationShell Component
@@ -71,6 +70,12 @@ export default function NavigationShell({ children }: NavigationShellProps) {
   const [showSearch, setShowSearch] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
 
+  // Scroll to top on route change
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (main) main.scrollTo({ top: 0 });
+  }, [pathname]);
+
   // Check if current route is public (never shows navigation)
   const isPublicRoute = PUBLIC_ROUTES.some(route => pathname?.startsWith(route));
 
@@ -95,12 +100,6 @@ export default function NavigationShell({ children }: NavigationShellProps) {
   }, [pathname, user]);
 
   const showBreadcrumbs = user && breadcrumbItems.length > 0 && !isPublicRoute && !isHomepage;
-
-  // Determine if user is an athlete (any type)
-  const isAthlete = user?.role === 'athlete' || user?.role === 'college_athlete' || user?.role === 'hs_student';
-
-  // Show mobile bottom nav for HS students and college athletes
-  const showMobileBottomNav = isAthlete && !isPublicRoute && !isHeaderOnlyRoute && !isNoNavRoute;
 
   // Determine if user is a compliance officer or on compliance routes
   const isComplianceOfficer = user?.role === 'compliance_officer';
@@ -231,7 +230,6 @@ export default function NavigationShell({ children }: NavigationShellProps) {
             className={`
               flex-1 overflow-auto relative
               transition-none
-              ${showMobileBottomNav ? 'pb-16 md:pb-0' : ''}
             `}
           >
             {/* Breadcrumb Navigation */}
@@ -266,8 +264,6 @@ export default function NavigationShell({ children }: NavigationShellProps) {
       {/* AI Coach Floating Button - All authenticated users */}
       {user && <AICoachButton />}
 
-      {/* Mobile Bottom Tab Navigation - Athletes only */}
-      {showMobileBottomNav && <MobileBottomNav />}
     </>
   );
 }

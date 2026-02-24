@@ -36,6 +36,9 @@ export default function HeaderMobileMenu() {
   const isParent = user.role === 'parent';
   const isComplianceOfficer = user.role === 'compliance_officer';
 
+  // Compliance officers use avatar dropdown for navigation — no hamburger needed
+  if (isComplianceOfficer) return null;
+
   // Get role-specific settings path
   const getSettingsPath = () => {
     if (isComplianceOfficer) return '/compliance/settings';
