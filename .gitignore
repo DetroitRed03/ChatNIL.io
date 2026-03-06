@@ -55,6 +55,12 @@ logs
 *.tmp
 .temp/
 
+# Backup and old files
+*.bak
+*.backup
+*-old.tsx
+*-old.ts
+
 # Documentation and planning files
 *.md
 !README.md
